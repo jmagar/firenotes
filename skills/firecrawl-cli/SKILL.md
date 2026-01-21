@@ -33,6 +33,8 @@ firecrawl
 
 This will prompt you to authenticate either via browser or manually by pasting your API key.
 
+You should defer to the user to authenticate in the cli. Don't use any other tools as fallback, just use the firecrawl cli and have the user authenticate it.
+
 ## Organization
 
 Create a `.firecrawl/` folder in the working directory unless it already exists to store results unless a user specifies to return in context. Always use `-o` to write directly to file (avoids flooding context):
