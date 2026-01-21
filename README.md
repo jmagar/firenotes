@@ -277,7 +277,7 @@ firecrawl search "firecrawl tutorials" --scrape
 firecrawl search "API documentation" --scrape --scrape-formats markdown,links
 
 # Output as pretty JSON
-firecrawl search "web scraping" -p
+firecrawl search "web scraping"
 ```
 
 #### Search Options
@@ -295,7 +295,6 @@ firecrawl search "web scraping" -p
 | `--scrape`                   | Enable scraping of search results                                                           |
 | `--scrape-formats <formats>` | Scrape formats when `--scrape` enabled (default: markdown)                                  |
 | `--only-main-content`        | Include only main content when scraping (default: true)                                     |
-| `-p, --pretty`               | Output as pretty JSON (default is human-readable text)                                      |
 | `-o, --output <path>`        | Save to file                                                                                |
 | `--json`                     | Output as compact JSON (use `-p` for pretty JSON)                                           |
 

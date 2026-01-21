@@ -361,11 +361,11 @@ function createSearchCommand(): Command {
       'Firecrawl API key (overrides global --api-key)'
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option(
-      '-p, --pretty',
-      'Output as pretty JSON (default: human-readable)',
-      false
-    )
+    // .option(
+    //   '-p, --pretty',
+    //   'Output as pretty JSON (default: human-readable)',
+    //   false
+    // )
     .option('--json', 'Output as compact JSON', false)
     .action(async (query, options) => {
       // Parse sources
