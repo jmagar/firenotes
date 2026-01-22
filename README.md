@@ -441,6 +441,23 @@ firecrawl crawl https://docs.example.com --wait -o docs.json
 
 ---
 
+## Telemetry
+
+The CLI collects anonymous usage data during authentication to help improve the product:
+
+- CLI version, OS, and Node.js version
+- Detect development tools (e.g., Cursor, VS Code, Claude Code)
+
+**No command data, URLs, or file contents are collected via the CLI.**
+
+To disable telemetry, set the environment variable:
+
+```bash
+export FIRECRAWL_NO_TELEMETRY=1
+```
+
+---
+
 ## Documentation
 
 For more details, visit the [Firecrawl Documentation](https://docs.firecrawl.dev).

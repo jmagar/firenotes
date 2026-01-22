@@ -166,20 +166,260 @@ async function waitForAuth(
 }
 
 /**
+ * Detect AI coding agents/IDEs that might be using the CLI
+ * Returns all detected agent names since users may have multiple installed
+ */
+function detectCodingAgents(): string[] {
+  try {
+    const agents: string[] = [];
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+
+    // Environment variable detection
+    // Based on documented env vars from official sources
+    const envDetections: Array<{
+      name: string;
+      envVars: string[];
+    }> = [
+      // Aider: Well-documented env vars - https://aider.chat/docs/config/options.html
+      {
+        name: 'aider',
+        envVars: ['AIDER_MODEL', 'AIDER_WEAK_MODEL', 'AIDER_EDITOR_MODEL'],
+      },
+      // Codex (OpenAI): Uses CODEX_HOME for config - https://developers.openai.com/codex/config-advanced/
+      {
+        name: 'codex',
+        envVars: ['CODEX_HOME'],
+      },
+      // OpenCode: Documented env vars - https://opencode.ai/docs/config/
+      {
+        name: 'opencode',
+        envVars: [
+          'OPENCODE_CONFIG',
+          'OPENCODE_CONFIG_DIR',
+          'OPENCODE_CONFIG_CONTENT',
+        ],
+      },
+      // VS Code: Standard VS Code env vars set in integrated terminal
+      {
+        name: 'vscode',
+        envVars: [
+          'VSCODE_PID',
+          'VSCODE_CWD',
+          'VSCODE_IPC_HOOK',
+          'VSCODE_GIT_IPC_HANDLE',
+        ],
+      },
+      // Zed: Terminal indicator
+      {
+        name: 'zed',
+        envVars: ['ZED_TERM'],
+      },
+    ];
+
+    // Check TERM_PROGRAM for terminal-based detection
+    // IDEs often set this when spawning integrated terminals
+    const termProgram = process.env.TERM_PROGRAM?.toLowerCase();
+    if (termProgram) {
+      if (termProgram.includes('cursor')) {
+        agents.push('cursor');
+      } else if (termProgram.includes('windsurf')) {
+        agents.push('windsurf');
+      } else if (termProgram.includes('vscode') || termProgram === 'vscode') {
+        agents.push('vscode');
+      } else if (termProgram.includes('zed')) {
+        agents.push('zed');
+      }
+    }
+
+    // Check specific environment variables
+    for (const detection of envDetections) {
+      // Skip if already detected via TERM_PROGRAM
+      if (agents.includes(detection.name)) continue;
+
+      const hasEnvVar = detection.envVars.some((envVar) => process.env[envVar]);
+      if (hasEnvVar) {
+        agents.push(detection.name);
+      }
+    }
+
+    // Config directory detection (check home directory)
+    const homeDir = os.homedir();
+    const cwd = process.cwd();
+
+    // Config directory detection
+    // Based on official documentation for each tool
+    const configDirDetections: Array<{
+      name: string;
+      dirs: string[];
+      // If set, check for this file/subdirectory for a stronger signal
+      indicator?: string;
+      // Check home directory config path (some tools use ~/.config/toolname)
+      homeConfigPath?: string;
+    }> = [
+      // Cursor: Uses .cursor/ directory - https://docs.cursor.com
+      {
+        name: 'cursor',
+        dirs: ['.cursor'],
+      },
+      // Claude Code: Uses .claude/ with settings files - https://docs.anthropic.com/claude-code
+      // Strong indicator: .claude/settings.json or .claude/settings.local.json
+      {
+        name: 'claude-code',
+        dirs: ['.claude'],
+        indicator: 'settings.json',
+      },
+      // VS Code: Uses .vscode/ for workspace settings
+      {
+        name: 'vscode',
+        dirs: ['.vscode'],
+      },
+      // GitHub Copilot: VS Code extension, check for copilot config
+      {
+        name: 'github-copilot',
+        dirs: ['.github'],
+        indicator: 'copilot-instructions.md',
+      },
+      // OpenCode: Uses .opencode/ in project, ~/.config/opencode/ globally
+      // https://opencode.ai/docs/config/
+      {
+        name: 'opencode',
+        dirs: ['.opencode'],
+        homeConfigPath: '.config/opencode',
+      },
+      // Codex (OpenAI): Uses ~/.codex/ for config
+      // https://developers.openai.com/codex/config-advanced/
+      {
+        name: 'codex',
+        dirs: ['.codex'],
+      },
+      // Continue: Uses ~/.continue/ for config
+      // https://docs.continue.dev/setup/configuration
+      {
+        name: 'continue',
+        dirs: ['.continue'],
+        indicator: 'config.yaml',
+      },
+      // Aider: Uses .aider.conf.yml config files (not a directory)
+      // https://aider.chat/docs/config/options.html
+      {
+        name: 'aider',
+        dirs: ['.aider.conf.yml'],
+      },
+      // Windsurf: VS Code fork, may use .windsurf/
+      {
+        name: 'windsurf',
+        dirs: ['.windsurf'],
+      },
+      // Cline: VS Code extension, stores in VS Code settings
+      // May have .cline/ for project settings
+      {
+        name: 'cline',
+        dirs: ['.cline'],
+      },
+      // Roo Code: VS Code extension, may have .roo/ or uses VS Code settings
+      {
+        name: 'roo-code',
+        dirs: ['.roo'],
+      },
+    ];
+
+    for (const detection of configDirDetections) {
+      // Skip if already detected
+      if (agents.includes(detection.name)) continue;
+
+      let found = false;
+
+      // Check homeConfigPath first (e.g., ~/.config/opencode/)
+      if (detection.homeConfigPath) {
+        try {
+          const configPath = path.join(homeDir, detection.homeConfigPath);
+          if (fs.existsSync(configPath)) {
+            found = true;
+          }
+        } catch {
+          // Ignore permission errors
+        }
+      }
+
+      // Check standard directories
+      if (!found) {
+        for (const dir of detection.dirs) {
+          // Check in current working directory (project-level config)
+          const cwdPath = path.join(cwd, dir);
+          // Check in home directory (global config)
+          const homePath = path.join(homeDir, dir);
+
+          try {
+            // If indicator is specified, check for that file/subdir for a stronger signal
+            if (detection.indicator) {
+              const cwdIndicator = path.join(cwdPath, detection.indicator);
+              const homeIndicator = path.join(homePath, detection.indicator);
+              if (fs.existsSync(cwdIndicator) || fs.existsSync(homeIndicator)) {
+                found = true;
+                break;
+              }
+            }
+
+            // Check if the directory/file itself exists
+            if (fs.existsSync(cwdPath) || fs.existsSync(homePath)) {
+              found = true;
+              break;
+            }
+          } catch {
+            // Ignore permission errors
+          }
+        }
+      }
+
+      if (found) {
+        agents.push(detection.name);
+      }
+    }
+
+    return agents;
+  } catch (error) {
+    console.error('Error detecting coding agents:', error);
+    return [];
+  }
+}
+
+/**
+ * Check if telemetry is disabled via environment variable
+ */
+function isTelemetryDisabled(): boolean {
+  const noTelemetry = process.env.FIRECRAWL_NO_TELEMETRY;
+  return noTelemetry === '1' || noTelemetry === 'true';
+}
+
+/**
  * Get CLI metadata for telemetry
+ * Returns null if telemetry is disabled
  */
 function getCliMetadata(): {
   cli_version: string;
   os_platform: string;
   node_version: string;
-} {
+  detected_agents: string;
+} | null {
+  // Check if telemetry is disabled
+  if (isTelemetryDisabled()) {
+    return null;
+  }
+
   // Dynamic import to avoid circular dependencies
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const packageJson = require('../../package.json');
+
+  // Detect coding agents
+  const agents = detectCodingAgents();
+
   return {
     cli_version: packageJson.version || 'unknown',
     os_platform: process.platform,
     node_version: process.version,
+    detected_agents: agents.join(',') || 'unknown',
   };
 }
 
@@ -199,16 +439,22 @@ async function browserLogin(
   const codeChallenge = generateCodeChallenge(codeVerifier);
 
   // Get CLI metadata for telemetry (non-sensitive)
+  // Returns null if telemetry is disabled via FIRECRAWL_NO_TELEMETRY
   const metadata = getCliMetadata();
-  const telemetryParams = new URLSearchParams({
-    cli_version: metadata.cli_version,
-    os_platform: metadata.os_platform,
-    node_version: metadata.node_version,
-  }).toString();
 
-  // code_challenge and telemetry in query (safe - not sensitive)
-  // session_id in fragment (not sent to server, read by JS only)
-  const loginUrl = `${webUrl}/cli-auth?code_challenge=${codeChallenge}&${telemetryParams}#session_id=${sessionId}`;
+  let loginUrl: string;
+  if (metadata) {
+    const telemetryParams = new URLSearchParams({
+      cli_version: metadata.cli_version,
+      os_platform: metadata.os_platform,
+      node_version: metadata.node_version,
+      detected_agents: metadata.detected_agents,
+    }).toString();
+    loginUrl = `${webUrl}/cli-auth?code_challenge=${codeChallenge}&${telemetryParams}#session_id=${sessionId}`;
+  } else {
+    // Telemetry disabled - don't send metadata
+    loginUrl = `${webUrl}/cli-auth?code_challenge=${codeChallenge}#session_id=${sessionId}`;
+  }
 
   console.log('\nOpening browser for authentication...');
   console.log(`If the browser doesn't open, visit: ${loginUrl}\n`);
@@ -310,6 +556,7 @@ async function interactiveLogin(
   console.log('  \x1b[1m2.\x1b[0m Enter API key manually');
   console.log('');
   printEnvHint();
+  printTelemetryNotice();
 
   const choice = await promptInput('Enter choice [1/2]: ');
 
@@ -329,6 +576,23 @@ function printEnvHint(): void {
   console.log(
     `${dim}Tip: You can also set FIRECRAWL_API_KEY environment variable${reset}\n`
   );
+}
+
+/**
+ * Print telemetry notice
+ */
+function printTelemetryNotice(): void {
+  const dim = '\x1b[2m';
+  const reset = '\x1b[0m';
+
+  if (isTelemetryDisabled()) {
+    console.log(`${dim}Telemetry disabled${reset}\n`);
+  } else {
+    console.log(
+      `${dim}Anonymous telemetry (OS, CLI version, dev tools) collected to improve the CLI.${reset}`
+    );
+    console.log(`${dim}Disable with FIRECRAWL_NO_TELEMETRY=1${reset}\n`);
+  }
 }
 
 /**
