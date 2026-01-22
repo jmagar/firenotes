@@ -216,6 +216,14 @@ function detectCodingAgents(): string[] {
         name: 'zed',
         envVars: ['ZED_TERM'],
       },
+      // Gemini CLI: Google's CLI - https://geminicli.com/docs/get-started/configuration/
+      {
+        name: 'gemini-cli',
+        envVars: [
+          'GEMINI_CLI_SYSTEM_DEFAULTS_PATH',
+          'GEMINI_CLI_SYSTEM_SETTINGS_PATH',
+        ],
+      },
     ];
 
     // Check TERM_PROGRAM for terminal-based detection
@@ -322,6 +330,17 @@ function detectCodingAgents(): string[] {
       {
         name: 'roo-code',
         dirs: ['.roo'],
+      },
+      // Gemini CLI: Google's CLI uses ~/.gemini/ - https://geminicli.com/docs/get-started/configuration/
+      {
+        name: 'gemini-cli',
+        dirs: ['.gemini'],
+        indicator: 'settings.json',
+      },
+      // Antigravity: Google's AI dev environment uses .antigravity config file
+      {
+        name: 'antigravity',
+        dirs: ['.antigravity'],
       },
     ];
 
