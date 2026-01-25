@@ -48,7 +48,7 @@ If not installed: `npm install -g firecrawl-cli`
 
 If not authenticated, run `firecrawl login` and prompt the user to select a login method. Always refer to the installation rules in [rules/install.md](rules/install.md) for more information if the user is not logged in.
 
-## Authentication Error Handling
+If `authenticated: false`, follow the instructions in [install.md](rules/install.md). Don't use any other tools as fallback, just use the firecrawl cli and have the user authenticate it. You will most likely need to prompt the user to authenticate.
 
 If ANY command returns an authentication error (e.g., "not authenticated", "unauthorized", "API key"), use an ask user question tool if available (such as the AskUserQuestion tool in Claude Code):
 
