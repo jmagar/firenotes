@@ -43,6 +43,7 @@ export async function executeExtract(
     // Build single-arg object for new Firecrawl SDK extract()
     const extractArgs: Record<string, unknown> = {
       urls: options.urls,
+      ignoreInvalidURLs: true,
     };
 
     if (options.prompt) {
