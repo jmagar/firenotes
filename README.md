@@ -30,33 +30,26 @@ On first run, you'll be prompted to authenticate:
   🔥 firecrawl cli
   Turn websites into LLM-ready data
 
-Welcome! To get started, authenticate with your Firecrawl account.
+Welcome! To get started, provide your Firecrawl API key.
 
-  1. Login with browser (recommended)
-  2. Enter API key manually
-
-Tip: You can also set FIRECRAWL_API_KEY environment variable
-
-Enter choice [1/2]:
+Tip: You can also set FIRECRAWL_API_KEY and FIRECRAWL_API_URL environment variables
 ```
 
 ### Authentication Methods
 
 ```bash
+# Environment variables (recommended for self-hosted)
+export FIRECRAWL_API_KEY=your-api-key
+export FIRECRAWL_API_URL=http://localhost:53002
+
 # Interactive (prompts automatically when needed)
 firecrawl
 
-# Browser login
-firecrawl login
-
 # Direct API key
-firecrawl login --api-key fc-your-api-key
-
-# Environment variable
-export FIRECRAWL_API_KEY=fc-your-api-key
+firecrawl login --api-key your-api-key --api-url http://localhost:53002
 
 # Per-command API key
-firecrawl scrape https://example.com --api-key fc-your-api-key
+firecrawl scrape https://example.com --api-key your-api-key
 ```
 
 ---
@@ -133,7 +126,6 @@ firecrawl https://example.com --exclude-tags nav,aside,.ad
 ```
 
 ---
-
 
 ### `search` - Search the web
 
@@ -329,19 +321,6 @@ firecrawl crawl https://example.com --wait -o crawl-results.json --pretty
 
 ---
 
-
-### `credit-usage` - Check your credits
-
-```bash
-# Show credit usage
-firecrawl credit-usage
-
-# Output as JSON
-firecrawl credit-usage --json --pretty
-```
-
----
-
 ### `config` - View configuration
 
 ```bash
@@ -355,11 +334,11 @@ Shows authentication status and stored credentials location.
 ### `login` / `logout`
 
 ```bash
-# Login
+# Login interactively
 firecrawl login
-firecrawl login --method browser
-firecrawl login --method manual
-firecrawl login --api-key fc-xxx
+
+# Login with API key and custom URL
+firecrawl login --api-key your-key --api-url http://localhost:53002
 
 # Logout
 firecrawl logout
@@ -371,12 +350,12 @@ firecrawl logout
 
 These options work with any command:
 
-| Option                | Description                                  |
-| --------------------- | -------------------------------------------- |
-| `--status`            | Show version, auth, concurrency, and credits |
-| `-k, --api-key <key>` | Use specific API key                         |
-| `-V, --version`       | Show version                                 |
-| `-h, --help`          | Show help                                    |
+| Option                | Description                     |
+| --------------------- | ------------------------------- |
+| `--status`            | Show version, auth, and API URL |
+| `-k, --api-key <key>` | Use specific API key            |
+| `-V, --version`       | Show version                    |
+| `-h, --help`          | Show help                       |
 
 ### Check Status
 
@@ -385,11 +364,10 @@ firecrawl --status
 ```
 
 ```
-  🔥 firecrawl cli v1.0.2
+  🔥 firecrawl cli v1.1.1
 
-  ● Authenticated via stored credentials
-  Concurrency: 0/100 jobs (parallel scrape limit)
-  Credits: 500,000 / 1,000,000 (50% left this cycle)
+  ● Authenticated via FIRECRAWL_API_KEY
+  API URL: http://localhost:53002
 ```
 
 ---
@@ -460,23 +438,6 @@ firecrawl https://example.com | grep -i "keyword"
 # Set API key via environment
 export FIRECRAWL_API_KEY=${{ secrets.FIRECRAWL_API_KEY }}
 firecrawl crawl https://docs.example.com --wait -o docs.json
-```
-
----
-
-## Telemetry
-
-The CLI collects anonymous usage data during authentication to help improve the product:
-
-- CLI version, OS, and Node.js version
-- Detect development tools (e.g., Cursor, VS Code, Claude Code)
-
-**No command data, URLs, or file contents are collected via the CLI.**
-
-To disable telemetry, set the environment variable:
-
-```bash
-export FIRECRAWL_NO_TELEMETRY=1
 ```
 
 ---

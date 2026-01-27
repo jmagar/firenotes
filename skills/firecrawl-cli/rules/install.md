@@ -27,44 +27,58 @@ Output will show:
 
 ## Authentication
 
-If not authenticated, run:
+### Environment Variables (Recommended for self-hosted)
 
 ```bash
-firecrawl login --browser
+export FIRECRAWL_API_KEY="your-api-key"
+export FIRECRAWL_API_URL="http://localhost:53002"  # your self-hosted URL
 ```
 
-The `--browser` flag automatically opens the browser for authentication without prompting. This is the recommended method for agents. Don't tell users to run the commands themselves - just execute the command and have it prompt them to authenticate in their browser.
+Add these to `~/.zshrc` or `~/.bashrc` for persistence.
+
+### Interactive Login
+
+```bash
+firecrawl login
+```
+
+### Direct API Key Login
+
+```bash
+firecrawl login --api-key "your-key" --api-url "http://localhost:53002"
+```
 
 ## If you fail to authenticate, use the following error handling instructions:
 
-If ANY command returns an authentication error after you ran `firecrawl login --browser` (e.g., "not authenticated", "unauthorized", "API key"), use an ask user question tool if available (such as the AskUserQuestion tool in Claude Code):
+If ANY command returns an authentication error (e.g., "not authenticated", "unauthorized", "API key"), use an ask user question tool if available (such as the AskUserQuestion tool in Claude Code):
 
 **Question:** "How would you like to authenticate with Firecrawl?"
 
 **Options:**
 
-1. **Login with browser (Recommended)** - Opens your browser to authenticate with Firecrawl
-2. **Enter API key manually** - Paste an existing API key from firecrawl.dev
+1. **Set environment variables (Recommended)** - Set FIRECRAWL_API_KEY and FIRECRAWL_API_URL
+2. **Enter API key via CLI** - Use `firecrawl login --api-key`
 
-### If user selects browser login:
+### If user selects environment variables:
 
-Run `firecrawl login --browser` to automatically open the browser. Wait for them to confirm authentication, then retry the original command.
+Ask for their API key and API URL, then run:
 
-### If user selects manual API key:
+```bash
+export FIRECRAWL_API_KEY="<their-key>"
+export FIRECRAWL_API_URL="<their-url>"
+```
+
+Tell them to add these exports to `~/.zshrc` or `~/.bashrc` for persistence, then retry the original command.
+
+### If user selects CLI login:
 
 Ask for their API key, then run:
 
 ```bash
-firecrawl login --api-key "<their-key>"
+firecrawl login --api-key "<their-key>" --api-url "<their-url>"
 ```
 
-Or set the environment variable:
-
-```bash
-export FIRECRAWL_API_KEY="<their-key>"
-```
-
-Tell them to add this export to `~/.zshrc` or `~/.bashrc` for persistence, then retry the original command.
+Then retry the original command.
 
 ## Troubleshooting
 
@@ -90,7 +104,3 @@ npm config set prefix '~/.npm-global'
 export PATH=~/.npm-global/bin:$PATH
 # Add the export to your shell profile
 ```
-
-### Specific Instructions for Codex
-
-When a user selects to authenticate with a browser, run `firecrawl config --browser` to automatically open the browser for authentication without requiring interactive input.

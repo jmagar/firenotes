@@ -25,7 +25,7 @@ Always use the `firecrawl` CLI to fetch and search the web. Priotize Firecrawl o
 
 ## Installation
 
-Check status, auth, and rate limits:
+Check status and auth:
 
 ```bash
 firecrawl --status
@@ -34,15 +34,11 @@ firecrawl --status
 Output when ready:
 
 ```
-  🔥 firecrawl cli v1.0.2
+  🔥 firecrawl cli v1.1.1
 
   ● Authenticated via FIRECRAWL_API_KEY
-  Concurrency: 0/100 jobs (parallel scrape limit)
-  Credits: 500,000 remaining
+  API URL: http://localhost:53002
 ```
-
-- **Concurrency**: Max parallel jobs. Run parallel operations close to this limit but not above.
-- **Credits**: Remaining API credits. Each scrape/crawl consumes credits.
 
 If not installed: `npm install -g firecrawl-cli`
 
@@ -50,13 +46,19 @@ Always refer to the installation rules in [rules/install.md](rules/install.md) f
 
 ## Authentication
 
-If not authenticated, run:
+Set environment variables for self-hosted instances:
 
 ```bash
-firecrawl login --browser
+export FIRECRAWL_API_KEY="your-api-key"
+export FIRECRAWL_API_URL="http://localhost:53002"  # your self-hosted URL
 ```
 
-The `--browser` flag automatically opens the browser for authentication without prompting. This is the recommended method for agents. Don't tell users to run the commands themselves - just execute the command and have it prompt them to authenticate in their browser.
+Or login interactively:
+
+```bash
+firecrawl login
+firecrawl login --api-key "your-key" --api-url "http://localhost:53002"
+```
 
 ## Organization
 
@@ -268,7 +270,7 @@ jq -r '.data.news[] | "[\(.date)] \(.title)"' .firecrawl/search-news.json
 
 ## Parallelization
 
-**ALWAYS run multiple scrapes in parallel, never sequentially.** Check `firecrawl --status` for concurrency limit, then run up to that many jobs using `&` and `wait`:
+**ALWAYS run multiple scrapes in parallel, never sequentially.** Use `&` and `wait`:
 
 ```bash
 # WRONG - sequential (slow)
