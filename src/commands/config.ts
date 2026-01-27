@@ -5,13 +5,11 @@
 
 import { loadCredentials, getConfigDirectoryPath } from '../utils/credentials';
 import { getConfig } from '../utils/config';
-import { isAuthenticated, ensureAuthenticated } from '../utils/auth';
+import { isAuthenticated } from '../utils/auth';
 
 export interface ConfigureOptions {
   apiKey?: string;
   apiUrl?: string;
-  webUrl?: string;
-  method?: 'browser' | 'manual';
 }
 
 /**
@@ -19,14 +17,12 @@ export interface ConfigureOptions {
  */
 export async function configure(options: ConfigureOptions = {}): Promise<void> {
   // If not authenticated, trigger the login flow
-  if (!isAuthenticated() || options.apiKey || options.method) {
+  if (!isAuthenticated() || options.apiKey) {
     // Import handleLoginCommand to avoid circular dependency
     const { handleLoginCommand } = await import('./login');
     await handleLoginCommand({
       apiKey: options.apiKey,
       apiUrl: options.apiUrl,
-      webUrl: options.webUrl,
-      method: options.method,
     });
     return;
   }

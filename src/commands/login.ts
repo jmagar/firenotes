@@ -1,25 +1,17 @@
 /**
  * Login command implementation
- * Handles both manual API key entry and browser-based authentication
+ * Handles API key entry for authentication
  */
 
 import { saveCredentials, getConfigDirectoryPath } from '../utils/credentials';
 import { updateConfig } from '../utils/config';
-import {
-  browserLogin,
-  manualLogin,
-  interactiveLogin,
-  isAuthenticated,
-} from '../utils/auth';
+import { manualLogin, interactiveLogin, isAuthenticated } from '../utils/auth';
 
 const DEFAULT_API_URL = 'https://api.firecrawl.dev';
-const WEB_URL = 'https://firecrawl.dev';
 
 export interface LoginOptions {
   apiKey?: string;
   apiUrl?: string;
-  webUrl?: string;
-  method?: 'browser' | 'manual';
 }
 
 /**
@@ -29,10 +21,9 @@ export async function handleLoginCommand(
   options: LoginOptions = {}
 ): Promise<void> {
   const apiUrl = options.apiUrl?.replace(/\/$/, '') || DEFAULT_API_URL;
-  const webUrl = options.webUrl?.replace(/\/$/, '') || WEB_URL;
 
   // If already authenticated, let them know
-  if (isAuthenticated() && !options.apiKey && !options.method) {
+  if (isAuthenticated() && !options.apiKey) {
     console.log('You are already logged in.');
     console.log(`Credentials stored at: ${getConfigDirectoryPath()}`);
     console.log('\nTo login with a different account, run:');
@@ -65,15 +56,7 @@ export async function handleLoginCommand(
   }
 
   try {
-    let result: { apiKey: string; apiUrl: string; teamName?: string };
-
-    if (options.method === 'manual') {
-      result = await manualLogin();
-    } else if (options.method === 'browser') {
-      result = await browserLogin(webUrl);
-    } else {
-      result = await interactiveLogin(webUrl);
-    }
+    const result = await interactiveLogin();
 
     // Save credentials
     saveCredentials({
@@ -82,9 +65,6 @@ export async function handleLoginCommand(
     });
 
     console.log('\n✓ Login successful!');
-    if (result.teamName) {
-      console.log(`  Team: ${result.teamName}`);
-    }
 
     updateConfig({
       apiKey: result.apiKey,

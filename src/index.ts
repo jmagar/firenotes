@@ -448,21 +448,10 @@ program
     'Provide API key directly (skips interactive flow)'
   )
   .option('--api-url <url>', 'API URL (default: https://api.firecrawl.dev)')
-  .option(
-    '--web-url <url>',
-    'Web URL for browser login (default: https://firecrawl.dev)'
-  )
-  .option(
-    '-m, --method <method>',
-    'Login method: "browser" or "manual" (default: interactive prompt)'
-  )
-  .option('-b, --browser', 'Login via browser (shortcut for --method browser)')
   .action(async (options) => {
     await configure({
       apiKey: options.apiKey,
       apiUrl: options.apiUrl,
-      webUrl: options.webUrl,
-      method: options.browser ? 'browser' : options.method,
     });
   });
 
@@ -481,21 +470,10 @@ program
     'Provide API key directly (skips interactive flow)'
   )
   .option('--api-url <url>', 'API URL (default: https://api.firecrawl.dev)')
-  .option(
-    '--web-url <url>',
-    'Web URL for browser login (default: https://firecrawl.dev)'
-  )
-  .option(
-    '-m, --method <method>',
-    'Login method: "browser" or "manual" (default: interactive prompt)'
-  )
-  .option('-b, --browser', 'Login via browser (shortcut for --method browser)')
   .action(async (options) => {
     await handleLoginCommand({
       apiKey: options.apiKey,
       apiUrl: options.apiUrl,
-      webUrl: options.webUrl,
-      method: options.browser ? 'browser' : options.method,
     });
   });
 
