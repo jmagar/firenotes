@@ -43,13 +43,6 @@ export async function handleLoginCommand(
 
   // If API key provided directly, save it
   if (options.apiKey) {
-    if (!options.apiKey.startsWith('fc-')) {
-      console.error(
-        'Error: Invalid API key format. API keys should start with "fc-"'
-      );
-      process.exit(1);
-    }
-
     try {
       saveCredentials({
         apiKey: options.apiKey,

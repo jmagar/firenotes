@@ -503,10 +503,6 @@ async function manualLogin(): Promise<{ apiKey: string; apiUrl: string }> {
     throw new Error('API key cannot be empty');
   }
 
-  if (!apiKey.startsWith('fc-')) {
-    throw new Error('Invalid API key format. API keys should start with "fc-"');
-  }
-
   return {
     apiKey: apiKey.trim(),
     apiUrl: DEFAULT_API_URL,

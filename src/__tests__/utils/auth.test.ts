@@ -70,6 +70,15 @@ describe('Authentication Utilities', () => {
 
       expect(isAuthenticated()).toBe(false);
     });
+
+    it('should return true when API key does not start with fc-', () => {
+      initializeConfig({
+        apiKey: 'local-dev',
+        apiUrl: 'http://localhost:53002',
+      });
+
+      expect(isAuthenticated()).toBe(true);
+    });
   });
 
   describe('Authentication priority', () => {
