@@ -40,6 +40,8 @@ export interface ScrapeOptions {
   json?: boolean;
   /** Show request timing and other useful information */
   timing?: boolean;
+  /** Enable auto-embedding of scraped content (default: true) */
+  embed?: boolean;
 }
 
 export interface ScrapeResult {

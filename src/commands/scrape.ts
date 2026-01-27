@@ -10,6 +10,7 @@ import type {
 } from '../types/scrape';
 import { getClient } from '../utils/client';
 import { handleScrapeOutput } from '../utils/output';
+import { autoEmbed } from '../utils/embedpipeline';
 
 /**
  * Output timing information if requested
@@ -127,6 +128,20 @@ export async function handleScrapeCommand(
 ): Promise<void> {
   const result = await executeScrape(options);
 
+  // Start embedding concurrently with output
+  const embedPromise =
+    options.embed !== false && result.success && result.data
+      ? autoEmbed(
+          result.data.markdown || result.data.html || result.data.rawHtml || '',
+          {
+            url: options.url,
+            title: result.data.metadata?.title,
+            sourceCommand: 'scrape',
+            contentType: options.formats?.[0] || 'markdown',
+          }
+        )
+      : Promise.resolve();
+
   // Determine effective formats for output handling
   const effectiveFormats: ScrapeFormat[] =
     options.formats && options.formats.length > 0
@@ -145,4 +160,7 @@ export async function handleScrapeCommand(
     options.pretty,
     options.json
   );
+
+  // Wait for embedding to complete
+  await embedPromise;
 }

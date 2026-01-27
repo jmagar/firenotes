@@ -104,6 +104,7 @@ function createScrapeCommand(): Command {
       'Show request timing and other useful information',
       false
     )
+    .option('--no-embed', 'Skip auto-embedding of scraped content')
     .action(async (positionalUrl, positionalFormats, options) => {
       // Use positional URL if provided, otherwise use --url option
       const url = positionalUrl || options.url;

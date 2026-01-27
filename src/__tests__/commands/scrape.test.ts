@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { executeScrape } from '../../commands/scrape';
+import { executeScrape, handleScrapeCommand } from '../../commands/scrape';
 import { getClient } from '../../utils/client';
 import { initializeConfig } from '../../utils/config';
 import { setupTest, teardownTest } from '../utils/mock-client';
@@ -16,6 +16,16 @@ vi.mock('../../utils/client', async () => {
     getClient: vi.fn(),
   };
 });
+
+// Mock the embed pipeline module
+vi.mock('../../utils/embedpipeline', () => ({
+  autoEmbed: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Mock the output module to prevent console output in tests
+vi.mock('../../utils/output', () => ({
+  handleScrapeOutput: vi.fn(),
+}));
 
 describe('executeScrape', () => {
   let mockClient: any;
@@ -290,5 +300,140 @@ describe('executeScrape', () => {
         formats: ['markdown', 'links', 'images'],
       });
     });
+  });
+});
+
+describe('handleScrapeCommand auto-embed', () => {
+  let mockClient: any;
+
+  beforeEach(async () => {
+    setupTest();
+    initializeConfig({
+      apiKey: 'test-api-key',
+      apiUrl: 'https://api.firecrawl.dev',
+    });
+
+    mockClient = {
+      scrape: vi.fn(),
+    };
+    vi.mocked(getClient).mockReturnValue(mockClient as any);
+
+    // Reset mocks between tests
+    const { autoEmbed } = await import('../../utils/embedpipeline');
+    vi.mocked(autoEmbed).mockClear();
+  });
+
+  afterEach(() => {
+    teardownTest();
+    vi.clearAllMocks();
+  });
+
+  it('should call autoEmbed when embed is not false and scrape succeeds', async () => {
+    const mockResponse = {
+      markdown: '# Test Content',
+      metadata: { title: 'Test Page' },
+    };
+    mockClient.scrape.mockResolvedValue(mockResponse);
+
+    await handleScrapeCommand({
+      url: 'https://example.com',
+      formats: ['markdown'],
+    });
+
+    const { autoEmbed } = await import('../../utils/embedpipeline');
+    expect(autoEmbed).toHaveBeenCalledTimes(1);
+    expect(autoEmbed).toHaveBeenCalledWith('# Test Content', {
+      url: 'https://example.com',
+      title: 'Test Page',
+      sourceCommand: 'scrape',
+      contentType: 'markdown',
+    });
+  });
+
+  it('should skip autoEmbed when embed is false', async () => {
+    const mockResponse = {
+      markdown: '# Test Content',
+      metadata: { title: 'Test Page' },
+    };
+    mockClient.scrape.mockResolvedValue(mockResponse);
+
+    await handleScrapeCommand({
+      url: 'https://example.com',
+      formats: ['markdown'],
+      embed: false,
+    });
+
+    const { autoEmbed } = await import('../../utils/embedpipeline');
+    expect(autoEmbed).not.toHaveBeenCalled();
+  });
+
+  it('should skip autoEmbed when scrape fails', async () => {
+    mockClient.scrape.mockRejectedValue(new Error('Scrape failed'));
+
+    await handleScrapeCommand({
+      url: 'https://example.com',
+      formats: ['markdown'],
+    });
+
+    const { autoEmbed } = await import('../../utils/embedpipeline');
+    expect(autoEmbed).not.toHaveBeenCalled();
+  });
+
+  it('should call autoEmbed when embed is undefined (default on)', async () => {
+    const mockResponse = {
+      markdown: '# Default embed',
+      metadata: { title: 'Default' },
+    };
+    mockClient.scrape.mockResolvedValue(mockResponse);
+
+    await handleScrapeCommand({
+      url: 'https://example.com',
+    });
+
+    const { autoEmbed } = await import('../../utils/embedpipeline');
+    expect(autoEmbed).toHaveBeenCalledTimes(1);
+  });
+
+  it('should use html content when markdown is not available', async () => {
+    const mockResponse = {
+      html: '<h1>HTML Content</h1>',
+      metadata: { title: 'HTML Page' },
+    };
+    mockClient.scrape.mockResolvedValue(mockResponse);
+
+    await handleScrapeCommand({
+      url: 'https://example.com',
+      formats: ['html'],
+    });
+
+    const { autoEmbed } = await import('../../utils/embedpipeline');
+    expect(autoEmbed).toHaveBeenCalledWith('<h1>HTML Content</h1>', {
+      url: 'https://example.com',
+      title: 'HTML Page',
+      sourceCommand: 'scrape',
+      contentType: 'html',
+    });
+  });
+
+  it('should use rawHtml as fallback content', async () => {
+    const mockResponse = {
+      rawHtml: '<html><body>Raw</body></html>',
+      metadata: {},
+    };
+    mockClient.scrape.mockResolvedValue(mockResponse);
+
+    await handleScrapeCommand({
+      url: 'https://example.com',
+      formats: ['rawHtml'],
+    });
+
+    const { autoEmbed } = await import('../../utils/embedpipeline');
+    expect(autoEmbed).toHaveBeenCalledWith(
+      '<html><body>Raw</body></html>',
+      expect.objectContaining({
+        url: 'https://example.com',
+        sourceCommand: 'scrape',
+      })
+    );
   });
 });

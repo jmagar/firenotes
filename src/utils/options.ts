@@ -89,5 +89,6 @@ export function parseScrapeOptions(options: any): ScrapeOptions {
     pretty: options.pretty,
     json: options.json,
     timing: options.timing,
+    embed: options.embed,
   };
 }

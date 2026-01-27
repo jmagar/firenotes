@@ -303,6 +303,29 @@ describe('Option Parsing Utilities', () => {
       expect(result.formats).toBeUndefined();
     });
 
+    it('should pass embed flag through parseScrapeOptions', () => {
+      const result = parseScrapeOptions({
+        url: 'https://example.com',
+        embed: false,
+      });
+      expect(result.embed).toBe(false);
+    });
+
+    it('should pass embed true through parseScrapeOptions', () => {
+      const result = parseScrapeOptions({
+        url: 'https://example.com',
+        embed: true,
+      });
+      expect(result.embed).toBe(true);
+    });
+
+    it('should leave embed undefined when not provided', () => {
+      const result = parseScrapeOptions({
+        url: 'https://example.com',
+      });
+      expect(result.embed).toBeUndefined();
+    });
+
     it('should handle all options together', () => {
       const options = {
         url: 'https://example.com',
