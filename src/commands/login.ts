@@ -4,10 +4,8 @@
  */
 
 import { saveCredentials, getConfigDirectoryPath } from '../utils/credentials';
-import { updateConfig } from '../utils/config';
+import { updateConfig, DEFAULT_API_URL } from '../utils/config';
 import { manualLogin, interactiveLogin, isAuthenticated } from '../utils/auth';
-
-const DEFAULT_API_URL = 'https://api.firecrawl.dev';
 
 export interface LoginOptions {
   apiKey?: string;

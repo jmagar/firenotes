@@ -5,10 +5,8 @@
 
 import packageJson from '../../package.json';
 import { isAuthenticated } from '../utils/auth';
-import { getConfig } from '../utils/config';
+import { getConfig, DEFAULT_API_URL } from '../utils/config';
 import { loadCredentials } from '../utils/credentials';
-
-const DEFAULT_API_URL = 'https://api.firecrawl.dev';
 
 type AuthSource = 'env' | 'stored' | 'none';
 

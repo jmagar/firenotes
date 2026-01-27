@@ -4,6 +4,8 @@
 
 import { loadCredentials } from './credentials';
 
+export const DEFAULT_API_URL = 'https://api.firecrawl.dev';
+
 export interface GlobalConfig {
   apiKey?: string;
   apiUrl?: string;

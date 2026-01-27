@@ -4,7 +4,7 @@
  */
 
 import { loadCredentials, getConfigDirectoryPath } from '../utils/credentials';
-import { getConfig } from '../utils/config';
+import { getConfig, DEFAULT_API_URL } from '../utils/config';
 import { isAuthenticated } from '../utils/auth';
 
 export interface ConfigureOptions {
@@ -52,7 +52,7 @@ export async function viewConfig(): Promise<void> {
 
     console.log('Status: ✓ Authenticated\n');
     console.log(`API Key:  ${maskedKey}`);
-    console.log(`API URL:  ${config.apiUrl || 'https://api.firecrawl.dev'}`);
+    console.log(`API URL:  ${config.apiUrl || DEFAULT_API_URL}`);
     console.log(`Config:   ${getConfigDirectoryPath()}`);
     console.log('\nCommands:');
     console.log('  firecrawl logout       Clear credentials');

@@ -9,9 +9,7 @@ import {
   saveCredentials,
   getConfigDirectoryPath,
 } from './credentials';
-import { updateConfig, getApiKey } from './config';
-
-const DEFAULT_API_URL = 'https://api.firecrawl.dev';
+import { updateConfig, getApiKey, DEFAULT_API_URL } from './config';
 
 /**
  * Prompt for input
