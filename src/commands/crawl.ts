@@ -11,6 +11,7 @@ import { getClient } from '../utils/client';
 import { isJobId } from '../utils/job';
 import { writeOutput } from '../utils/output';
 import { autoEmbed } from '../utils/embedpipeline';
+import { loadSettings } from '../utils/settings';
 
 /**
  * Execute crawl status check
@@ -66,8 +67,14 @@ export async function executeCrawl(
     if (options.maxDepth !== undefined) {
       crawlOptions.maxDiscoveryDepth = options.maxDepth;
     }
-    if (options.excludePaths && options.excludePaths.length > 0) {
-      crawlOptions.excludePaths = options.excludePaths;
+    // Merge default exclude paths from settings with CLI exclude paths
+    const defaultExcludes = options.noDefaultExcludes
+      ? []
+      : (loadSettings().defaultExcludePaths ?? []);
+    const cliExcludes = options.excludePaths ?? [];
+    const mergedExcludes = [...new Set([...defaultExcludes, ...cliExcludes])];
+    if (mergedExcludes.length > 0) {
+      crawlOptions.excludePaths = mergedExcludes;
     }
     if (options.includePaths && options.includePaths.length > 0) {
       crawlOptions.includePaths = options.includePaths;

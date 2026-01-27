@@ -6,6 +6,7 @@
 import { loadCredentials, getConfigDirectoryPath } from '../utils/credentials';
 import { getConfig, DEFAULT_API_URL } from '../utils/config';
 import { isAuthenticated } from '../utils/auth';
+import { loadSettings, saveSettings, clearSetting } from '../utils/settings';
 
 export interface ConfigureOptions {
   apiKey?: string;
@@ -54,6 +55,18 @@ export async function viewConfig(): Promise<void> {
     console.log(`API Key:  ${maskedKey}`);
     console.log(`API URL:  ${config.apiUrl || DEFAULT_API_URL}`);
     console.log(`Config:   ${getConfigDirectoryPath()}`);
+
+    // Show settings
+    const settings = loadSettings();
+    if (
+      settings.defaultExcludePaths &&
+      settings.defaultExcludePaths.length > 0
+    ) {
+      console.log(
+        `\nDefault Exclude Paths: ${settings.defaultExcludePaths.join(', ')}`
+      );
+    }
+
     console.log('\nCommands:');
     console.log('  firecrawl logout       Clear credentials');
     console.log('  firecrawl config       Re-authenticate');
@@ -63,4 +76,62 @@ export async function viewConfig(): Promise<void> {
     console.log('  firecrawl config    Authenticate with browser or API key');
   }
   console.log('');
+}
+
+/**
+ * Handle config set <key> <value>
+ */
+export function handleConfigSet(key: string, value: string): void {
+  if (key !== 'exclude-paths') {
+    console.error(`Error: Unknown setting "${key}".`);
+    console.error('Available settings: exclude-paths');
+    process.exit(1);
+  }
+
+  const paths = value
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (paths.length === 0) {
+    console.error('Error: No paths provided.');
+    process.exit(1);
+  }
+
+  saveSettings({ defaultExcludePaths: paths });
+  console.log(`Default exclude paths set: ${paths.join(', ')}`);
+}
+
+/**
+ * Handle config get <key>
+ */
+export function handleConfigGet(key: string): void {
+  if (key !== 'exclude-paths') {
+    console.error(`Error: Unknown setting "${key}".`);
+    console.error('Available settings: exclude-paths');
+    process.exit(1);
+  }
+
+  const settings = loadSettings();
+  const paths = settings.defaultExcludePaths;
+
+  if (!paths || paths.length === 0) {
+    console.log('No default exclude paths configured.');
+  } else {
+    console.log(`Default exclude paths: ${paths.join(', ')}`);
+  }
+}
+
+/**
+ * Handle config clear <key>
+ */
+export function handleConfigClear(key: string): void {
+  if (key !== 'exclude-paths') {
+    console.error(`Error: Unknown setting "${key}".`);
+    console.error('Available settings: exclude-paths');
+    process.exit(1);
+  }
+
+  clearSetting('defaultExcludePaths');
+  console.log('Default exclude paths cleared.');
 }

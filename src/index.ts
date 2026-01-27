@@ -10,7 +10,13 @@ import { Command } from 'commander';
 import { handleScrapeCommand } from './commands/scrape';
 import { initializeConfig, updateConfig } from './utils/config';
 import { getClient } from './utils/client';
-import { configure, viewConfig } from './commands/config';
+import {
+  configure,
+  viewConfig,
+  handleConfigSet,
+  handleConfigGet,
+  handleConfigClear,
+} from './commands/config';
 import { handleCrawlCommand } from './commands/crawl';
 import { handleMapCommand } from './commands/map';
 import { handleSearchCommand } from './commands/search';
@@ -131,7 +137,11 @@ function createScrapeCommand(): Command {
         format = 'markdown';
       }
 
-      const scrapeOptions = parseScrapeOptions({ ...options, url, format });
+      const scrapeOptions = parseScrapeOptions({
+        ...options,
+        url: normalizeUrl(url),
+        format,
+      });
       await handleScrapeCommand(scrapeOptions);
     });
 
@@ -201,6 +211,7 @@ function createCrawlCommand(): Command {
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--pretty', 'Pretty print JSON output', false)
     .option('--no-embed', 'Skip auto-embedding of crawl results')
+    .option('--no-default-excludes', 'Skip default exclude paths from settings')
     .action(async (positionalUrlOrJobId, options) => {
       // Use positional argument if provided, otherwise use --url option
       const urlOrJobId = positionalUrlOrJobId || options.url;
@@ -215,7 +226,7 @@ function createCrawlCommand(): Command {
       const isStatusCheck = options.status || isJobId(urlOrJobId);
 
       const crawlOptions = {
-        urlOrJobId,
+        urlOrJobId: isStatusCheck ? urlOrJobId : normalizeUrl(urlOrJobId),
         status: isStatusCheck,
         wait: options.wait,
         pollInterval: options.pollInterval,
@@ -240,6 +251,7 @@ function createCrawlCommand(): Command {
         delay: options.delay,
         maxConcurrency: options.maxConcurrency,
         embed: options.embed,
+        noDefaultExcludes: options.defaultExcludes === false,
       };
 
       await handleCrawlCommand(crawlOptions);
@@ -292,7 +304,7 @@ function createMapCommand(): Command {
       }
 
       const mapOptions = {
-        urlOrJobId: url,
+        urlOrJobId: normalizeUrl(url),
         wait: options.wait,
         output: options.output,
         json: options.json,
@@ -483,9 +495,11 @@ function createExtractCommand(): Command {
     .option('--no-embed', 'Disable auto-embedding of extracted content')
     .action(async (rawUrls: string[], options) => {
       // Flatten URLs that may contain newlines (e.g. zsh doesn't word-split variables)
-      const urls = rawUrls.flatMap((u) =>
-        u.includes('\n') ? u.split('\n').filter(Boolean) : [u]
-      );
+      const urls = rawUrls
+        .flatMap((u) =>
+          u.includes('\n') ? u.split('\n').filter(Boolean) : [u]
+        )
+        .map(normalizeUrl);
       await handleExtractCommand({
         urls,
         prompt: options.prompt,
@@ -526,13 +540,19 @@ function createEmbedCommand(): Command {
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as JSON format', false)
     .action(async (input: string, options) => {
+      // Normalize URL input (but not file paths or stdin "-")
+      const normalizedInput = isUrl(input) ? normalizeUrl(input) : input;
+
       // Conditionally require auth only for URL input
-      if (input.startsWith('http://') || input.startsWith('https://')) {
+      if (
+        normalizedInput.startsWith('http://') ||
+        normalizedInput.startsWith('https://')
+      ) {
         await ensureAuthenticated();
       }
 
       await handleEmbedCommand({
-        input,
+        input: normalizedInput,
         url: options.url,
         collection: options.collection,
         noChunk: !options.chunk,
@@ -591,7 +611,7 @@ function createRetrieveCommand(): Command {
     .option('--json', 'Output as JSON format', false)
     .action(async (url: string, options) => {
       await handleRetrieveCommand({
-        url,
+        url: normalizeUrl(url),
         collection: options.collection,
         output: options.output,
         json: options.json,
@@ -607,7 +627,7 @@ program.addCommand(createEmbedCommand());
 program.addCommand(createQueryCommand());
 program.addCommand(createRetrieveCommand());
 
-program
+const configCmd = program
   .command('config')
   .description('Configure Firecrawl (login if not authenticated)')
   .option(
@@ -620,6 +640,31 @@ program
       apiKey: options.apiKey,
       apiUrl: options.apiUrl,
     });
+  });
+
+configCmd
+  .command('set')
+  .description('Set a configuration value')
+  .argument('<key>', 'Setting key (e.g., exclude-paths)')
+  .argument('<value>', 'Setting value (comma-separated for lists)')
+  .action((key: string, value: string) => {
+    handleConfigSet(key, value);
+  });
+
+configCmd
+  .command('get')
+  .description('Get a configuration value')
+  .argument('<key>', 'Setting key (e.g., exclude-paths)')
+  .action((key: string) => {
+    handleConfigGet(key);
+  });
+
+configCmd
+  .command('clear')
+  .description('Clear a configuration value')
+  .argument('<key>', 'Setting key (e.g., exclude-paths)')
+  .action((key: string) => {
+    handleConfigClear(key);
   });
 
 program

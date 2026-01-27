@@ -45,6 +45,8 @@ export interface CrawlOptions {
   maxConcurrency?: number;
   /** Enable auto-embedding of crawl results */
   embed?: boolean;
+  /** Skip default exclude paths from settings */
+  noDefaultExcludes?: boolean;
 }
 
 export interface CrawlResult {
