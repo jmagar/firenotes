@@ -30,9 +30,17 @@ describe('isJobId', () => {
     expect(isJobId('550e8400-E29b-41d4-A716-446655440000')).toBe(true);
   });
 
-  it('should return false for UUID v1 format', () => {
-    // UUID v1 has different version number (1 instead of 4)
-    expect(isJobId('550e8400-e29b-11d4-a716-446655440000')).toBe(false);
+  it('should return true for UUID v7 format', () => {
+    // UUID v7 has version 7 in the third group — used by self-hosted Firecrawl
+    expect(isJobId('019bfe41-f924-77db-8041-13f0d170c87e')).toBe(true);
+    expect(isJobId('019bfe41-f924-7aaa-bbbb-cccccccccccc')).toBe(true);
+  });
+
+  it('should return true for other UUID versions (v1, v5, v6)', () => {
+    // UUID v1
+    expect(isJobId('550e8400-e29b-11d4-a716-446655440000')).toBe(true);
+    // UUID v5-like
+    expect(isJobId('550e8400-e29b-51d4-a716-446655440000')).toBe(true);
   });
 });
 

@@ -7,9 +7,9 @@
  * Firecrawl job IDs are UUIDs (e.g., "550e8400-e29b-41d4-a716-446655440000")
  */
 export function isJobId(str: string): boolean {
-  // UUID v4 pattern
+  // Match any UUID format (v1-v7) — self-hosted Firecrawl uses UUID v7
   const uuidPattern =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidPattern.test(str);
 }
 
