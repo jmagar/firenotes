@@ -18,6 +18,10 @@ import { handleVersionCommand } from './commands/version';
 import { handleLoginCommand } from './commands/login';
 import { handleLogoutCommand } from './commands/logout';
 import { handleStatusCommand } from './commands/status';
+import { handleExtractCommand } from './commands/extract';
+import { handleEmbedCommand } from './commands/embed';
+import { handleQueryCommand } from './commands/query';
+import { handleRetrieveCommand } from './commands/retrieve';
 import { isUrl, normalizeUrl } from './utils/url';
 import { parseScrapeOptions } from './utils/options';
 import { isJobId } from './utils/job';
@@ -30,7 +34,7 @@ import type { ScrapeFormat } from './types/scrape';
 initializeConfig();
 
 // Commands that require authentication
-const AUTH_REQUIRED_COMMANDS = ['scrape', 'crawl', 'map', 'search'];
+const AUTH_REQUIRED_COMMANDS = ['scrape', 'crawl', 'map', 'search', 'extract'];
 
 const program = new Command();
 
@@ -440,6 +444,154 @@ function createSearchCommand(): Command {
 program.addCommand(createCrawlCommand());
 program.addCommand(createMapCommand());
 program.addCommand(createSearchCommand());
+
+/**
+ * Create and configure the extract command
+ */
+function createExtractCommand(): Command {
+  const extractCmd = new Command('extract')
+    .description('Extract structured data from URLs using Firecrawl')
+    .argument('<urls...>', 'URL(s) to extract from')
+    .option('--prompt <prompt>', 'Extraction prompt describing what to extract')
+    .option('--schema <json>', 'JSON schema for structured extraction')
+    .option('--system-prompt <prompt>', 'System prompt for extraction context')
+    .option('--allow-external-links', 'Allow following external links', false)
+    .option(
+      '--enable-web-search',
+      'Enable web search for additional context',
+      false
+    )
+    .option('--include-subdomains', 'Include subdomains when extracting', false)
+    .option('--show-sources', 'Include source URLs in result', false)
+    .option(
+      '-k, --api-key <key>',
+      'Firecrawl API key (overrides global --api-key)'
+    )
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--json', 'Output as JSON format', false)
+    .option('--pretty', 'Pretty print JSON output', false)
+    .option('--no-embed', 'Disable auto-embedding of extracted content')
+    .action(async (urls: string[], options) => {
+      await handleExtractCommand({
+        urls,
+        prompt: options.prompt,
+        schema: options.schema,
+        systemPrompt: options.systemPrompt,
+        allowExternalLinks: options.allowExternalLinks,
+        enableWebSearch: options.enableWebSearch,
+        includeSubdomains: options.includeSubdomains,
+        showSources: options.showSources,
+        apiKey: options.apiKey,
+        output: options.output,
+        json: options.json,
+        pretty: options.pretty,
+        embed: options.embed,
+      });
+    });
+
+  return extractCmd;
+}
+
+/**
+ * Create and configure the embed command
+ */
+function createEmbedCommand(): Command {
+  const embedCmd = new Command('embed')
+    .description('Embed content into Qdrant vector database')
+    .argument('<input>', 'URL to scrape and embed, file path, or "-" for stdin')
+    .option(
+      '--url <url>',
+      'Explicit URL for metadata (required for file/stdin)'
+    )
+    .option('--collection <name>', 'Qdrant collection name')
+    .option('--no-chunk', 'Disable chunking, embed as single vector')
+    .option(
+      '-k, --api-key <key>',
+      'Firecrawl API key (overrides global --api-key)'
+    )
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--json', 'Output as JSON format', false)
+    .action(async (input: string, options) => {
+      // Conditionally require auth only for URL input
+      if (input.startsWith('http://') || input.startsWith('https://')) {
+        await ensureAuthenticated();
+      }
+
+      await handleEmbedCommand({
+        input,
+        url: options.url,
+        collection: options.collection,
+        noChunk: !options.chunk,
+        apiKey: options.apiKey,
+        output: options.output,
+        json: options.json,
+      });
+    });
+
+  return embedCmd;
+}
+
+/**
+ * Create and configure the query command
+ */
+function createQueryCommand(): Command {
+  const queryCmd = new Command('query')
+    .description('Semantic search over embedded content in Qdrant')
+    .argument('<query>', 'Search query text')
+    .option(
+      '--limit <number>',
+      'Maximum number of results (default: 5)',
+      parseInt
+    )
+    .option('--domain <domain>', 'Filter results by domain')
+    .option('--full', 'Show full chunk text instead of truncated', false)
+    .option('--group', 'Group results by URL', false)
+    .option('--collection <name>', 'Qdrant collection name')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--json', 'Output as JSON format', false)
+    .action(async (query: string, options) => {
+      await handleQueryCommand({
+        query,
+        limit: options.limit,
+        domain: options.domain,
+        full: options.full,
+        group: options.group,
+        collection: options.collection,
+        output: options.output,
+        json: options.json,
+      });
+    });
+
+  return queryCmd;
+}
+
+/**
+ * Create and configure the retrieve command
+ */
+function createRetrieveCommand(): Command {
+  const retrieveCmd = new Command('retrieve')
+    .description('Retrieve full document from Qdrant by URL')
+    .argument('<url>', 'URL of the document to retrieve')
+    .option('--collection <name>', 'Qdrant collection name')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--json', 'Output as JSON format', false)
+    .action(async (url: string, options) => {
+      await handleRetrieveCommand({
+        url,
+        collection: options.collection,
+        output: options.output,
+        json: options.json,
+      });
+    });
+
+  return retrieveCmd;
+}
+
+// Add extract, embed, query, and retrieve commands to main program
+program.addCommand(createExtractCommand());
+program.addCommand(createEmbedCommand());
+program.addCommand(createQueryCommand());
+program.addCommand(createRetrieveCommand());
 
 program
   .command('config')
