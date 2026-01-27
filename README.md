@@ -134,116 +134,6 @@ firecrawl https://example.com --exclude-tags nav,aside,.ad
 
 ---
 
-### `crawl` - Crawl an entire website
-
-Crawl multiple pages from a website.
-
-```bash
-# Start a crawl (returns job ID)
-firecrawl crawl https://example.com
-
-# Wait for crawl to complete
-firecrawl crawl https://example.com --wait
-
-# With progress indicator
-firecrawl crawl https://example.com --wait --progress
-
-# Check crawl status
-firecrawl crawl <job-id>
-
-# Limit pages
-firecrawl crawl https://example.com --limit 100 --max-depth 3
-```
-
-#### Crawl Options
-
-| Option                      | Description                              |
-| --------------------------- | ---------------------------------------- |
-| `--wait`                    | Wait for crawl to complete               |
-| `--progress`                | Show progress while waiting              |
-| `--limit <n>`               | Maximum pages to crawl                   |
-| `--max-depth <n>`           | Maximum crawl depth                      |
-| `--include-paths <paths>`   | Only crawl matching paths                |
-| `--exclude-paths <paths>`   | Skip matching paths                      |
-| `--sitemap <mode>`          | `include`, `skip`, or `only`             |
-| `--allow-subdomains`        | Include subdomains                       |
-| `--allow-external-links`    | Follow external links                    |
-| `--crawl-entire-domain`     | Crawl entire domain                      |
-| `--ignore-query-parameters` | Treat URLs with different params as same |
-| `--delay <ms>`              | Delay between requests                   |
-| `--max-concurrency <n>`     | Max concurrent requests                  |
-| `--timeout <seconds>`       | Timeout when waiting                     |
-| `--poll-interval <seconds>` | Status check interval                    |
-
-#### Examples
-
-```bash
-# Crawl blog section only
-firecrawl crawl https://example.com --include-paths /blog,/posts
-
-# Exclude admin pages
-firecrawl crawl https://example.com --exclude-paths /admin,/login
-
-# Crawl with rate limiting
-firecrawl crawl https://example.com --delay 1000 --max-concurrency 2
-
-# Deep crawl with high limit
-firecrawl crawl https://example.com --limit 1000 --max-depth 10 --wait --progress
-
-# Save results
-firecrawl crawl https://example.com --wait -o crawl-results.json --pretty
-```
-
----
-
-### `map` - Discover all URLs on a website
-
-Quickly discover all URLs on a website without scraping content.
-
-```bash
-# List all URLs (one per line)
-firecrawl map https://example.com
-
-# Output as JSON
-firecrawl map https://example.com --json
-
-# Search for specific URLs
-firecrawl map https://example.com --search "blog"
-
-# Limit results
-firecrawl map https://example.com --limit 500
-```
-
-#### Map Options
-
-| Option                      | Description                       |
-| --------------------------- | --------------------------------- |
-| `--limit <n>`               | Maximum URLs to discover          |
-| `--search <query>`          | Filter URLs by search query       |
-| `--sitemap <mode>`          | `include`, `skip`, or `only`      |
-| `--include-subdomains`      | Include subdomains                |
-| `--ignore-query-parameters` | Dedupe URLs with different params |
-| `--timeout <seconds>`       | Request timeout                   |
-| `--json`                    | Output as JSON                    |
-| `-o, --output <path>`       | Save to file                      |
-
-#### Examples
-
-```bash
-# Find all product pages
-firecrawl map https://shop.example.com --search "product"
-
-# Get sitemap URLs only
-firecrawl map https://example.com --sitemap only
-
-# Save URL list to file
-firecrawl map https://example.com -o urls.txt
-
-# Include subdomains
-firecrawl map https://example.com --include-subdomains --limit 1000
-```
-
----
 
 ### `search` - Search the web
 
@@ -327,6 +217,118 @@ firecrawl search "AI startups funding" --sources news --tbs qdr:w --limit 15
 ```
 
 ---
+
+### `map` - Discover all URLs on a website
+
+Quickly discover all URLs on a website without scraping content.
+
+```bash
+# List all URLs (one per line)
+firecrawl map https://example.com
+
+# Output as JSON
+firecrawl map https://example.com --json
+
+# Search for specific URLs
+firecrawl map https://example.com --search "blog"
+
+# Limit results
+firecrawl map https://example.com --limit 500
+```
+
+#### Map Options
+
+| Option                      | Description                       |
+| --------------------------- | --------------------------------- |
+| `--limit <n>`               | Maximum URLs to discover          |
+| `--search <query>`          | Filter URLs by search query       |
+| `--sitemap <mode>`          | `include`, `skip`, or `only`      |
+| `--include-subdomains`      | Include subdomains                |
+| `--ignore-query-parameters` | Dedupe URLs with different params |
+| `--timeout <seconds>`       | Request timeout                   |
+| `--json`                    | Output as JSON                    |
+| `-o, --output <path>`       | Save to file                      |
+
+#### Examples
+
+```bash
+# Find all product pages
+firecrawl map https://shop.example.com --search "product"
+
+# Get sitemap URLs only
+firecrawl map https://example.com --sitemap only
+
+# Save URL list to file
+firecrawl map https://example.com -o urls.txt
+
+# Include subdomains
+firecrawl map https://example.com --include-subdomains --limit 1000
+```
+
+---
+
+### `crawl` - Crawl an entire website
+
+Crawl multiple pages from a website.
+
+```bash
+# Start a crawl (returns job ID)
+firecrawl crawl https://example.com
+
+# Wait for crawl to complete
+firecrawl crawl https://example.com --wait
+
+# With progress indicator
+firecrawl crawl https://example.com --wait --progress
+
+# Check crawl status
+firecrawl crawl <job-id>
+
+# Limit pages
+firecrawl crawl https://example.com --limit 100 --max-depth 3
+```
+
+#### Crawl Options
+
+| Option                      | Description                              |
+| --------------------------- | ---------------------------------------- |
+| `--wait`                    | Wait for crawl to complete               |
+| `--progress`                | Show progress while waiting              |
+| `--limit <n>`               | Maximum pages to crawl                   |
+| `--max-depth <n>`           | Maximum crawl depth                      |
+| `--include-paths <paths>`   | Only crawl matching paths                |
+| `--exclude-paths <paths>`   | Skip matching paths                      |
+| `--sitemap <mode>`          | `include`, `skip`, or `only`             |
+| `--allow-subdomains`        | Include subdomains                       |
+| `--allow-external-links`    | Follow external links                    |
+| `--crawl-entire-domain`     | Crawl entire domain                      |
+| `--ignore-query-parameters` | Treat URLs with different params as same |
+| `--delay <ms>`              | Delay between requests                   |
+| `--max-concurrency <n>`     | Max concurrent requests                  |
+| `--timeout <seconds>`       | Timeout when waiting                     |
+| `--poll-interval <seconds>` | Status check interval                    |
+
+#### Examples
+
+```bash
+# Crawl blog section only
+firecrawl crawl https://example.com --include-paths /blog,/posts
+
+# Exclude admin pages
+firecrawl crawl https://example.com --exclude-paths /admin,/login
+
+# Crawl with rate limiting
+firecrawl crawl https://example.com --delay 1000 --max-concurrency 2
+
+# Deep crawl with high limit
+firecrawl crawl https://example.com --limit 1000 --max-depth 10 --wait --progress
+
+# Save results
+firecrawl crawl https://example.com --wait -o crawl-results.json --pretty
+```
+
+---
+
 
 ### `credit-usage` - Check your credits
 
