@@ -21,11 +21,69 @@ import { spawn, execSync } from 'child_process';
 import { readFileSync } from 'fs';
 
 /**
+ * List of allowed Python interpreter paths/names.
+ * Used to prevent command injection via malicious shebang lines.
+ */
+const ALLOWED_PYTHON_INTERPRETERS = [
+  'python3',
+  'python',
+  '/usr/bin/python3',
+  '/usr/bin/python',
+  '/usr/local/bin/python3',
+  '/usr/local/bin/python',
+];
+
+/**
+ * Validate that a Python interpreter path is safe to execute.
+ *
+ * Accepts:
+ * - Paths in the allowed list
+ * - Paths that start with allowed prefixes and contain only safe characters
+ *
+ * @param interpreterPath - The path to validate
+ * @returns true if the path is safe to use
+ */
+function isValidPythonInterpreter(interpreterPath: string): boolean {
+  // Exact match with allowed paths
+  if (ALLOWED_PYTHON_INTERPRETERS.includes(interpreterPath)) {
+    return true;
+  }
+
+  // Check for valid absolute path pattern (no shell metacharacters)
+  // Allows paths like /home/user/.local/pipx/venvs/notebooklm/bin/python3
+  const safePathPattern = /^\/[a-zA-Z0-9_\-./]+python[0-9.]*$/;
+  if (safePathPattern.test(interpreterPath)) {
+    // Additional check: path must contain 'python' and not contain dangerous characters
+    const dangerousPatterns = [
+      ';',
+      '&',
+      '|',
+      '$',
+      '`',
+      '(',
+      ')',
+      '{',
+      '}',
+      '<',
+      '>',
+      '\n',
+      '\r',
+    ];
+    return !dangerousPatterns.some((char) => interpreterPath.includes(char));
+  }
+
+  return false;
+}
+
+/**
  * Find the Python interpreter that has notebooklm installed.
  *
  * Resolution order:
  * 1. Read shebang from `which notebooklm` to find the pipx venv Python
  * 2. Fall back to `python3`
+ *
+ * Security: Validates the interpreter path to prevent command injection
+ * through malicious shebang lines.
  */
 function findPython(): string {
   try {
@@ -34,7 +92,14 @@ function findPython(): string {
     }).trim();
     const shebang = readFileSync(notebookBin, 'utf-8').split('\n')[0];
     if (shebang.startsWith('#!') && shebang.includes('python')) {
-      return shebang.slice(2).trim();
+      const interpreterPath = shebang.slice(2).trim();
+      // Validate the interpreter path to prevent command injection
+      if (isValidPythonInterpreter(interpreterPath)) {
+        return interpreterPath;
+      }
+      console.error(
+        `[NotebookLM] Warning: Ignoring potentially unsafe interpreter path from shebang: ${interpreterPath}`
+      );
     }
   } catch {
     // notebooklm CLI not found or shebang unreadable

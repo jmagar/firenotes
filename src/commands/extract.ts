@@ -4,8 +4,9 @@
 
 import type { ExtractOptions, ExtractResult } from '../types/extract';
 import { getClient } from '../utils/client';
+import { handleCommandError, formatJson } from '../utils/command';
+import { batchEmbed, type EmbedItem } from '../utils/embedpipeline';
 import { writeOutput } from '../utils/output';
-import { autoEmbed } from '../utils/embedpipeline';
 
 /**
  * Convert extracted data to human-readable text for embedding
@@ -124,9 +125,9 @@ export async function handleExtractCommand(
 ): Promise<void> {
   const result = await executeExtract(options);
 
-  if (!result.success) {
-    console.error('Error:', result.error);
-    process.exit(1);
+  // Use shared error handler
+  if (!handleCommandError(result)) {
+    return;
   }
 
   if (!result.data) return;
@@ -137,19 +138,22 @@ export async function handleExtractCommand(
       ? result.data.sources
       : options.urls;
 
-  // Start embedding concurrently (human-readable text, not raw JSON)
-  const embedPromises =
-    options.embed !== false
-      ? embedTargets.map((targetUrl) =>
-          autoEmbed(extractionToText(result.data!.extracted), {
-            url: targetUrl,
-            sourceCommand: 'extract',
-            contentType: 'extracted',
-          })
-        )
-      : [];
+  // Build embed items for batch embedding
+  // Extract command embeds the extracted data (not markdown/html)
+  if (options.embed !== false) {
+    const extractedText = extractionToText(result.data.extracted);
+    const embedItems: EmbedItem[] = embedTargets.map((targetUrl) => ({
+      content: extractedText,
+      metadata: {
+        url: targetUrl,
+        sourceCommand: 'extract',
+        contentType: 'extracted',
+      },
+    }));
+    await batchEmbed(embedItems);
+  }
 
-  // Format output
+  // Format output using shared utility
   const outputData: Record<string, unknown> = {
     success: true,
     data: result.data.extracted,
@@ -161,14 +165,6 @@ export async function handleExtractCommand(
     outputData.warning = result.data.warning;
   }
 
-  const outputContent = options.pretty
-    ? JSON.stringify(outputData, null, 2)
-    : JSON.stringify(outputData);
-
+  const outputContent = formatJson(outputData, options.pretty);
   writeOutput(outputContent, options.output, !!options.output);
-
-  // Wait for embedding to finish
-  if (embedPromises.length > 0) {
-    await Promise.all(embedPromises);
-  }
 }

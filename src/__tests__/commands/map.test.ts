@@ -74,7 +74,15 @@ describe('executeMap', () => {
       expect(body.url).toBe('https://example.com');
     });
 
-    it('should include default User-Agent in request body headers', async () => {
+    it('should include default User-Agent as HTTP header when configured', async () => {
+      // Reset and initialize with default User-Agent
+      resetConfig();
+      initializeConfig({
+        apiKey: 'test-api-key',
+        apiUrl: 'https://api.firecrawl.dev',
+        userAgent: DEFAULT_USER_AGENT,
+      });
+
       fetchSpy = mockFetchResponse({ links: [] });
       vi.stubGlobal('fetch', fetchSpy);
 
@@ -82,11 +90,11 @@ describe('executeMap', () => {
         urlOrJobId: 'https://example.com',
       });
 
-      const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
-      expect(body.headers).toEqual({ 'User-Agent': DEFAULT_USER_AGENT });
+      const [, options] = fetchSpy.mock.calls[0];
+      expect(options.headers['User-Agent']).toBe(DEFAULT_USER_AGENT);
     });
 
-    it('should include custom User-Agent when configured', async () => {
+    it('should include custom User-Agent as HTTP header when configured', async () => {
       resetConfig();
       initializeConfig({
         apiKey: 'test-api-key',
@@ -101,8 +109,22 @@ describe('executeMap', () => {
         urlOrJobId: 'https://example.com',
       });
 
-      const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
-      expect(body.headers).toEqual({ 'User-Agent': 'custom-bot/1.0' });
+      const [, options] = fetchSpy.mock.calls[0];
+      expect(options.headers['User-Agent']).toBe('custom-bot/1.0');
+    });
+
+    it('should always include default User-Agent header', async () => {
+      // Default config always includes DEFAULT_USER_AGENT
+      fetchSpy = mockFetchResponse({ links: [] });
+      vi.stubGlobal('fetch', fetchSpy);
+
+      await executeMap({
+        urlOrJobId: 'https://example.com',
+      });
+
+      const [, options] = fetchSpy.mock.calls[0];
+      // User-Agent is always set (defaults to DEFAULT_USER_AGENT in config)
+      expect(options.headers['User-Agent']).toBe(DEFAULT_USER_AGENT);
     });
 
     it('should include limit option when provided', async () => {
@@ -156,7 +178,7 @@ describe('executeMap', () => {
       });
 
       const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
-      expect(body.ignorQueryParameters).toBe(true);
+      expect(body.ignoreQueryParameters).toBe(true);
     });
 
     it('should include timeout option converted to milliseconds', async () => {
@@ -173,6 +195,14 @@ describe('executeMap', () => {
     });
 
     it('should combine all options correctly', async () => {
+      // Configure User-Agent for this test
+      resetConfig();
+      initializeConfig({
+        apiKey: 'test-api-key',
+        apiUrl: 'https://api.firecrawl.dev',
+        userAgent: DEFAULT_USER_AGENT,
+      });
+
       fetchSpy = mockFetchResponse({
         links: [
           'https://example.com/blog/post1',
@@ -190,14 +220,16 @@ describe('executeMap', () => {
         timeout: 120,
       });
 
-      const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+      const [, fetchOptions] = fetchSpy.mock.calls[0];
+      const body = JSON.parse(fetchOptions.body);
       expect(body.url).toBe('https://example.com');
       expect(body.limit).toBe(100);
       expect(body.search).toBe('blog');
       expect(body.includeSubdomains).toBe(true);
-      expect(body.ignorQueryParameters).toBe(true);
+      expect(body.ignoreQueryParameters).toBe(true);
       expect(body.timeout).toBe(120000);
-      expect(body.headers).toEqual({ 'User-Agent': DEFAULT_USER_AGENT });
+      // User-Agent is sent as HTTP header, not in body
+      expect(fetchOptions.headers['User-Agent']).toBe(DEFAULT_USER_AGENT);
     });
   });
 

@@ -3,7 +3,15 @@
  * Handles collection management, upsert, delete, query, and scroll operations
  */
 
+import { fetchWithRetry } from './http';
+
 const SCROLL_PAGE_SIZE = 100;
+
+/** HTTP timeout for Qdrant requests (60 seconds - longer for large operations) */
+const QDRANT_TIMEOUT_MS = 60000;
+
+/** Number of retries for Qdrant requests */
+const QDRANT_MAX_RETRIES = 3;
 
 const collectionCache = new Set<string>();
 
@@ -25,7 +33,11 @@ export async function ensureCollection(
 ): Promise<void> {
   if (collectionCache.has(collection)) return;
 
-  const checkResponse = await fetch(`${qdrantUrl}/collections/${collection}`);
+  const checkResponse = await fetchWithRetry(
+    `${qdrantUrl}/collections/${collection}`,
+    undefined,
+    { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+  );
 
   if (checkResponse.ok) {
     collectionCache.add(collection);
@@ -39,16 +51,20 @@ export async function ensureCollection(
   }
 
   // Create collection
-  const createResponse = await fetch(`${qdrantUrl}/collections/${collection}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      vectors: {
-        size: dimension,
-        distance: 'Cosine',
-      },
-    }),
-  });
+  const createResponse = await fetchWithRetry(
+    `${qdrantUrl}/collections/${collection}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vectors: {
+          size: dimension,
+          distance: 'Cosine',
+        },
+      }),
+    },
+    { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+  );
 
   if (!createResponse.ok) {
     throw new Error(
@@ -56,18 +72,24 @@ export async function ensureCollection(
     );
   }
 
-  // Create payload indexes for fast filtering
+  // Create payload indexes for fast filtering (in parallel)
   const indexFields = ['url', 'domain', 'source_command'];
-  for (const field of indexFields) {
-    await fetch(`${qdrantUrl}/collections/${collection}/index`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        field_name: field,
-        field_schema: 'keyword',
-      }),
-    });
-  }
+  await Promise.all(
+    indexFields.map((field) =>
+      fetchWithRetry(
+        `${qdrantUrl}/collections/${collection}/index`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            field_name: field,
+            field_schema: 'keyword',
+          }),
+        },
+        { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+      )
+    )
+  );
 
   collectionCache.add(collection);
 }
@@ -86,13 +108,14 @@ export async function upsertPoints(
   collection: string,
   points: QdrantPoint[]
 ): Promise<void> {
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `${qdrantUrl}/collections/${collection}/points`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ points }),
-    }
+    },
+    { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
   );
 
   if (!response.ok) {
@@ -108,7 +131,7 @@ export async function deleteByUrl(
   collection: string,
   url: string
 ): Promise<void> {
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `${qdrantUrl}/collections/${collection}/points/delete`,
     {
       method: 'POST',
@@ -118,7 +141,8 @@ export async function deleteByUrl(
           must: [{ key: 'url', match: { value: url } }],
         },
       }),
-    }
+    },
+    { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
   );
 
   if (!response.ok) {
@@ -158,13 +182,14 @@ export async function queryPoints(
     };
   }
 
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `${qdrantUrl}/collections/${collection}/points/query`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }
+    },
+    { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
   );
 
   if (!response.ok) {
@@ -220,13 +245,14 @@ export async function scrollByUrl(
       body.offset = offset;
     }
 
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${qdrantUrl}/collections/${collection}/points/scroll`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      }
+      },
+      { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
     );
 
     if (!response.ok) {

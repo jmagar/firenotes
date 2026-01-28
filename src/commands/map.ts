@@ -3,14 +3,19 @@
  */
 
 import type { MapOptions, MapResult } from '../types/map';
+import { handleCommandError, formatJson } from '../utils/command';
 import {
   getConfig,
   getApiKey,
   validateConfig,
   DEFAULT_API_URL,
 } from '../utils/config';
+import { fetchWithTimeout } from '../utils/http';
 import { addUrlsToNotebook } from '../utils/notebooklm';
 import { writeOutput } from '../utils/output';
+
+/** HTTP timeout for map API requests (60 seconds) */
+const MAP_TIMEOUT_MS = 60000;
 
 /**
  * Execute map command
@@ -63,11 +68,15 @@ export async function executeMap(options: MapOptions): Promise<MapResult> {
       headers['User-Agent'] = userAgent;
     }
 
-    const response = await fetch(`${apiUrl}/v1/map`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    });
+    const response = await fetchWithTimeout(
+      `${apiUrl}/v1/map`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      },
+      MAP_TIMEOUT_MS
+    );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
@@ -120,9 +129,9 @@ function formatMapReadable(data: MapResult['data']): string {
 export async function handleMapCommand(options: MapOptions): Promise<void> {
   const result = await executeMap(options);
 
-  if (!result.success) {
-    console.error('Error:', result.error);
-    process.exit(1);
+  // Use shared error handler
+  if (!handleCommandError(result)) {
+    return;
   }
 
   if (!result.data) {
@@ -178,9 +187,10 @@ export async function handleMapCommand(options: MapOptions): Promise<void> {
 
   // Use JSON format if --json flag is set
   if (options.json) {
-    outputContent = options.pretty
-      ? JSON.stringify({ success: true, data: result.data }, null, 2)
-      : JSON.stringify({ success: true, data: result.data });
+    outputContent = formatJson(
+      { success: true, data: result.data },
+      options.pretty
+    );
   } else {
     // Default to human-readable format (one URL per line)
     outputContent = formatMapReadable(result.data);

@@ -7,7 +7,7 @@ import { executeSearch, handleSearchCommand } from '../../commands/search';
 import { getClient } from '../../utils/client';
 import { initializeConfig } from '../../utils/config';
 import { setupTest, teardownTest } from '../utils/mock-client';
-import { autoEmbed } from '../../utils/embedpipeline';
+// autoEmbed is mocked below via mockAutoEmbed
 
 // Mock the Firecrawl client module
 vi.mock('../../utils/client', async () => {
@@ -18,9 +18,58 @@ vi.mock('../../utils/client', async () => {
   };
 });
 
-// Mock the embed pipeline module
+// Mock embedpipeline - mock autoEmbed and provide implementations for batch functions
+// Use vi.hoisted to ensure mockAutoEmbed is defined before vi.mock runs (vi.mock is hoisted)
+const { mockAutoEmbed } = vi.hoisted(() => ({
+  mockAutoEmbed: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../../utils/embedpipeline', () => ({
-  autoEmbed: vi.fn().mockResolvedValue(undefined),
+  autoEmbed: mockAutoEmbed,
+  // Re-implement batchEmbed to call the mockAutoEmbed
+  batchEmbed: vi.fn().mockImplementation(
+    async (
+      items: Array<{
+        content: string;
+        metadata: {
+          url: string;
+          title?: string;
+          sourceCommand: string;
+          contentType?: string;
+        };
+      }>
+    ) => {
+      for (const item of items) {
+        await mockAutoEmbed(item.content, item.metadata);
+      }
+    }
+  ),
+  // Re-implement createEmbedItems to match real behavior
+  createEmbedItems: vi.fn().mockImplementation(
+    (
+      pages: Array<{
+        markdown?: string;
+        html?: string;
+        url?: string;
+        title?: string;
+        metadata?: { sourceURL?: string; url?: string; title?: string };
+      }>,
+      sourceCommand: string
+    ) => {
+      return pages
+        .filter((page) => page.markdown || page.html)
+        .map((page) => ({
+          content: page.markdown || page.html || '',
+          metadata: {
+            url:
+              page.url || page.metadata?.sourceURL || page.metadata?.url || '',
+            title: page.title || page.metadata?.title,
+            sourceCommand,
+            contentType: page.markdown ? 'markdown' : 'html',
+          },
+        }));
+    }
+  ),
 }));
 
 // Mock the output module to prevent console output in tests
@@ -731,7 +780,7 @@ describe('handleSearchCommand auto-embed', () => {
       search: vi.fn(),
     };
     vi.mocked(getClient).mockReturnValue(mockClient as any);
-    vi.mocked(autoEmbed).mockResolvedValue();
+    mockAutoEmbed.mockResolvedValue(undefined);
     vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit');
     });
@@ -764,14 +813,14 @@ describe('handleSearchCommand auto-embed', () => {
       scrape: true,
     });
 
-    expect(autoEmbed).toHaveBeenCalledTimes(2);
-    expect(autoEmbed).toHaveBeenCalledWith('# Example Content', {
+    expect(mockAutoEmbed).toHaveBeenCalledTimes(2);
+    expect(mockAutoEmbed).toHaveBeenCalledWith('# Example Content', {
       url: 'https://example.com',
       title: 'Example Page',
       sourceCommand: 'search',
       contentType: 'markdown',
     });
-    expect(autoEmbed).toHaveBeenCalledWith('# Another Content', {
+    expect(mockAutoEmbed).toHaveBeenCalledWith('# Another Content', {
       url: 'https://example2.com',
       title: 'Another Page',
       sourceCommand: 'search',
@@ -796,7 +845,7 @@ describe('handleSearchCommand auto-embed', () => {
       scrape: false,
     });
 
-    expect(autoEmbed).not.toHaveBeenCalled();
+    expect(mockAutoEmbed).not.toHaveBeenCalled();
   });
 
   it('should skip autoEmbed when scrape is undefined (default non-scrape search)', async () => {
@@ -815,7 +864,7 @@ describe('handleSearchCommand auto-embed', () => {
       query: 'test query',
     });
 
-    expect(autoEmbed).not.toHaveBeenCalled();
+    expect(mockAutoEmbed).not.toHaveBeenCalled();
   });
 
   it('should skip autoEmbed when embed is explicitly false', async () => {
@@ -836,7 +885,7 @@ describe('handleSearchCommand auto-embed', () => {
       embed: false,
     });
 
-    expect(autoEmbed).not.toHaveBeenCalled();
+    expect(mockAutoEmbed).not.toHaveBeenCalled();
   });
 
   it('should use html content when markdown is not available', async () => {
@@ -856,8 +905,8 @@ describe('handleSearchCommand auto-embed', () => {
       scrape: true,
     });
 
-    expect(autoEmbed).toHaveBeenCalledTimes(1);
-    expect(autoEmbed).toHaveBeenCalledWith('<h1>HTML Content</h1>', {
+    expect(mockAutoEmbed).toHaveBeenCalledTimes(1);
+    expect(mockAutoEmbed).toHaveBeenCalledWith('<h1>HTML Content</h1>', {
       url: 'https://example.com',
       title: 'HTML Page',
       sourceCommand: 'search',
@@ -887,8 +936,8 @@ describe('handleSearchCommand auto-embed', () => {
       scrape: true,
     });
 
-    expect(autoEmbed).toHaveBeenCalledTimes(1);
-    expect(autoEmbed).toHaveBeenCalledWith('# Real Content', {
+    expect(mockAutoEmbed).toHaveBeenCalledTimes(1);
+    expect(mockAutoEmbed).toHaveBeenCalledWith('# Real Content', {
       url: 'https://example2.com',
       title: 'Has Content',
       sourceCommand: 'search',
@@ -908,7 +957,7 @@ describe('handleSearchCommand auto-embed', () => {
       // process.exit mock throws
     }
 
-    expect(autoEmbed).not.toHaveBeenCalled();
+    expect(mockAutoEmbed).not.toHaveBeenCalled();
   });
 
   it('should not call autoEmbed when no results are returned', async () => {
@@ -920,6 +969,6 @@ describe('handleSearchCommand auto-embed', () => {
       scrape: true,
     });
 
-    expect(autoEmbed).not.toHaveBeenCalled();
+    expect(mockAutoEmbed).not.toHaveBeenCalled();
   });
 });

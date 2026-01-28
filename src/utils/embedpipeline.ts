@@ -1,19 +1,39 @@
 /**
  * Embed pipeline orchestrator
  * Coordinates chunking, embedding, and vector storage
+ *
+ * Provides both single-document embedding (autoEmbed) and
+ * batch embedding with concurrency control (batchEmbed).
  */
 
 import { randomUUID } from 'crypto';
+import pLimit from 'p-limit';
 import { getConfig } from './config';
 import { chunkText } from './chunker';
 import { getTeiInfo, embedChunks } from './embeddings';
 import { ensureCollection, deleteByUrl, upsertPoints } from './qdrant';
 
-interface EmbedMetadata {
+/**
+ * Maximum concurrent embedding operations to prevent resource exhaustion
+ */
+const MAX_CONCURRENT_EMBEDS = 10;
+
+/**
+ * Metadata for embedding a single document
+ */
+export interface EmbedMetadata {
   url: string;
   title?: string;
   sourceCommand: string;
   contentType?: string;
+}
+
+/**
+ * Item to be embedded in batch operations
+ */
+export interface EmbedItem {
+  content: string;
+  metadata: EmbedMetadata;
 }
 
 /**
@@ -98,4 +118,75 @@ export async function autoEmbed(
       error instanceof Error ? error.message : 'Unknown error'
     );
   }
+}
+
+/**
+ * Batch embed multiple items with concurrency control.
+ *
+ * This consolidates the repeated pattern across crawl, search, and extract:
+ * ```
+ * const limit = pLimit(MAX_CONCURRENT_EMBEDS);
+ * const embedPromises: Promise<void>[] = [];
+ * for (const item of items) {
+ *   embedPromises.push(limit(async () => { await autoEmbed(...); }));
+ * }
+ * await Promise.all(embedPromises);
+ * ```
+ *
+ * @param items - Array of items to embed
+ * @param options - Optional configuration
+ * @returns Promise that resolves when all items are embedded
+ */
+export async function batchEmbed(
+  items: EmbedItem[],
+  options: { concurrency?: number } = {}
+): Promise<void> {
+  if (items.length === 0) return;
+
+  const concurrency = options.concurrency ?? MAX_CONCURRENT_EMBEDS;
+  const limit = pLimit(concurrency);
+
+  const promises = items.map((item) =>
+    limit(async () => {
+      try {
+        await autoEmbed(item.content, item.metadata);
+      } catch {
+        // Silently ignore individual embedding errors - don't fail the batch
+      }
+    })
+  );
+
+  await Promise.all(promises);
+}
+
+/**
+ * Create embed items from an array of pages/documents.
+ *
+ * This is a helper for the common pattern of converting crawl/search results
+ * to embed items.
+ *
+ * @param pages - Array of pages with content and metadata
+ * @param sourceCommand - The command that generated these pages
+ * @returns Array of EmbedItem objects
+ */
+export function createEmbedItems<
+  T extends {
+    markdown?: string;
+    html?: string;
+    url?: string;
+    title?: string;
+    metadata?: { sourceURL?: string; url?: string; title?: string };
+  },
+>(pages: T[], sourceCommand: string): EmbedItem[] {
+  return pages
+    .filter((page) => page.markdown || page.html)
+    .map((page) => ({
+      content: page.markdown || page.html || '',
+      metadata: {
+        url: page.url || page.metadata?.sourceURL || page.metadata?.url || '',
+        title: page.title || page.metadata?.title,
+        sourceCommand,
+        contentType: page.markdown ? 'markdown' : 'html',
+      },
+    }));
 }

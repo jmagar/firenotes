@@ -34,7 +34,8 @@ describe('Qdrant client', () => {
 
       await ensureCollection(qdrantUrl, collection, 1024);
       expect(mockFetch).toHaveBeenCalledTimes(1);
-      expect(mockFetch).toHaveBeenCalledWith(
+      // Note: fetchWithRetry adds signal for timeout, so check URL separately
+      expect(mockFetch.mock.calls[0][0]).toBe(
         `${qdrantUrl}/collections/${collection}`
       );
     });
@@ -73,10 +74,11 @@ describe('Qdrant client', () => {
     });
 
     it('should throw on non-404 errors when checking collection', async () => {
-      mockFetch.mockResolvedValueOnce({
+      // Use 403 (not retryable) to avoid retry delays in tests
+      mockFetch.mockResolvedValue({
         ok: false,
-        status: 500,
-        statusText: 'Internal Server Error',
+        status: 403,
+        statusText: 'Forbidden',
       });
 
       await expect(

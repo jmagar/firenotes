@@ -8,10 +8,11 @@ import type {
   QueryResult,
   QueryResultItem,
 } from '../types/query';
+import { handleCommandError, formatJson } from '../utils/command';
 import { getConfig } from '../utils/config';
 import { embedBatch } from '../utils/embeddings';
-import { queryPoints } from '../utils/qdrant';
 import { writeOutput } from '../utils/output';
+import { queryPoints } from '../utils/qdrant';
 
 /**
  * Execute query command
@@ -172,16 +173,16 @@ function getRetrievalHint(): string {
 export async function handleQueryCommand(options: QueryOptions): Promise<void> {
   const result = await executeQuery(options);
 
-  if (!result.success) {
-    console.error('Error:', result.error);
-    process.exit(1);
+  // Use shared error handler
+  if (!handleCommandError(result)) {
+    return;
   }
 
   if (!result.data) return;
 
   let outputContent: string;
   if (options.json) {
-    outputContent = JSON.stringify({ success: true, data: result.data });
+    outputContent = formatJson({ success: true, data: result.data });
   } else if (options.group) {
     outputContent = formatGrouped(result.data, !!options.full);
   } else if (options.full) {

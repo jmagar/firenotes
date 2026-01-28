@@ -40,7 +40,9 @@ describe('TEI embeddings client', () => {
 
       const info = await getTeiInfo('http://localhost:52000');
       expect(info.dimension).toBe(1024);
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:52000/info');
+      // Note: fetchWithRetry adds signal for timeout, so check URL separately
+      expect(mockFetch).toHaveBeenCalled();
+      expect(mockFetch.mock.calls[0][0]).toBe('http://localhost:52000/info');
     });
 
     it('should cache TEI info after first call', async () => {
@@ -59,13 +61,16 @@ describe('TEI embeddings client', () => {
     });
 
     it('should throw on non-ok response', async () => {
-      mockFetch.mockResolvedValueOnce({
+      // Use 400 error (not retryable) to avoid retry delays in tests
+      mockFetch.mockResolvedValue({
         ok: false,
-        status: 500,
-        statusText: 'Internal Server Error',
+        status: 400,
+        statusText: 'Bad Request',
       });
 
-      await expect(getTeiInfo('http://localhost:52000')).rejects.toThrow();
+      await expect(getTeiInfo('http://localhost:52000')).rejects.toThrow(
+        'TEI /info failed: 400 Bad Request'
+      );
     });
   });
 

@@ -7,12 +7,13 @@ import * as fs from 'fs';
 import { randomUUID } from 'crypto';
 import type { EmbedOptions, EmbedResult } from '../types/embed';
 import { getClient } from '../utils/client';
-import { getConfig } from '../utils/config';
-import { isUrl } from '../utils/url';
 import { chunkText } from '../utils/chunker';
+import { handleCommandError, formatJson } from '../utils/command';
+import { getConfig } from '../utils/config';
 import { getTeiInfo, embedChunks } from '../utils/embeddings';
-import { ensureCollection, deleteByUrl, upsertPoints } from '../utils/qdrant';
 import { writeOutput } from '../utils/output';
+import { ensureCollection, deleteByUrl, upsertPoints } from '../utils/qdrant';
+import { isUrl } from '../utils/url';
 
 /**
  * Read stdin as a string
@@ -168,9 +169,9 @@ export async function executeEmbed(
 export async function handleEmbedCommand(options: EmbedOptions): Promise<void> {
   const result = await executeEmbed(options);
 
-  if (!result.success) {
-    console.error('Error:', result.error);
-    process.exit(1);
+  // Use shared error handler
+  if (!handleCommandError(result)) {
+    return;
   }
 
   if (!result.data) return;
@@ -178,7 +179,7 @@ export async function handleEmbedCommand(options: EmbedOptions): Promise<void> {
   let outputContent: string;
 
   if (options.json) {
-    outputContent = JSON.stringify({
+    outputContent = formatJson({
       success: true,
       data: result.data,
     });

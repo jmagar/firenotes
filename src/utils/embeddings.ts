@@ -3,8 +3,16 @@
  * Handles batched embedding generation with concurrency control
  */
 
+import { fetchWithRetry } from './http';
+
 const BATCH_SIZE = 24;
 const MAX_CONCURRENT = 4;
+
+/** HTTP timeout for TEI requests (30 seconds) */
+const TEI_TIMEOUT_MS = 30000;
+
+/** Number of retries for TEI requests */
+const TEI_MAX_RETRIES = 3;
 
 interface TeiInfo {
   modelId: string;
@@ -27,7 +35,10 @@ export function resetTeiCache(): void {
 export async function getTeiInfo(teiUrl: string): Promise<TeiInfo> {
   if (cachedTeiInfo) return cachedTeiInfo;
 
-  const response = await fetch(`${teiUrl}/info`);
+  const response = await fetchWithRetry(`${teiUrl}/info`, undefined, {
+    timeoutMs: TEI_TIMEOUT_MS,
+    maxRetries: TEI_MAX_RETRIES,
+  });
   if (!response.ok) {
     throw new Error(
       `TEI /info failed: ${response.status} ${response.statusText}`
@@ -56,11 +67,18 @@ export async function embedBatch(
   teiUrl: string,
   inputs: string[]
 ): Promise<number[][]> {
-  const response = await fetch(`${teiUrl}/embed`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inputs }),
-  });
+  const response = await fetchWithRetry(
+    `${teiUrl}/embed`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inputs }),
+    },
+    {
+      timeoutMs: TEI_TIMEOUT_MS,
+      maxRetries: TEI_MAX_RETRIES,
+    }
+  );
 
   if (!response.ok) {
     throw new Error(

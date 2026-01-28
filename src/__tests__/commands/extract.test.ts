@@ -7,7 +7,7 @@ import { executeExtract, handleExtractCommand } from '../../commands/extract';
 import { getClient } from '../../utils/client';
 import { initializeConfig } from '../../utils/config';
 import { setupTest, teardownTest } from '../utils/mock-client';
-import { autoEmbed } from '../../utils/embedpipeline';
+// autoEmbed is mocked below via mockAutoEmbed
 import { writeOutput } from '../../utils/output';
 
 vi.mock('../../utils/client', async () => {
@@ -15,8 +15,58 @@ vi.mock('../../utils/client', async () => {
   return { ...actual, getClient: vi.fn() };
 });
 
+// Mock embedpipeline - mock autoEmbed and provide implementations for batch functions
+// Use vi.hoisted to ensure mockAutoEmbed is defined before vi.mock runs (vi.mock is hoisted)
+const { mockAutoEmbed } = vi.hoisted(() => ({
+  mockAutoEmbed: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../../utils/embedpipeline', () => ({
-  autoEmbed: vi.fn(),
+  autoEmbed: mockAutoEmbed,
+  // Re-implement batchEmbed to call the mockAutoEmbed
+  batchEmbed: vi.fn().mockImplementation(
+    async (
+      items: Array<{
+        content: string;
+        metadata: {
+          url: string;
+          title?: string;
+          sourceCommand: string;
+          contentType?: string;
+        };
+      }>
+    ) => {
+      for (const item of items) {
+        await mockAutoEmbed(item.content, item.metadata);
+      }
+    }
+  ),
+  // Re-implement createEmbedItems to match real behavior
+  createEmbedItems: vi.fn().mockImplementation(
+    (
+      pages: Array<{
+        markdown?: string;
+        html?: string;
+        url?: string;
+        title?: string;
+        metadata?: { sourceURL?: string; url?: string; title?: string };
+      }>,
+      sourceCommand: string
+    ) => {
+      return pages
+        .filter((page) => page.markdown || page.html)
+        .map((page) => ({
+          content: page.markdown || page.html || '',
+          metadata: {
+            url:
+              page.url || page.metadata?.sourceURL || page.metadata?.url || '',
+            title: page.title || page.metadata?.title,
+            sourceCommand,
+            contentType: page.markdown ? 'markdown' : 'html',
+          },
+        }));
+    }
+  ),
 }));
 
 vi.mock('../../utils/output', () => ({
@@ -149,7 +199,7 @@ describe('handleExtractCommand', () => {
     vi.mocked(getClient).mockReturnValue(
       mockClient as unknown as ReturnType<typeof getClient>
     );
-    vi.mocked(autoEmbed).mockResolvedValue();
+    mockAutoEmbed.mockResolvedValue(undefined);
     vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit');
     });
@@ -172,8 +222,8 @@ describe('handleExtractCommand', () => {
       prompt: 'test',
     });
 
-    expect(autoEmbed).toHaveBeenCalledTimes(2);
-    expect(autoEmbed).toHaveBeenCalledWith(
+    expect(mockAutoEmbed).toHaveBeenCalledTimes(2);
+    expect(mockAutoEmbed).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ url: 'https://example.com/page1' })
     );
@@ -192,7 +242,7 @@ describe('handleExtractCommand', () => {
       embed: false,
     });
 
-    expect(autoEmbed).not.toHaveBeenCalled();
+    expect(mockAutoEmbed).not.toHaveBeenCalled();
     expect(writeOutput).toHaveBeenCalled();
   });
 });

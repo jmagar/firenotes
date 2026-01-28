@@ -2,22 +2,22 @@
  * Crawl command implementation
  */
 
-import pLimit from 'p-limit';
 import type {
   CrawlOptions,
   CrawlResult,
   CrawlStatusResult,
 } from '../types/crawl';
 import { getClient } from '../utils/client';
+import {
+  handleCommandError,
+  formatJson,
+  writeCommandOutput,
+  type CommonOutputOptions,
+} from '../utils/command';
+import { batchEmbed, createEmbedItems } from '../utils/embedpipeline';
 import { isJobId } from '../utils/job';
 import { writeOutput } from '../utils/output';
-import { autoEmbed } from '../utils/embedpipeline';
 import { loadSettings } from '../utils/settings';
-
-/**
- * Maximum concurrent embedding operations to prevent resource exhaustion
- */
-const MAX_CONCURRENT_EMBEDS = 10;
 
 /**
  * Execute crawl status check
@@ -242,26 +242,23 @@ function formatCrawlStatus(data: CrawlStatusResult['data']): string {
 export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
   const result = await executeCrawl(options);
 
-  if (!result.success) {
-    console.error('Error:', result.error);
-    process.exit(1);
+  // Use shared error handler
+  if (!handleCommandError(result)) {
+    return;
   }
 
   // Handle status check result
   if ('status' in result && result.data && 'status' in result.data) {
     const statusResult = result as CrawlStatusResult;
     if (statusResult.data) {
-      let outputContent: string;
-
-      if (options.pretty || !options.output) {
-        // Human-readable format for status
-        outputContent = formatCrawlStatus(statusResult.data);
-      } else {
-        // JSON format
-        outputContent = options.pretty
-          ? JSON.stringify({ success: true, data: statusResult.data }, null, 2)
-          : JSON.stringify({ success: true, data: statusResult.data });
-      }
+      // Human-readable format for status when no output file
+      const outputContent =
+        options.pretty || !options.output
+          ? formatCrawlStatus(statusResult.data)
+          : formatJson(
+              { success: true, data: statusResult.data },
+              options.pretty
+            );
 
       writeOutput(outputContent, options.output, !!options.output);
       return;
@@ -274,71 +271,77 @@ export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
     return;
   }
 
-  // Auto-embed crawl results with concurrency limit
-  const limit = pLimit(MAX_CONCURRENT_EMBEDS);
-  const embedPromises: Promise<void>[] = [];
-  if (
-    options.embed !== false &&
-    crawlResult.data &&
-    !('jobId' in crawlResult.data)
-  ) {
-    // crawlResult.data is the SDK response; pages may be in .data (array) or .data.data (nested)
-    const rawData = crawlResult.data.data;
-    const pages = Array.isArray(rawData)
-      ? rawData
-      : rawData && Array.isArray(rawData.data)
-        ? rawData.data
-        : [];
+  // Auto-embed crawl results using shared batch embedding
+  if (options.embed !== false && crawlResult.data) {
+    let pagesToEmbed: any[] = [];
 
-    for (const page of pages) {
-      if (page.markdown || page.html) {
-        embedPromises.push(
-          limit(async () => {
-            try {
-              await autoEmbed(page.markdown || page.html || '', {
-                url: page.metadata?.sourceURL || page.metadata?.url || '',
-                title: page.metadata?.title,
-                sourceCommand: 'crawl',
-                contentType: page.markdown ? 'markdown' : 'html',
-              });
-            } catch (err) {
-              const url =
-                page.metadata?.sourceURL || page.metadata?.url || 'unknown';
-              console.error(
-                `Embed failed for ${url}: ${err instanceof Error ? err.message : err}`
-              );
-            }
-          })
+    if ('jobId' in crawlResult.data) {
+      // Async job - poll until complete before embedding
+      const app = getClient({ apiKey: options.apiKey });
+      const jobId = crawlResult.data.jobId;
+      const pollMs = (options.pollInterval ?? 10) * 1000; // Default 10s for embed polling
+
+      process.stderr.write(`Waiting for crawl to complete for embedding...\n`);
+
+      while (true) {
+        await new Promise((resolve) => setTimeout(resolve, pollMs));
+
+        const status = await app.getCrawlStatus(jobId);
+        process.stderr.write(
+          `\rEmbed wait: ${status.completed}/${status.total} pages (${status.status})`
         );
+
+        if (
+          status.status === 'completed' ||
+          status.status === 'failed' ||
+          status.status === 'cancelled'
+        ) {
+          process.stderr.write('\n');
+
+          if (status.status === 'completed' && status.data) {
+            pagesToEmbed = Array.isArray(status.data) ? status.data : [];
+          } else if (status.status !== 'completed') {
+            process.stderr.write(
+              `Crawl ${status.status}, skipping embedding.\n`
+            );
+          }
+          break;
+        }
       }
+    } else {
+      // Synchronous result - extract pages directly
+      const rawData = crawlResult.data.data;
+      pagesToEmbed = Array.isArray(rawData)
+        ? rawData
+        : rawData && Array.isArray(rawData.data)
+          ? rawData.data
+          : [];
+    }
+
+    // Use shared embedding utility
+    if (pagesToEmbed.length > 0) {
+      const embedItems = createEmbedItems(pagesToEmbed, 'crawl');
+      await batchEmbed(embedItems);
     }
   }
 
+  // Format output using shared utility
   let outputContent: string;
-
-  // If it's a job ID response (has jobId field)
   if ('jobId' in crawlResult.data) {
+    // Job ID response
     const jobData = {
       jobId: crawlResult.data.jobId,
       url: crawlResult.data.url,
       status: crawlResult.data.status,
     };
-
-    outputContent = options.pretty
-      ? JSON.stringify({ success: true, data: jobData }, null, 2)
-      : JSON.stringify({ success: true, data: jobData });
+    outputContent = formatJson(
+      { success: true, data: jobData },
+      options.pretty
+    );
   } else {
     // Completed crawl - output the data
-    // For completed crawls, output as JSON
-    outputContent = options.pretty
-      ? JSON.stringify(crawlResult.data, null, 2)
-      : JSON.stringify(crawlResult.data);
+    outputContent = formatJson(crawlResult.data, options.pretty);
   }
 
   writeOutput(outputContent, options.output, !!options.output);
-
-  // Wait for embedding to complete
-  if (embedPromises.length > 0) {
-    await Promise.all(embedPromises);
-  }
 }

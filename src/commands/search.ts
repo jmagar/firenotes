@@ -2,7 +2,6 @@
  * Search command implementation
  */
 
-import type { FormatOption } from '@mendable/firecrawl-js';
 import type {
   SearchOptions,
   SearchResult,
@@ -12,8 +11,9 @@ import type {
   NewsSearchResult,
 } from '../types/search';
 import { getClient } from '../utils/client';
+import { handleCommandError, formatJson } from '../utils/command';
+import { batchEmbed, createEmbedItems } from '../utils/embedpipeline';
 import { writeOutput } from '../utils/output';
-import { autoEmbed } from '../utils/embedpipeline';
 
 /**
  * Execute search command
@@ -238,9 +238,9 @@ export async function handleSearchCommand(
 ): Promise<void> {
   const result = await executeSearch(options);
 
-  if (!result.success) {
-    console.error('Error:', result.error);
-    process.exit(1);
+  // Use shared error handler
+  if (!handleCommandError(result)) {
+    return;
   }
 
   if (!result.data) {
@@ -263,24 +263,24 @@ export async function handleSearchCommand(
   // Use JSON format if --json or --pretty flag is set
   // --pretty implies JSON output
   if (options.json || options.pretty) {
-    const jsonOutput: Record<string, any> = {
+    const jsonOutput: Record<string, unknown> = {
       success: true,
       data: result.data,
     };
 
-    if (result.warning) {
-      jsonOutput.warning = result.warning;
+    // Access extra properties from the raw result (not in narrowed type)
+    const rawResult = result as SearchResult;
+    if (rawResult.warning) {
+      jsonOutput.warning = rawResult.warning;
     }
-    if (result.id) {
-      jsonOutput.id = result.id;
+    if (rawResult.id) {
+      jsonOutput.id = rawResult.id;
     }
-    if (result.creditsUsed !== undefined) {
-      jsonOutput.creditsUsed = result.creditsUsed;
+    if (rawResult.creditsUsed !== undefined) {
+      jsonOutput.creditsUsed = rawResult.creditsUsed;
     }
 
-    outputContent = options.pretty
-      ? JSON.stringify(jsonOutput, null, 2)
-      : JSON.stringify(jsonOutput);
+    outputContent = formatJson(jsonOutput, options.pretty);
   } else {
     // Default to human-readable format
     outputContent = formatSearchReadable(result.data, options);
@@ -289,23 +289,9 @@ export async function handleSearchCommand(
   writeOutput(outputContent, options.output, !!options.output);
 
   // Auto-embed only when --scrape was used (snippets are too noisy)
-  const embedPromises: Promise<void>[] = [];
+  // Use shared batch embedding utility
   if (options.embed !== false && options.scrape && result.data?.web) {
-    for (const item of result.data.web) {
-      if (item.markdown || item.html) {
-        embedPromises.push(
-          autoEmbed(item.markdown || item.html || '', {
-            url: item.url,
-            title: item.title,
-            sourceCommand: 'search',
-            contentType: item.markdown ? 'markdown' : 'html',
-          })
-        );
-      }
-    }
-  }
-
-  if (embedPromises.length > 0) {
-    await Promise.all(embedPromises);
+    const embedItems = createEmbedItems(result.data.web, 'search');
+    await batchEmbed(embedItems);
   }
 }

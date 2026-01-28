@@ -7,7 +7,7 @@ import { executeCrawl, handleCrawlCommand } from '../../commands/crawl';
 import { getClient } from '../../utils/client';
 import { initializeConfig } from '../../utils/config';
 import { setupTest, teardownTest } from '../utils/mock-client';
-import { autoEmbed } from '../../utils/embedpipeline';
+// autoEmbed is mocked below via mockAutoEmbed
 
 // Mock the Firecrawl client module
 vi.mock('../../utils/client', async () => {
@@ -18,9 +18,58 @@ vi.mock('../../utils/client', async () => {
   };
 });
 
-// Mock autoEmbed
+// Mock embedpipeline - mock autoEmbed and provide implementations for batch functions
+// Use vi.hoisted to ensure mockAutoEmbed is defined before vi.mock runs (vi.mock is hoisted)
+const { mockAutoEmbed } = vi.hoisted(() => ({
+  mockAutoEmbed: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../../utils/embedpipeline', () => ({
-  autoEmbed: vi.fn().mockResolvedValue(undefined),
+  autoEmbed: mockAutoEmbed,
+  // Re-implement batchEmbed to call the mockAutoEmbed
+  batchEmbed: vi.fn().mockImplementation(
+    async (
+      items: Array<{
+        content: string;
+        metadata: {
+          url: string;
+          title?: string;
+          sourceCommand: string;
+          contentType?: string;
+        };
+      }>
+    ) => {
+      for (const item of items) {
+        await mockAutoEmbed(item.content, item.metadata);
+      }
+    }
+  ),
+  // Re-implement createEmbedItems to match real behavior
+  createEmbedItems: vi.fn().mockImplementation(
+    (
+      pages: Array<{
+        markdown?: string;
+        html?: string;
+        url?: string;
+        title?: string;
+        metadata?: { sourceURL?: string; url?: string; title?: string };
+      }>,
+      sourceCommand: string
+    ) => {
+      return pages
+        .filter((page) => page.markdown || page.html)
+        .map((page) => ({
+          content: page.markdown || page.html || '',
+          metadata: {
+            url:
+              page.url || page.metadata?.sourceURL || page.metadata?.url || '',
+            title: page.title || page.metadata?.title,
+            sourceCommand,
+            contentType: page.markdown ? 'markdown' : 'html',
+          },
+        }));
+    }
+  ),
 }));
 
 // Mock settings to avoid reading real user settings from disk
@@ -373,7 +422,7 @@ describe('executeCrawl', () => {
       expect(mockClient.crawl).toHaveBeenCalledWith(
         'https://example.com',
         expect.objectContaining({
-          timeout: 300000, // Converted to milliseconds
+          crawlTimeout: 300000, // Converted to milliseconds (SDK uses crawlTimeout)
         })
       );
     });
@@ -401,7 +450,7 @@ describe('executeCrawl', () => {
         'https://example.com',
         expect.objectContaining({
           pollInterval: 5000,
-          timeout: 600000,
+          crawlTimeout: 600000, // SDK uses crawlTimeout for overall job timeout
           limit: 50,
           maxDiscoveryDepth: 2,
         })
@@ -535,7 +584,7 @@ describe('executeCrawl', () => {
     beforeEach(() => {
       // Suppress console.error output during tests
       vi.spyOn(console, 'error').mockImplementation(() => {});
-      vi.mocked(autoEmbed).mockClear();
+      mockAutoEmbed.mockClear();
     });
 
     afterEach(() => {
@@ -572,14 +621,14 @@ describe('executeCrawl', () => {
         wait: true,
       });
 
-      expect(autoEmbed).toHaveBeenCalledTimes(2);
-      expect(autoEmbed).toHaveBeenCalledWith('# Page 1', {
+      expect(mockAutoEmbed).toHaveBeenCalledTimes(2);
+      expect(mockAutoEmbed).toHaveBeenCalledWith('# Page 1', {
         url: 'https://example.com/page1',
         title: 'Page 1',
         sourceCommand: 'crawl',
         contentType: 'markdown',
       });
-      expect(autoEmbed).toHaveBeenCalledWith('# Page 2', {
+      expect(mockAutoEmbed).toHaveBeenCalledWith('# Page 2', {
         url: 'https://example.com/page2',
         title: 'Page 2',
         sourceCommand: 'crawl',
@@ -610,8 +659,8 @@ describe('executeCrawl', () => {
         wait: true,
       });
 
-      expect(autoEmbed).toHaveBeenCalledTimes(1);
-      expect(autoEmbed).toHaveBeenCalledWith('<h1>Page HTML</h1>', {
+      expect(mockAutoEmbed).toHaveBeenCalledTimes(1);
+      expect(mockAutoEmbed).toHaveBeenCalledWith('<h1>Page HTML</h1>', {
         url: 'https://example.com/htmlpage',
         title: 'HTML Page',
         sourceCommand: 'crawl',
@@ -643,7 +692,7 @@ describe('executeCrawl', () => {
         embed: false,
       });
 
-      expect(autoEmbed).not.toHaveBeenCalled();
+      expect(mockAutoEmbed).not.toHaveBeenCalled();
     });
 
     it('should skip autoEmbed for pages without markdown or html', async () => {
@@ -668,10 +717,64 @@ describe('executeCrawl', () => {
         wait: true,
       });
 
-      expect(autoEmbed).not.toHaveBeenCalled();
+      expect(mockAutoEmbed).not.toHaveBeenCalled();
     });
 
-    it('should not embed for async job start (no completed data)', async () => {
+    it('should embed after polling completes for async job start', async () => {
+      const mockResponse = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        url: 'https://example.com',
+      };
+      mockClient.startCrawl.mockResolvedValue(mockResponse);
+
+      // Mock getCrawlStatus to return completed status with data
+      mockClient.getCrawlStatus.mockResolvedValue({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        status: 'completed',
+        total: 1,
+        completed: 1,
+        data: [
+          {
+            markdown: '# Page Content',
+            sourceURL: 'https://example.com/page',
+            metadata: { title: 'Page' },
+          },
+        ],
+      });
+
+      await handleCrawlCommand({
+        urlOrJobId: 'https://example.com',
+        pollInterval: 0.01, // Speed up test
+      });
+
+      expect(mockAutoEmbed).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not embed when crawl fails after polling', async () => {
+      const mockResponse = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        url: 'https://example.com',
+      };
+      mockClient.startCrawl.mockResolvedValue(mockResponse);
+
+      // Mock getCrawlStatus to return failed status
+      mockClient.getCrawlStatus.mockResolvedValue({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        status: 'failed',
+        total: 0,
+        completed: 0,
+      });
+
+      await handleCrawlCommand({
+        urlOrJobId: 'https://example.com',
+        embed: true,
+        pollInterval: 0.01,
+      });
+
+      expect(mockAutoEmbed).not.toHaveBeenCalled();
+    });
+
+    it('should skip embedding when embed is explicitly false for async job', async () => {
       const mockResponse = {
         id: '550e8400-e29b-41d4-a716-446655440000',
         url: 'https://example.com',
@@ -680,9 +783,12 @@ describe('executeCrawl', () => {
 
       await handleCrawlCommand({
         urlOrJobId: 'https://example.com',
+        embed: false,
       });
 
-      expect(autoEmbed).not.toHaveBeenCalled();
+      // Should NOT call getCrawlStatus since embed is disabled
+      expect(mockClient.getCrawlStatus).not.toHaveBeenCalled();
+      expect(mockAutoEmbed).not.toHaveBeenCalled();
     });
 
     it('should use metadata.url as fallback when sourceURL is missing', async () => {
@@ -708,8 +814,8 @@ describe('executeCrawl', () => {
         wait: true,
       });
 
-      expect(autoEmbed).toHaveBeenCalledTimes(1);
-      expect(autoEmbed).toHaveBeenCalledWith('# Fallback URL', {
+      expect(mockAutoEmbed).toHaveBeenCalledTimes(1);
+      expect(mockAutoEmbed).toHaveBeenCalledWith('# Fallback URL', {
         url: 'https://example.com/fallback',
         title: 'Fallback',
         sourceCommand: 'crawl',
@@ -742,8 +848,8 @@ describe('executeCrawl', () => {
         wait: true,
       });
 
-      expect(autoEmbed).toHaveBeenCalledTimes(1);
-      expect(autoEmbed).toHaveBeenCalledWith('# Nested Page', {
+      expect(mockAutoEmbed).toHaveBeenCalledTimes(1);
+      expect(mockAutoEmbed).toHaveBeenCalledWith('# Nested Page', {
         url: 'https://example.com/nested',
         title: 'Nested',
         sourceCommand: 'crawl',

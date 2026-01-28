@@ -45,6 +45,33 @@ import type { ScrapeFormat } from './types/scrape';
 // Initialize global configuration from environment variables
 initializeConfig();
 
+/**
+ * Signal handlers for graceful shutdown
+ *
+ * Handle SIGINT (Ctrl+C) and SIGTERM to allow cleanup and provide
+ * a better user experience when interrupting long-running operations.
+ */
+let isShuttingDown = false;
+
+function handleShutdown(signal: string): void {
+  if (isShuttingDown) {
+    // Force exit on second signal
+    console.error('\nForce exiting...');
+    process.exit(130);
+  }
+
+  isShuttingDown = true;
+  console.error(`\n${signal} received. Shutting down gracefully...`);
+
+  // Give ongoing operations a moment to complete, then exit
+  setTimeout(() => {
+    process.exit(signal === 'SIGINT' ? 130 : 143);
+  }, 100);
+}
+
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+
 // Commands that require authentication
 const AUTH_REQUIRED_COMMANDS = ['scrape', 'crawl', 'map', 'search', 'extract'];
 

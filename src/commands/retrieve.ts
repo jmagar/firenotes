@@ -4,9 +4,10 @@
  */
 
 import type { RetrieveOptions, RetrieveResult } from '../types/retrieve';
+import { handleCommandError, formatJson } from '../utils/command';
 import { getConfig } from '../utils/config';
-import { scrollByUrl } from '../utils/qdrant';
 import { writeOutput } from '../utils/output';
+import { scrollByUrl } from '../utils/qdrant';
 
 /**
  * Execute retrieve command
@@ -95,9 +96,9 @@ export async function handleRetrieveCommand(
 ): Promise<void> {
   const result = await executeRetrieve(options);
 
-  if (!result.success) {
-    console.error('Error:', result.error);
-    process.exit(1);
+  // Use shared error handler
+  if (!handleCommandError(result)) {
+    return;
   }
 
   if (!result.data) return;
@@ -105,7 +106,7 @@ export async function handleRetrieveCommand(
   let outputContent: string;
 
   if (options.json) {
-    outputContent = JSON.stringify({
+    outputContent = formatJson({
       success: true,
       data: {
         url: result.data.url,
