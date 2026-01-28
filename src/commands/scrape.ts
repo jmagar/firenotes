@@ -75,6 +75,7 @@ export async function executeScrape(
     formats?: FormatOption[];
     onlyMainContent?: boolean;
     waitFor?: number;
+    timeout?: number;
     includeTags?: string[];
     excludeTags?: string[];
   } = {
@@ -87,6 +88,11 @@ export async function executeScrape(
 
   if (options.waitFor !== undefined) {
     scrapeParams.waitFor = options.waitFor;
+  }
+
+  if (options.timeout !== undefined) {
+    // Convert seconds to milliseconds for the API
+    scrapeParams.timeout = options.timeout * 1000;
   }
 
   if (options.includeTags && options.includeTags.length > 0) {

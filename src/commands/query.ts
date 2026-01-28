@@ -83,7 +83,7 @@ export async function executeQuery(
  */
 function formatCompact(items: QueryResultItem[]): string {
   if (items.length === 0) return 'No results found.';
-  return items
+  const results = items
     .map((item) => {
       const header = item.chunkHeader ? ` — ${item.chunkHeader}` : '';
       const score = item.score.toFixed(2);
@@ -94,6 +94,8 @@ function formatCompact(items: QueryResultItem[]): string {
       return `[${score}] ${item.url}${header}\n  ${truncated}`;
     })
     .join('\n\n');
+
+  return `${results}\n\n${getRetrievalHint()}`;
 }
 
 /**
@@ -104,13 +106,15 @@ function formatCompact(items: QueryResultItem[]): string {
  */
 function formatFull(items: QueryResultItem[]): string {
   if (items.length === 0) return 'No results found.';
-  return items
+  const results = items
     .map((item) => {
       const header = item.chunkHeader ? ` — ${item.chunkHeader}` : '';
       const score = item.score.toFixed(2);
       return `[${score}] ${item.url}${header}\n\n${item.chunkText}`;
     })
     .join('\n\n---\n\n');
+
+  return `${results}\n\n---\n\n${getRetrievalHint()}`;
 }
 
 /**
@@ -149,7 +153,15 @@ function formatGrouped(items: QueryResultItem[], full: boolean): string {
     parts.push('');
   }
 
-  return parts.join('\n');
+  return `${parts.join('\n')}\n${getRetrievalHint()}`;
+}
+
+/**
+ * Get hint text for retrieving full documents
+ * @returns Formatted hint message for users
+ */
+function getRetrievalHint(): string {
+  return '💡 To retrieve full documents from the vector DB, use:\n  firecrawl retrieve <url>';
 }
 
 /**

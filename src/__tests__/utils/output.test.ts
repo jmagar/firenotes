@@ -4,7 +4,12 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
-import { writeOutput, handleScrapeOutput } from '../../utils/output';
+import * as path from 'path';
+import {
+  writeOutput,
+  handleScrapeOutput,
+  validateOutputPath,
+} from '../../utils/output';
 
 // Mock fs module
 vi.mock('fs', () => ({
@@ -13,6 +18,8 @@ vi.mock('fs', () => ({
   mkdirSync: vi.fn(),
 }));
 
+// Helper to get resolved path
+const resolvePath = (p: string) => path.resolve(process.cwd(), p);
 describe('Output Utilities', () => {
   let consoleErrorSpy: any;
   let processExitSpy: any;
@@ -59,10 +66,10 @@ describe('Output Utilities', () => {
     it('should write content to file when output path is provided', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      writeOutput('Test content', '/output/test.txt');
+      writeOutput('Test content', './output/test.txt');
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(
-        '/output/test.txt',
+        resolvePath('./output/test.txt'),
         'Test content',
         'utf-8'
       );
@@ -71,13 +78,16 @@ describe('Output Utilities', () => {
     it('should create directory if it does not exist', () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      writeOutput('Test content', '/output/subdir/test.txt');
+      writeOutput('Test content', './output/subdir/test.txt');
 
-      expect(fs.mkdirSync).toHaveBeenCalledWith('/output/subdir', {
-        recursive: true,
-      });
+      expect(fs.mkdirSync).toHaveBeenCalledWith(
+        resolvePath('./output/subdir'),
+        {
+          recursive: true,
+        }
+      );
       expect(fs.writeFileSync).toHaveBeenCalledWith(
-        '/output/subdir/test.txt',
+        resolvePath('./output/subdir/test.txt'),
         'Test content',
         'utf-8'
       );
@@ -86,17 +96,17 @@ describe('Output Utilities', () => {
     it('should print file confirmation when not silent', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      writeOutput('Test content', '/output/test.txt', false);
+      writeOutput('Test content', './output/test.txt', false);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Output written to: /output/test.txt'
+        `Output written to: ${resolvePath('./output/test.txt')}`
       );
     });
 
     it('should not print file confirmation when silent', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      writeOutput('Test content', '/output/test.txt', true);
+      writeOutput('Test content', './output/test.txt', true);
 
       expect(consoleErrorSpy).not.toHaveBeenCalled();
     });
@@ -292,11 +302,11 @@ describe('Output Utilities', () => {
           data: { markdown: '# Test Content' },
         },
         ['markdown'],
-        '/output/test.md'
+        './output/test.md'
       );
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(
-        '/output/test.md',
+        resolvePath('./output/test.md'),
         '# Test Content',
         'utf-8'
       );
@@ -413,7 +423,7 @@ describe('Output Utilities', () => {
           },
         },
         ['screenshot'],
-        '/output/result.json', // .json extension
+        './output/result.json', // .json extension
         false,
         false // no explicit json flag
       );
@@ -440,7 +450,7 @@ describe('Output Utilities', () => {
           },
         },
         ['screenshot'],
-        '/output/result.md', // .md extension
+        './output/result.md', // .md extension
         false,
         false // no explicit json flag
       );
@@ -472,6 +482,43 @@ describe('Output Utilities', () => {
       expect(output).toContain('\n'); // Pretty print has newlines
       const parsed = JSON.parse(output);
       expect(parsed.markdown).toBe('# Test');
+    });
+  });
+
+  describe('validateOutputPath', () => {
+    it('should allow relative paths within cwd', () => {
+      expect(() => validateOutputPath('./output/result.json')).not.toThrow();
+      expect(() => validateOutputPath('output/result.json')).not.toThrow();
+      expect(() => validateOutputPath('result.json')).not.toThrow();
+    });
+
+    it('should reject path traversal attempts', () => {
+      expect(() => validateOutputPath('../../../etc/passwd')).toThrow(
+        /outside the allowed directory/
+      );
+      expect(() => validateOutputPath('output/../../etc/passwd')).toThrow(
+        /outside the allowed directory/
+      );
+    });
+
+    it('should reject absolute paths outside cwd', () => {
+      expect(() => validateOutputPath('/etc/passwd')).toThrow(
+        /outside the allowed directory/
+      );
+      expect(() => validateOutputPath('/tmp/output.json')).toThrow(
+        /outside the allowed directory/
+      );
+    });
+
+    it('should allow absolute paths within cwd', () => {
+      const validPath = path.join(process.cwd(), 'output', 'result.json');
+      expect(() => validateOutputPath(validPath)).not.toThrow();
+    });
+
+    it('should return resolved absolute path', () => {
+      const result = validateOutputPath('./output/result.json');
+      expect(path.isAbsolute(result)).toBe(true);
+      expect(result).toBe(resolvePath('./output/result.json'));
     });
   });
 });

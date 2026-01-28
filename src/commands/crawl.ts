@@ -2,6 +2,7 @@
  * Crawl command implementation
  */
 
+import pLimit from 'p-limit';
 import type {
   CrawlOptions,
   CrawlResult,
@@ -12,6 +13,11 @@ import { isJobId } from '../utils/job';
 import { writeOutput } from '../utils/output';
 import { autoEmbed } from '../utils/embedpipeline';
 import { loadSettings } from '../utils/settings';
+
+/**
+ * Maximum concurrent embedding operations to prevent resource exhaustion
+ */
+const MAX_CONCURRENT_EMBEDS = 10;
 
 /**
  * Execute crawl status check
@@ -100,6 +106,13 @@ export async function executeCrawl(
     if (options.maxConcurrency !== undefined) {
       crawlOptions.maxConcurrency = options.maxConcurrency;
     }
+    if (options.scrapeTimeout !== undefined) {
+      // Per-page scrape timeout goes in scrapeOptions, not crawlOptions
+      crawlOptions.scrapeOptions = {
+        ...(crawlOptions.scrapeOptions || {}),
+        timeout: options.scrapeTimeout * 1000, // Convert seconds to milliseconds
+      };
+    }
 
     // If wait mode, use the convenience crawl method with polling
     if (wait) {
@@ -110,8 +123,11 @@ export async function executeCrawl(
         // Default poll interval: 5 seconds
         crawlOptions.pollInterval = 5000;
       }
+      // Note: timeout (per-page scrape) is already set above from scrapeTimeout
+      // The SDK's app.crawl() method handles overall job timeout internally
+      // If we need to set total crawl timeout, use crawlTimeout parameter
       if (timeout !== undefined) {
-        crawlOptions.timeout = timeout * 1000; // Convert to milliseconds
+        crawlOptions.crawlTimeout = timeout * 1000; // Convert to milliseconds
       }
 
       // Show progress if requested - use custom polling for better UX
@@ -258,7 +274,8 @@ export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
     return;
   }
 
-  // Auto-embed crawl results
+  // Auto-embed crawl results with concurrency limit
+  const limit = pLimit(MAX_CONCURRENT_EMBEDS);
   const embedPromises: Promise<void>[] = [];
   if (
     options.embed !== false &&
@@ -276,11 +293,21 @@ export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
     for (const page of pages) {
       if (page.markdown || page.html) {
         embedPromises.push(
-          autoEmbed(page.markdown || page.html || '', {
-            url: page.metadata?.sourceURL || page.metadata?.url || '',
-            title: page.metadata?.title,
-            sourceCommand: 'crawl',
-            contentType: page.markdown ? 'markdown' : 'html',
+          limit(async () => {
+            try {
+              await autoEmbed(page.markdown || page.html || '', {
+                url: page.metadata?.sourceURL || page.metadata?.url || '',
+                title: page.metadata?.title,
+                sourceCommand: 'crawl',
+                contentType: page.markdown ? 'markdown' : 'html',
+              });
+            } catch (err) {
+              const url =
+                page.metadata?.sourceURL || page.metadata?.url || 'unknown';
+              console.error(
+                `Embed failed for ${url}: ${err instanceof Error ? err.message : err}`
+              );
+            }
           })
         );
       }

@@ -4,6 +4,35 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+
+/**
+ * Validates that an output path is safe (within cwd or a configured base directory).
+ * Prevents path traversal attacks.
+ * @param outputPath - The user-provided output path
+ * @param baseDir - The safe base directory (defaults to process.cwd())
+ * @returns The resolved absolute path if valid
+ * @throws Error if the path escapes the safe directory
+ */
+export function validateOutputPath(
+  outputPath: string,
+  baseDir: string = process.cwd()
+): string {
+  const resolvedBase = path.resolve(baseDir);
+  const resolvedPath = path.resolve(resolvedBase, outputPath);
+
+  // Ensure the resolved path starts with the base directory
+  if (
+    !resolvedPath.startsWith(resolvedBase + path.sep) &&
+    resolvedPath !== resolvedBase
+  ) {
+    throw new Error(
+      `Invalid output path: "${outputPath}" resolves outside the allowed directory. ` +
+        `Path traversal is not allowed.`
+    );
+  }
+
+  return resolvedPath;
+}
 import type { ScrapeResult, ScrapeFormat } from '../types/scrape';
 
 /**
@@ -142,14 +171,16 @@ export function writeOutput(
   silent: boolean = false
 ): void {
   if (outputPath) {
-    const dir = path.dirname(outputPath);
+    // Validate path to prevent traversal attacks
+    const safePath = validateOutputPath(outputPath);
+    const dir = path.dirname(safePath);
     if (dir && !fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(outputPath, content, 'utf-8');
+    fs.writeFileSync(safePath, content, 'utf-8');
     if (!silent) {
       // Always use stderr for file confirmation messages
-      console.error(`Output written to: ${outputPath}`);
+      console.error(`Output written to: ${safePath}`);
     }
   } else {
     // Use process.stdout.write for raw output (like curl)

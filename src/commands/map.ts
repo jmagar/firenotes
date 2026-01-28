@@ -38,28 +38,34 @@ export async function executeMap(options: MapOptions): Promise<MapResult> {
       body.search = options.search;
     }
     if (options.sitemap) {
-      body.sitemapOnly = options.sitemap === 'only';
-      body.ignoreSitemap = options.sitemap === 'skip';
+      // v2 API uses a single 'sitemap' enum value: 'skip', 'include', or 'only'
+      body.sitemap = options.sitemap;
     }
     if (options.includeSubdomains !== undefined) {
       body.includeSubdomains = options.includeSubdomains;
     }
     if (options.ignoreQueryParameters !== undefined) {
-      body.ignorQueryParameters = options.ignoreQueryParameters;
+      body.ignoreQueryParameters = options.ignoreQueryParameters;
     }
     if (options.timeout !== undefined) {
       body.timeout = options.timeout * 1000; // Convert to milliseconds
     }
+    // Note: User-Agent cannot be set via request body in v2 API
+    // It must be set as an HTTP header in the fetch request below
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    };
+
+    // Add User-Agent as HTTP header if configured
     if (userAgent) {
-      body.headers = { 'User-Agent': userAgent };
+      headers['User-Agent'] = userAgent;
     }
 
     const response = await fetch(`${apiUrl}/v1/map`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers,
       body: JSON.stringify(body),
     });
 

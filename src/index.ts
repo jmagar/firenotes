@@ -5,8 +5,14 @@
  * Entry point for the CLI application
  */
 
-import 'dotenv/config';
+import { config as loadDotenv } from 'dotenv';
+import { resolve } from 'path';
 import { Command } from 'commander';
+
+// Load .env from the CLI project directory, not the current working directory
+// __dirname is available in CommonJS (tsconfig uses "module": "commonjs")
+const envPath = resolve(__dirname, '..', '.env');
+loadDotenv({ path: envPath });
 import { handleScrapeCommand } from './commands/scrape';
 import { initializeConfig, updateConfig } from './utils/config';
 import { getClient } from './utils/client';
@@ -95,6 +101,12 @@ function createScrapeCommand(): Command {
       'Wait time before scraping in milliseconds',
       parseInt
     )
+    .option(
+      '--timeout <seconds>',
+      'Request timeout in seconds (default: 5)',
+      parseFloat,
+      5
+    )
     .option('--screenshot', 'Take a screenshot', false)
     .option('--include-tags <tags>', 'Comma-separated list of tags to include')
     .option('--exclude-tags <tags>', 'Comma-separated list of tags to exclude')
@@ -175,8 +187,14 @@ function createCrawlCommand(): Command {
     )
     .option(
       '--timeout <seconds>',
-      'Timeout in seconds when waiting (default: no timeout)',
+      'Timeout in seconds when waiting for crawl job to complete (default: no timeout)',
       parseFloat
+    )
+    .option(
+      '--scrape-timeout <seconds>',
+      'Per-page scrape timeout in seconds (default: 5)',
+      parseFloat,
+      5
     )
     .option('--progress', 'Show progress dots while waiting', false)
     .option('--limit <number>', 'Maximum number of pages to crawl', parseInt)
@@ -231,6 +249,7 @@ function createCrawlCommand(): Command {
         wait: options.wait,
         pollInterval: options.pollInterval,
         timeout: options.timeout,
+        scrapeTimeout: options.scrapeTimeout,
         progress: options.progress,
         output: options.output,
         pretty: options.pretty,
@@ -271,16 +290,15 @@ function createMapCommand(): Command {
       '-u, --url <url>',
       'URL to map (alternative to positional argument)'
     )
-    .option('--wait', 'Wait for map to complete', false)
+    .option('--wait', 'Wait for map to complete')
     .option('--limit <number>', 'Maximum URLs to discover', parseInt)
     .option('--search <query>', 'Search query to filter URLs')
     .option(
       '--sitemap <mode>',
-      'Sitemap handling: only, include, skip',
-      'include'
+      'Sitemap handling: only, include, skip (defaults to include if not specified)'
     )
-    .option('--include-subdomains', 'Include subdomains', false)
-    .option('--ignore-query-parameters', 'Ignore query parameters', false)
+    .option('--include-subdomains', 'Include subdomains')
+    .option('--ignore-query-parameters', 'Ignore query parameters')
     .option('--timeout <seconds>', 'Timeout in seconds', parseFloat)
     .option(
       '--notebook <id-or-name>',

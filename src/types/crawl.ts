@@ -13,8 +13,10 @@ export interface CrawlOptions {
   wait?: boolean;
   /** Polling interval in seconds when waiting */
   pollInterval?: number;
-  /** Timeout in seconds when waiting */
+  /** Timeout in seconds when waiting for crawl job to complete */
   timeout?: number;
+  /** Per-page scrape timeout in seconds (default: 5) */
+  scrapeTimeout?: number;
   /** Show progress dots while waiting */
   progress?: boolean;
   /** Output file path */
