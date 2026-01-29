@@ -21,3 +21,19 @@ export function handleVersionCommand(options: VersionOptions = {}): void {
     console.log(`authenticated: ${authenticated}`);
   }
 }
+
+import { Command } from 'commander';
+
+/**
+ * Create and configure the version command
+ */
+export function createVersionCommand(): Command {
+  const versionCmd = new Command('version')
+    .description('Display version information')
+    .option('--auth-status', 'Also show authentication status', false)
+    .action((options) => {
+      handleVersionCommand({ authStatus: options.authStatus });
+    });
+
+  return versionCmd;
+}

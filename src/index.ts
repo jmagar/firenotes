@@ -18,10 +18,10 @@ import packageJson from '../package.json';
 import {
   configure,
   createConfigCommand,
+  createViewConfigCommand,
   handleConfigClear,
   handleConfigGet,
   handleConfigSet,
-  viewConfig,
 } from './commands/config';
 import { createCrawlCommand } from './commands/crawl';
 import { createEmbedCommand } from './commands/embed';
@@ -33,9 +33,9 @@ import { createQueryCommand } from './commands/query';
 import { createRetrieveCommand } from './commands/retrieve';
 import { createScrapeCommand, handleScrapeCommand } from './commands/scrape';
 import { createSearchCommand } from './commands/search';
-
 import { handleStatusCommand } from './commands/status';
-import { handleVersionCommand } from './commands/version';
+import { createVersionCommand } from './commands/version';
+
 import type { ScrapeFormat } from './types/scrape';
 import type { SearchCategory, SearchSource } from './types/search';
 import { ensureAuthenticated, printBanner } from './utils/auth';
@@ -124,24 +124,13 @@ program.addCommand(createRetrieveCommand());
 
 program.addCommand(createConfigCommand());
 
-program
-  .command('view-config')
-  .description('View current configuration and authentication status')
-  .action(async () => {
-    await viewConfig();
-  });
+program.addCommand(createViewConfigCommand());
 
 program.addCommand(createLoginCommand());
 
 program.addCommand(createLogoutCommand());
 
-program
-  .command('version')
-  .description('Display version information')
-  .option('--auth-status', 'Also show authentication status', false)
-  .action((options) => {
-    handleVersionCommand({ authStatus: options.authStatus });
-  });
+program.addCommand(createVersionCommand());
 
 // Parse arguments
 const args = process.argv.slice(2);

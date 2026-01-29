@@ -183,3 +183,16 @@ export function createConfigCommand(): Command {
 
   return configCmd;
 }
+
+/**
+ * Create and configure the view-config command
+ */
+export function createViewConfigCommand(): Command {
+  const viewConfigCmd = new Command('view-config')
+    .description('View current configuration and authentication status')
+    .action(async () => {
+      await viewConfig();
+    });
+
+  return viewConfigCmd;
+}
