@@ -8,7 +8,7 @@ import type {
   QueryResult,
   QueryResultItem,
 } from '../types/query';
-import { handleCommandError, formatJson } from '../utils/command';
+import { formatJson, handleCommandError } from '../utils/command';
 import { getConfig } from '../utils/config';
 import { embedBatch } from '../utils/embeddings';
 import { writeOutput } from '../utils/output';
@@ -90,7 +90,7 @@ function formatCompact(items: QueryResultItem[]): string {
       const score = item.score.toFixed(2);
       const truncated =
         item.chunkText.length > 120
-          ? item.chunkText.slice(0, 120) + '...'
+          ? `${item.chunkText.slice(0, 120)}...`
           : item.chunkText;
       return `[${score}] ${item.url}${header}\n  ${truncated}`;
     })
@@ -146,7 +146,7 @@ function formatGrouped(items: QueryResultItem[], full: boolean): string {
       } else {
         const truncated =
           item.chunkText.length > 120
-            ? item.chunkText.slice(0, 120) + '...'
+            ? `${item.chunkText.slice(0, 120)}...`
             : item.chunkText;
         parts.push(`  [${score}]${header}\n  ${truncated}`);
       }
@@ -192,4 +192,40 @@ export async function handleQueryCommand(options: QueryOptions): Promise<void> {
   }
 
   writeOutput(outputContent, options.output, !!options.output);
+}
+
+import { Command } from 'commander';
+
+/**
+ * Create and configure the query command
+ */
+export function createQueryCommand(): Command {
+  const queryCmd = new Command('query')
+    .description('Semantic search over embedded content in Qdrant')
+    .argument('<query>', 'Search query text')
+    .option(
+      '--limit <number>',
+      'Maximum number of results (default: 5)',
+      parseInt
+    )
+    .option('--domain <domain>', 'Filter results by domain')
+    .option('--full', 'Show full chunk text instead of truncated', false)
+    .option('--group', 'Group results by URL', false)
+    .option('--collection <name>', 'Qdrant collection name')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--json', 'Output as JSON format', false)
+    .action(async (query: string, options) => {
+      await handleQueryCommand({
+        query,
+        limit: options.limit,
+        domain: options.domain,
+        full: options.full,
+        group: options.group,
+        collection: options.collection,
+        output: options.output,
+        json: options.json,
+      });
+    });
+
+  return queryCmd;
 }

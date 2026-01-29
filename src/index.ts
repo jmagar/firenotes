@@ -28,7 +28,7 @@ import { createExtractCommand } from './commands/extract';
 import { handleLoginCommand } from './commands/login';
 import { handleLogoutCommand } from './commands/logout';
 import { createMapCommand } from './commands/map';
-import { handleQueryCommand } from './commands/query';
+import { createQueryCommand } from './commands/query';
 import { handleRetrieveCommand } from './commands/retrieve';
 import { createScrapeCommand, handleScrapeCommand } from './commands/scrape';
 import { createSearchCommand } from './commands/search';
@@ -114,40 +114,6 @@ program.addCommand(createScrapeCommand());
 program.addCommand(createCrawlCommand());
 program.addCommand(createMapCommand());
 program.addCommand(createSearchCommand());
-
-/**
- * Create and configure the query command
- */
-function createQueryCommand(): Command {
-  const queryCmd = new Command('query')
-    .description('Semantic search over embedded content in Qdrant')
-    .argument('<query>', 'Search query text')
-    .option(
-      '--limit <number>',
-      'Maximum number of results (default: 5)',
-      parseInt
-    )
-    .option('--domain <domain>', 'Filter results by domain')
-    .option('--full', 'Show full chunk text instead of truncated', false)
-    .option('--group', 'Group results by URL', false)
-    .option('--collection <name>', 'Qdrant collection name')
-    .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON format', false)
-    .action(async (query: string, options) => {
-      await handleQueryCommand({
-        query,
-        limit: options.limit,
-        domain: options.domain,
-        full: options.full,
-        group: options.group,
-        collection: options.collection,
-        output: options.output,
-        json: options.json,
-      });
-    });
-
-  return queryCmd;
-}
 
 /**
  * Create and configure the retrieve command
