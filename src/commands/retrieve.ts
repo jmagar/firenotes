@@ -4,7 +4,7 @@
  */
 
 import type { RetrieveOptions, RetrieveResult } from '../types/retrieve';
-import { handleCommandError, formatJson } from '../utils/command';
+import { formatJson, handleCommandError } from '../utils/command';
 import { getConfig } from '../utils/config';
 import { writeOutput } from '../utils/output';
 import { scrollByUrl } from '../utils/qdrant';
@@ -120,4 +120,29 @@ export async function handleRetrieveCommand(
   }
 
   writeOutput(outputContent, options.output, !!options.output);
+}
+
+import { Command } from 'commander';
+import { normalizeUrl } from '../utils/url';
+
+/**
+ * Create and configure the retrieve command
+ */
+export function createRetrieveCommand(): Command {
+  const retrieveCmd = new Command('retrieve')
+    .description('Retrieve full document from Qdrant by URL')
+    .argument('<url>', 'URL of the document to retrieve')
+    .option('--collection <name>', 'Qdrant collection name')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--json', 'Output as JSON format', false)
+    .action(async (url: string, options) => {
+      await handleRetrieveCommand({
+        url: normalizeUrl(url),
+        collection: options.collection,
+        output: options.output,
+        json: options.json,
+      });
+    });
+
+  return retrieveCmd;
 }
