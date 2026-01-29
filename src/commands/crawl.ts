@@ -3,21 +3,23 @@
  */
 
 import type {
+  Document,
+  CrawlOptions as FirecrawlCrawlOptions,
+} from '@mendable/firecrawl-js';
+import { Command } from 'commander';
+import type {
+  CrawlJobData,
   CrawlOptions,
   CrawlResult,
   CrawlStatusResult,
 } from '../types/crawl';
 import { getClient } from '../utils/client';
-import {
-  handleCommandError,
-  formatJson,
-  writeCommandOutput,
-  type CommonOutputOptions,
-} from '../utils/command';
+import { formatJson } from '../utils/command';
 import { batchEmbed, createEmbedItems } from '../utils/embedpipeline';
 import { isJobId } from '../utils/job';
 import { writeOutput } from '../utils/output';
 import { loadSettings } from '../utils/settings';
+import { normalizeUrl } from '../utils/url';
 
 /**
  * Execute crawl status check
@@ -64,8 +66,11 @@ export async function executeCrawl(
       return await checkCrawlStatus(urlOrJobId, options);
     }
 
-    // Build crawl options
-    const crawlOptions: any = {};
+    // Build crawl options - extends SDK CrawlOptions with polling options
+    const crawlOptions: FirecrawlCrawlOptions & {
+      pollInterval?: number;
+      crawlTimeout?: number;
+    } = {};
 
     if (options.limit !== undefined) {
       crawlOptions.limit = options.limit;
@@ -233,7 +238,7 @@ function formatCrawlStatus(data: CrawlStatusResult['data']): string {
     );
   }
 
-  return lines.join('\n') + '\n';
+  return `${lines.join('\n')}\n`;
 }
 
 /**
@@ -242,9 +247,10 @@ function formatCrawlStatus(data: CrawlStatusResult['data']): string {
 export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
   const result = await executeCrawl(options);
 
-  // Use shared error handler
-  if (!handleCommandError(result)) {
-    return;
+  // Handle errors - can't use shared handler due to union type
+  if (!result.success) {
+    console.error('Error:', result.error || 'Unknown error occurred');
+    process.exit(1);
   }
 
   // Handle status check result
@@ -273,7 +279,7 @@ export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
 
   // Auto-embed crawl results using shared batch embedding
   if (options.embed !== false && crawlResult.data) {
-    let pagesToEmbed: any[] = [];
+    let pagesToEmbed: Document[] = [];
 
     if ('jobId' in crawlResult.data) {
       // Async job - poll until complete before embedding
@@ -309,13 +315,9 @@ export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
         }
       }
     } else {
-      // Synchronous result - extract pages directly
-      const rawData = crawlResult.data.data;
-      pagesToEmbed = Array.isArray(rawData)
-        ? rawData
-        : rawData && Array.isArray(rawData.data)
-          ? rawData.data
-          : [];
+      // Synchronous result - extract pages directly from CrawlJobData
+      const crawlJobData = crawlResult.data as CrawlJobData;
+      pagesToEmbed = crawlJobData.data ?? [];
     }
 
     // Use shared embedding utility
@@ -344,4 +346,120 @@ export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
   }
 
   writeOutput(outputContent, options.output, !!options.output);
+}
+
+/**
+ * Create and configure the crawl command
+ */
+export function createCrawlCommand(): Command {
+  const crawlCmd = new Command('crawl')
+    .description('Crawl a website using Firecrawl')
+    .argument('[url-or-job-id]', 'URL to crawl or job ID to check status')
+    .option(
+      '-u, --url <url>',
+      'URL to crawl (alternative to positional argument)'
+    )
+    .option('--status', 'Check status of existing crawl job', false)
+    .option(
+      '--wait',
+      'Wait for crawl to complete before returning results',
+      false
+    )
+    .option(
+      '--poll-interval <seconds>',
+      'Polling interval in seconds when waiting (default: 5)',
+      parseFloat
+    )
+    .option(
+      '--timeout <seconds>',
+      'Timeout in seconds when waiting for crawl job to complete (default: no timeout)',
+      parseFloat
+    )
+    .option(
+      '--scrape-timeout <seconds>',
+      'Per-page scrape timeout in seconds (default: 5)',
+      parseFloat,
+      5
+    )
+    .option('--progress', 'Show progress dots while waiting', false)
+    .option('--limit <number>', 'Maximum number of pages to crawl', parseInt)
+    .option('--max-depth <number>', 'Maximum crawl depth', parseInt)
+    .option(
+      '--exclude-paths <paths>',
+      'Comma-separated list of paths to exclude'
+    )
+    .option(
+      '--include-paths <paths>',
+      'Comma-separated list of paths to include'
+    )
+    .option('--sitemap <mode>', 'Sitemap handling: skip, include', 'include')
+    .option(
+      '--ignore-query-parameters',
+      'Ignore query parameters when crawling',
+      false
+    )
+    .option('--crawl-entire-domain', 'Crawl entire domain', false)
+    .option('--allow-external-links', 'Allow external links', false)
+    .option('--allow-subdomains', 'Allow subdomains', false)
+    .option('--delay <ms>', 'Delay between requests in milliseconds', parseInt)
+    .option(
+      '--max-concurrency <number>',
+      'Maximum concurrent requests',
+      parseInt
+    )
+    .option(
+      '-k, --api-key <key>',
+      'Firecrawl API key (overrides global --api-key)'
+    )
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--pretty', 'Pretty print JSON output', false)
+    .option('--no-embed', 'Skip auto-embedding of crawl results')
+    .option('--no-default-excludes', 'Skip default exclude paths from settings')
+    .action(async (positionalUrlOrJobId, options) => {
+      // Use positional argument if provided, otherwise use --url option
+      const urlOrJobId = positionalUrlOrJobId || options.url;
+      if (!urlOrJobId) {
+        console.error(
+          'Error: URL or job ID is required. Provide it as argument or use --url option.'
+        );
+        process.exit(1);
+      }
+
+      // Auto-detect if it's a job ID (UUID format)
+      const isStatusCheck = options.status || isJobId(urlOrJobId);
+
+      const crawlOptions = {
+        urlOrJobId: isStatusCheck ? urlOrJobId : normalizeUrl(urlOrJobId),
+        status: isStatusCheck,
+        wait: options.wait,
+        pollInterval: options.pollInterval,
+        timeout: options.timeout,
+        scrapeTimeout: options.scrapeTimeout,
+        progress: options.progress,
+        output: options.output,
+        pretty: options.pretty,
+        apiKey: options.apiKey,
+        limit: options.limit,
+        maxDepth: options.maxDepth,
+        excludePaths: options.excludePaths
+          ? options.excludePaths.split(',').map((p: string) => p.trim())
+          : undefined,
+        includePaths: options.includePaths
+          ? options.includePaths.split(',').map((p: string) => p.trim())
+          : undefined,
+        sitemap: options.sitemap,
+        ignoreQueryParameters: options.ignoreQueryParameters,
+        crawlEntireDomain: options.crawlEntireDomain,
+        allowExternalLinks: options.allowExternalLinks,
+        allowSubdomains: options.allowSubdomains,
+        delay: options.delay,
+        maxConcurrency: options.maxConcurrency,
+        embed: options.embed,
+        noDefaultExcludes: options.defaultExcludes === false,
+      };
+
+      await handleCrawlCommand(crawlOptions);
+    });
+
+  return crawlCmd;
 }
