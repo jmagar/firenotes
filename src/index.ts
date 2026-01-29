@@ -16,12 +16,8 @@ loadDotenv({ path: envPath });
 
 import packageJson from '../package.json';
 import {
-  configure,
   createConfigCommand,
   createViewConfigCommand,
-  handleConfigClear,
-  handleConfigGet,
-  handleConfigSet,
 } from './commands/config';
 import { createCrawlCommand } from './commands/crawl';
 import { createEmbedCommand } from './commands/embed';
@@ -31,17 +27,13 @@ import { createLogoutCommand } from './commands/logout';
 import { createMapCommand } from './commands/map';
 import { createQueryCommand } from './commands/query';
 import { createRetrieveCommand } from './commands/retrieve';
-import { createScrapeCommand, handleScrapeCommand } from './commands/scrape';
+import { createScrapeCommand } from './commands/scrape';
 import { createSearchCommand } from './commands/search';
 import { handleStatusCommand } from './commands/status';
 import { createVersionCommand } from './commands/version';
 
-import type { ScrapeFormat } from './types/scrape';
-import type { SearchCategory, SearchSource } from './types/search';
 import { ensureAuthenticated, printBanner } from './utils/auth';
 import { initializeConfig, updateConfig } from './utils/config';
-import { isJobId } from './utils/job';
-import { parseScrapeOptions } from './utils/options';
 import { isUrl, normalizeUrl } from './utils/url';
 
 // Initialize global configuration from environment variables
