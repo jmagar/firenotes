@@ -27,7 +27,8 @@ import { handleEmbedCommand } from './commands/embed';
 import { handleExtractCommand } from './commands/extract';
 import { handleLoginCommand } from './commands/login';
 import { handleLogoutCommand } from './commands/logout';
-import { handleMapCommand } from './commands/map';
+import { createMapCommand } from './commands/map';
+
 import { handleQueryCommand } from './commands/query';
 import { handleRetrieveCommand } from './commands/retrieve';
 import { createScrapeCommand, handleScrapeCommand } from './commands/scrape';
@@ -108,66 +109,6 @@ program.addCommand(createScrapeCommand());
 /**
  * Create and configure the map command
  */
-function createMapCommand(): Command {
-  const mapCmd = new Command('map')
-    .description('Map URLs on a website using Firecrawl')
-    .argument('[url]', 'URL to map')
-    .option(
-      '-u, --url <url>',
-      'URL to map (alternative to positional argument)'
-    )
-    .option('--wait', 'Wait for map to complete')
-    .option('--limit <number>', 'Maximum URLs to discover', parseInt)
-    .option('--search <query>', 'Search query to filter URLs')
-    .option(
-      '--sitemap <mode>',
-      'Sitemap handling: only, include, skip (defaults to include if not specified)'
-    )
-    .option('--include-subdomains', 'Include subdomains')
-    .option('--ignore-query-parameters', 'Ignore query parameters')
-    .option('--timeout <seconds>', 'Timeout in seconds', parseFloat)
-    .option(
-      '--notebook <id-or-name>',
-      'Add discovered URLs to NotebookLM notebook (ID or name)'
-    )
-    .option(
-      '-k, --api-key <key>',
-      'Firecrawl API key (overrides global --api-key)'
-    )
-    .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON format', false)
-    .option('--pretty', 'Pretty print JSON output', false)
-    .action(async (positionalUrl, options) => {
-      // Use positional URL if provided, otherwise use --url option
-      const url = positionalUrl || options.url;
-      if (!url) {
-        console.error(
-          'Error: URL is required. Provide it as argument or use --url option.'
-        );
-        process.exit(1);
-      }
-
-      const mapOptions = {
-        urlOrJobId: normalizeUrl(url),
-        wait: options.wait,
-        output: options.output,
-        json: options.json,
-        pretty: options.pretty,
-        apiKey: options.apiKey,
-        limit: options.limit,
-        search: options.search,
-        sitemap: options.sitemap,
-        includeSubdomains: options.includeSubdomains,
-        ignoreQueryParameters: options.ignoreQueryParameters,
-        timeout: options.timeout,
-        notebook: options.notebook,
-      };
-
-      await handleMapCommand(mapOptions);
-    });
-
-  return mapCmd;
-}
 
 /**
  * Create and configure the search command
