@@ -111,6 +111,38 @@ describe('executeBatch', () => {
     expect(mockClient.getBatchScrapeStatus).toHaveBeenCalledWith('batch-1');
     expect(result.success).toBe(true);
   });
+
+  it('should cancel batch scrape job', async () => {
+    mockClient.cancelBatchScrape.mockResolvedValue(true);
+
+    const result = await executeBatch({ jobId: 'batch-1', cancel: true });
+
+    expect(mockClient.cancelBatchScrape).toHaveBeenCalledWith('batch-1');
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ success: true, message: 'cancelled' });
+  });
+
+  it('should get batch scrape errors', async () => {
+    mockClient.getBatchScrapeErrors.mockResolvedValue({
+      errors: [
+        {
+          id: 'err-1',
+          url: 'https://a.com',
+          error: 'blocked',
+          code: 'BLOCKED',
+        },
+      ],
+      robotsBlocked: ['https://b.com/robots'],
+    });
+
+    const result = await executeBatch({ jobId: 'batch-1', errors: true });
+
+    expect(mockClient.getBatchScrapeErrors).toHaveBeenCalledWith('batch-1');
+    expect(result.success).toBe(true);
+    expect(
+      (result.data as { errors?: unknown[] } | undefined)?.errors?.length
+    ).toBe(1);
+  });
 });
 
 describe('createBatchCommand', () => {
