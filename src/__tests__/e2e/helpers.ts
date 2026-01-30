@@ -2,7 +2,7 @@
  * E2E test helpers for CLI testing
  */
 
-import { type ChildProcess, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 
 export const CLI_PATH = resolve(__dirname, '../../../dist/index.js');

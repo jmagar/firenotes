@@ -6,7 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeSearch, handleSearchCommand } from '../../commands/search';
 import { getClient } from '../../utils/client';
 import { initializeConfig } from '../../utils/config';
-import { setupTest, teardownTest } from '../utils/mock-client';
+import {
+  type MockFirecrawlClient,
+  setupTest,
+  teardownTest,
+} from '../utils/mock-client';
 
 // autoEmbed is mocked below via mockAutoEmbed
 
@@ -79,7 +83,7 @@ vi.mock('../../utils/output', () => ({
 }));
 
 describe('executeSearch', () => {
-  let mockClient: any;
+  let mockClient: MockFirecrawlClient;
 
   beforeEach(() => {
     setupTest();
@@ -95,6 +99,7 @@ describe('executeSearch', () => {
     };
 
     // Mock getClient to return our mock
+    // biome-ignore lint/suspicious/noExplicitAny: Test mock requires flexible typing
     vi.mocked(getClient).mockReturnValue(mockClient as any);
   });
 
@@ -110,7 +115,7 @@ describe('executeSearch', () => {
           { url: 'https://example.com', title: 'Example', description: 'Test' },
         ],
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'test query',
@@ -124,7 +129,7 @@ describe('executeSearch', () => {
 
     it('should include limit option when provided', async () => {
       const mockResponse = { web: [] };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'AI news',
@@ -141,7 +146,7 @@ describe('executeSearch', () => {
 
     it('should include sources option when provided', async () => {
       const mockResponse = { web: [], images: [], news: [] };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'test query',
@@ -158,7 +163,7 @@ describe('executeSearch', () => {
 
     it('should include single source correctly', async () => {
       const mockResponse = { news: [] };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'tech news',
@@ -175,7 +180,7 @@ describe('executeSearch', () => {
 
     it('should include categories option when provided', async () => {
       const mockResponse = { web: [] };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'web scraping python',
@@ -192,7 +197,7 @@ describe('executeSearch', () => {
 
     it('should include multiple categories correctly', async () => {
       const mockResponse = { web: [] };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'transformer architecture',
@@ -209,7 +214,7 @@ describe('executeSearch', () => {
 
     it('should include tbs (time-based search) option when provided', async () => {
       const mockResponse = { web: [] };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'AI announcements',
@@ -226,7 +231,7 @@ describe('executeSearch', () => {
 
     it('should include location option when provided', async () => {
       const mockResponse = { web: [] };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'restaurants',
@@ -243,7 +248,7 @@ describe('executeSearch', () => {
 
     it('should include country option when provided', async () => {
       const mockResponse = { web: [] };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'local news',
@@ -260,7 +265,7 @@ describe('executeSearch', () => {
 
     it('should include timeout option when provided', async () => {
       const mockResponse = { web: [] };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'test query',
@@ -277,7 +282,7 @@ describe('executeSearch', () => {
 
     it('should include ignoreInvalidUrls option when provided', async () => {
       const mockResponse = { web: [] };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'test query',
@@ -296,7 +301,7 @@ describe('executeSearch', () => {
       const mockResponse = {
         web: [{ url: 'https://example.com', markdown: '# Test' }],
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'firecrawl tutorials',
@@ -317,7 +322,7 @@ describe('executeSearch', () => {
       const mockResponse = {
         web: [{ url: 'https://example.com', markdown: '# Test', links: [] }],
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'API docs',
@@ -339,7 +344,7 @@ describe('executeSearch', () => {
       const mockResponse = {
         web: [{ url: 'https://example.com', markdown: '# Test' }],
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'test query',
@@ -363,7 +368,7 @@ describe('executeSearch', () => {
         web: [{ url: 'https://example.com', markdown: '# Test' }],
         news: [{ url: 'https://news.example.com', title: 'News' }],
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       await executeSearch({
         query: 'comprehensive test',
@@ -411,7 +416,7 @@ describe('executeSearch', () => {
           },
         ],
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       const result = await executeSearch({
         query: 'test query',
@@ -435,7 +440,7 @@ describe('executeSearch', () => {
           },
         ],
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       const result = await executeSearch({
         query: 'landscapes',
@@ -459,7 +464,7 @@ describe('executeSearch', () => {
           },
         ],
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       const result = await executeSearch({
         query: 'tech news',
@@ -483,7 +488,7 @@ describe('executeSearch', () => {
         ],
         news: [{ url: 'https://news.example.com', title: 'News' }],
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       const result = await executeSearch({
         query: 'machine learning',
@@ -508,7 +513,7 @@ describe('executeSearch', () => {
           },
         ],
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       const result = await executeSearch({
         query: 'test',
@@ -527,7 +532,7 @@ describe('executeSearch', () => {
           web: [{ url: 'https://example.com', title: 'Test' }],
         },
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       const result = await executeSearch({
         query: 'test',
@@ -544,7 +549,7 @@ describe('executeSearch', () => {
         { url: 'https://example.com', title: 'Test 1' },
         { url: 'https://example2.com', title: 'Test 2' },
       ];
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       const result = await executeSearch({
         query: 'test',
@@ -559,7 +564,7 @@ describe('executeSearch', () => {
         web: [{ url: 'https://example.com', title: 'Test' }],
         warning: 'Some warning message',
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       const result = await executeSearch({
         query: 'test',
@@ -574,7 +579,7 @@ describe('executeSearch', () => {
         web: [{ url: 'https://example.com', title: 'Test' }],
         id: 'search-123',
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       const result = await executeSearch({
         query: 'test',
@@ -589,7 +594,7 @@ describe('executeSearch', () => {
         web: [{ url: 'https://example.com', title: 'Test' }],
         creditsUsed: 5,
       };
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       const result = await executeSearch({
         query: 'test',
@@ -601,7 +606,7 @@ describe('executeSearch', () => {
 
     it('should handle empty results', async () => {
       const mockResponse = {};
-      mockClient.search.mockResolvedValue(mockResponse);
+      mockClient.search!.mockResolvedValue(mockResponse);
 
       const result = await executeSearch({
         query: 'nonexistent content xyz123',
@@ -613,7 +618,7 @@ describe('executeSearch', () => {
 
     it('should return error result when search fails', async () => {
       const errorMessage = 'API Error: Rate limit exceeded';
-      mockClient.search.mockRejectedValue(new Error(errorMessage));
+      mockClient.search!.mockRejectedValue(new Error(errorMessage));
 
       const result = await executeSearch({
         query: 'test query',
@@ -626,7 +631,7 @@ describe('executeSearch', () => {
     });
 
     it('should handle non-Error exceptions', async () => {
-      mockClient.search.mockRejectedValue('String error');
+      mockClient.search!.mockRejectedValue('String error');
 
       const result = await executeSearch({
         query: 'test query',
@@ -639,7 +644,7 @@ describe('executeSearch', () => {
 
   describe('Time-based search parameters', () => {
     it('should support qdr:h for past hour', async () => {
-      mockClient.search.mockResolvedValue({ web: [] });
+      mockClient.search!.mockResolvedValue({ web: [] });
 
       await executeSearch({
         query: 'breaking news',
@@ -653,7 +658,7 @@ describe('executeSearch', () => {
     });
 
     it('should support qdr:d for past day', async () => {
-      mockClient.search.mockResolvedValue({ web: [] });
+      mockClient.search!.mockResolvedValue({ web: [] });
 
       await executeSearch({
         query: 'AI announcements',
@@ -667,7 +672,7 @@ describe('executeSearch', () => {
     });
 
     it('should support qdr:w for past week', async () => {
-      mockClient.search.mockResolvedValue({ web: [] });
+      mockClient.search!.mockResolvedValue({ web: [] });
 
       await executeSearch({
         query: 'tech news',
@@ -681,7 +686,7 @@ describe('executeSearch', () => {
     });
 
     it('should support qdr:m for past month', async () => {
-      mockClient.search.mockResolvedValue({ web: [] });
+      mockClient.search!.mockResolvedValue({ web: [] });
 
       await executeSearch({
         query: 'startup funding',
@@ -695,7 +700,7 @@ describe('executeSearch', () => {
     });
 
     it('should support qdr:y for past year', async () => {
-      mockClient.search.mockResolvedValue({ web: [] });
+      mockClient.search!.mockResolvedValue({ web: [] });
 
       await executeSearch({
         query: 'yearly review',
@@ -716,7 +721,7 @@ describe('executeSearch', () => {
         'images',
         'news',
       ];
-      mockClient.search.mockResolvedValue({ web: [], images: [], news: [] });
+      mockClient.search!.mockResolvedValue({ web: [], images: [], news: [] });
 
       for (const source of sourceList) {
         const result = await executeSearch({
@@ -733,7 +738,7 @@ describe('executeSearch', () => {
         'research',
         'pdf',
       ];
-      mockClient.search.mockResolvedValue({ web: [] });
+      mockClient.search!.mockResolvedValue({ web: [] });
 
       for (const category of categoryList) {
         const result = await executeSearch({
@@ -753,7 +758,7 @@ describe('executeSearch', () => {
       ];
 
       for (const format of formatList) {
-        mockClient.search.mockResolvedValue({
+        mockClient.search!.mockResolvedValue({
           web: [{ url: 'https://example.com' }],
         });
         const result = await executeSearch({
@@ -768,7 +773,7 @@ describe('executeSearch', () => {
 });
 
 describe('handleSearchCommand auto-embed', () => {
-  let mockClient: any;
+  let mockClient: MockFirecrawlClient;
 
   beforeEach(() => {
     setupTest();
@@ -780,6 +785,7 @@ describe('handleSearchCommand auto-embed', () => {
     mockClient = {
       search: vi.fn(),
     };
+    // biome-ignore lint/suspicious/noExplicitAny: Test mock requires flexible typing
     vi.mocked(getClient).mockReturnValue(mockClient as any);
     mockAutoEmbed.mockResolvedValue(undefined);
     vi.spyOn(process, 'exit').mockImplementation(() => {
@@ -807,7 +813,7 @@ describe('handleSearchCommand auto-embed', () => {
         },
       ],
     };
-    mockClient.search.mockResolvedValue(mockResponse);
+    mockClient.search!.mockResolvedValue(mockResponse);
 
     await handleSearchCommand({
       query: 'test query',
@@ -839,7 +845,7 @@ describe('handleSearchCommand auto-embed', () => {
         },
       ],
     };
-    mockClient.search.mockResolvedValue(mockResponse);
+    mockClient.search!.mockResolvedValue(mockResponse);
 
     await handleSearchCommand({
       query: 'test query',
@@ -859,7 +865,7 @@ describe('handleSearchCommand auto-embed', () => {
         },
       ],
     };
-    mockClient.search.mockResolvedValue(mockResponse);
+    mockClient.search!.mockResolvedValue(mockResponse);
 
     await handleSearchCommand({
       query: 'test query',
@@ -878,7 +884,7 @@ describe('handleSearchCommand auto-embed', () => {
         },
       ],
     };
-    mockClient.search.mockResolvedValue(mockResponse);
+    mockClient.search!.mockResolvedValue(mockResponse);
 
     await handleSearchCommand({
       query: 'test query',
@@ -899,7 +905,7 @@ describe('handleSearchCommand auto-embed', () => {
         },
       ],
     };
-    mockClient.search.mockResolvedValue(mockResponse);
+    mockClient.search!.mockResolvedValue(mockResponse);
 
     await handleSearchCommand({
       query: 'test query',
@@ -930,7 +936,7 @@ describe('handleSearchCommand auto-embed', () => {
         },
       ],
     };
-    mockClient.search.mockResolvedValue(mockResponse);
+    mockClient.search!.mockResolvedValue(mockResponse);
 
     await handleSearchCommand({
       query: 'test query',
@@ -947,7 +953,7 @@ describe('handleSearchCommand auto-embed', () => {
   });
 
   it('should not call autoEmbed when search fails', async () => {
-    mockClient.search.mockRejectedValue(new Error('API error'));
+    mockClient.search!.mockRejectedValue(new Error('API error'));
 
     try {
       await handleSearchCommand({
@@ -963,7 +969,7 @@ describe('handleSearchCommand auto-embed', () => {
 
   it('should not call autoEmbed when no results are returned', async () => {
     const mockResponse = {};
-    mockClient.search.mockResolvedValue(mockResponse);
+    mockClient.search!.mockResolvedValue(mockResponse);
 
     await handleSearchCommand({
       query: 'test query',

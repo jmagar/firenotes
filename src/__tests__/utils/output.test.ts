@@ -21,9 +21,9 @@ vi.mock('fs', () => ({
 // Helper to get resolved path
 const resolvePath = (p: string) => path.resolve(process.cwd(), p);
 describe('Output Utilities', () => {
-  let consoleErrorSpy: any;
-  let processExitSpy: any;
-  let stdoutWriteSpy: any;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let processExitSpy: ReturnType<typeof vi.spyOn>;
+  let stdoutWriteSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -430,7 +430,7 @@ describe('Output Utilities', () => {
 
       // Should write JSON to file
       expect(fs.writeFileSync).toHaveBeenCalled();
-      const content = (fs.writeFileSync as any).mock.calls[0][1];
+      const content = vi.mocked(fs.writeFileSync).mock.calls[0][1] as string;
       const parsed = JSON.parse(content);
       expect(parsed.screenshot).toBe('https://example.com/screenshot.png');
     });
@@ -457,7 +457,7 @@ describe('Output Utilities', () => {
 
       // Should write formatted text, not JSON
       expect(fs.writeFileSync).toHaveBeenCalled();
-      const content = (fs.writeFileSync as any).mock.calls[0][1];
+      const content = vi.mocked(fs.writeFileSync).mock.calls[0][1] as string;
       expect(content).toContain(
         'Screenshot: https://example.com/screenshot.png'
       );

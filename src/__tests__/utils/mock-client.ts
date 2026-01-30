@@ -2,19 +2,24 @@
  * Test utilities for mocking the Firecrawl client
  */
 
+import type { Mock } from 'vitest';
 import { resetClient } from '../../utils/client';
 import { resetConfig } from '../../utils/config';
 
 /**
  * Mock Firecrawl client methods
- * These are typed as any to allow flexible mocking in tests
+ * Uses Vitest Mock type for proper type safety
+ * All properties are optional to allow flexible test setup
  */
 export interface MockFirecrawlClient {
-  scrape: any;
-  crawl?: any;
-  map?: any;
-  extract?: any;
-  agent?: any;
+  scrape?: Mock;
+  crawl?: Mock;
+  map?: Mock;
+  extract?: Mock;
+  agent?: Mock;
+  search?: Mock;
+  startCrawl?: Mock;
+  getCrawlStatus?: Mock;
 }
 
 /**
