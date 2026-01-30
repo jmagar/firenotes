@@ -22,6 +22,11 @@ export interface MockFirecrawlClient {
   cancelCrawl?: Mock;
   getCrawlErrors?: Mock;
   getActiveCrawls?: Mock;
+  startBatchScrape?: Mock;
+  batchScrape?: Mock;
+  getBatchScrapeStatus?: Mock;
+  getBatchScrapeErrors?: Mock;
+  cancelBatchScrape?: Mock;
 }
 
 /**

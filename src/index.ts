@@ -15,6 +15,7 @@ const envPath = resolve(__dirname, '..', '.env');
 loadDotenv({ path: envPath });
 
 import packageJson from '../package.json';
+import { createBatchCommand } from './commands/batch';
 import {
   createConfigCommand,
   createViewConfigCommand,
@@ -67,7 +68,14 @@ process.on('SIGINT', () => handleShutdown('SIGINT'));
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 
 // Commands that require authentication
-const AUTH_REQUIRED_COMMANDS = ['scrape', 'crawl', 'map', 'search', 'extract'];
+const AUTH_REQUIRED_COMMANDS = [
+  'scrape',
+  'crawl',
+  'map',
+  'search',
+  'extract',
+  'batch',
+];
 
 const program = new Command();
 
@@ -113,6 +121,7 @@ program.addCommand(createExtractCommand());
 program.addCommand(createEmbedCommand());
 program.addCommand(createQueryCommand());
 program.addCommand(createRetrieveCommand());
+program.addCommand(createBatchCommand());
 
 program.addCommand(createConfigCommand());
 
