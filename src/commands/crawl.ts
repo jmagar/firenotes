@@ -560,6 +560,17 @@ export function createCrawlCommand(): Command {
     .option('--no-embed', 'Skip auto-embedding of crawl results')
     .option('--no-default-excludes', 'Skip default exclude paths from settings')
     .action(async (positionalUrlOrJobId, options) => {
+      if (options.active) {
+        await handleCrawlCommand({
+          active: true,
+          urlOrJobId: '',
+          output: options.output,
+          pretty: options.pretty,
+          apiKey: options.apiKey,
+        });
+        return;
+      }
+
       // Use positional argument if provided, otherwise use --url option
       const urlOrJobId = positionalUrlOrJobId || options.url;
       if (!urlOrJobId) {
@@ -570,7 +581,11 @@ export function createCrawlCommand(): Command {
       }
 
       // Auto-detect if it's a job ID (UUID format)
-      const isStatusCheck = options.status || isJobId(urlOrJobId);
+      const isStatusCheck =
+        options.status ||
+        options.cancel ||
+        options.errors ||
+        isJobId(urlOrJobId);
 
       const crawlOptions = {
         urlOrJobId: isStatusCheck ? urlOrJobId : normalizeUrl(urlOrJobId),

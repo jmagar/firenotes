@@ -1083,6 +1083,58 @@ describe('executeCrawlActive', () => {
 });
 
 describe('createCrawlCommand', () => {
+  it('should allow --active with no positional argument', async () => {
+    const activeClient = {
+      getActiveCrawls: vi.fn().mockResolvedValue({ success: true, crawls: [] }),
+    };
+    vi.mocked(getClient).mockReturnValue(
+      activeClient as unknown as ReturnType<typeof getClient>
+    );
+    const cmd = createCrawlCommand();
+    cmd.exitOverride();
+
+    await cmd.parseAsync(['node', 'test', '--active'], { from: 'node' });
+
+    expect(activeClient.getActiveCrawls).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not normalize job id for --cancel', async () => {
+    const cancelClient = {
+      cancelCrawl: vi.fn().mockResolvedValue(true),
+    };
+    vi.mocked(getClient).mockReturnValue(
+      cancelClient as unknown as ReturnType<typeof getClient>
+    );
+    const cmd = createCrawlCommand();
+    cmd.exitOverride();
+
+    await cmd.parseAsync(['node', 'test', 'job-123', '--cancel'], {
+      from: 'node',
+    });
+
+    expect(cancelClient.cancelCrawl).toHaveBeenCalledWith('job-123');
+  });
+
+  it('should not normalize job id for --errors', async () => {
+    const errorsClient = {
+      getCrawlErrors: vi.fn().mockResolvedValue({
+        errors: [],
+        robotsBlocked: [],
+      }),
+    };
+    vi.mocked(getClient).mockReturnValue(
+      errorsClient as unknown as ReturnType<typeof getClient>
+    );
+    const cmd = createCrawlCommand();
+    cmd.exitOverride();
+
+    await cmd.parseAsync(['node', 'test', 'job-123', '--errors'], {
+      from: 'node',
+    });
+
+    expect(errorsClient.getCrawlErrors).toHaveBeenCalledWith('job-123');
+  });
+
   it('should default scrapeTimeout to 15 seconds when not provided', async () => {
     const cmd = createCrawlCommand();
     const actionSpy = vi.fn();
