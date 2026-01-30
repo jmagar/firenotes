@@ -11,6 +11,8 @@ export interface CrawlOptions {
   urlOrJobId: string;
   /** Check status of existing crawl job */
   status?: boolean;
+  /** Cancel an existing crawl job */
+  cancel?: boolean;
   /** Wait for crawl to complete */
   wait?: boolean;
   /** Polling interval in seconds when waiting */
@@ -91,6 +93,16 @@ export interface CrawlStatusData {
 export interface CrawlStatusResult {
   success: boolean;
   data?: CrawlStatusData;
+  error?: string;
+}
+
+export interface CrawlCancelData {
+  status: 'cancelled';
+}
+
+export interface CrawlCancelResult {
+  success: boolean;
+  data?: CrawlCancelData;
   error?: string;
 }
 

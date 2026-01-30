@@ -6,11 +6,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createCrawlCommand,
   executeCrawl,
+  executeCrawlCancel,
   handleCrawlCommand,
 } from '../../commands/crawl';
 import { getClient } from '../../utils/client';
 import { initializeConfig } from '../../utils/config';
-import { setupTest, teardownTest } from '../utils/mock-client';
+import { writeOutput } from '../../utils/output';
+import {
+  type MockFirecrawlClient,
+  setupTest,
+  teardownTest,
+} from '../utils/mock-client';
 
 // autoEmbed is mocked below via mockAutoEmbed
 
@@ -82,13 +88,36 @@ vi.mock('../../utils/settings', () => ({
   loadSettings: vi.fn().mockReturnValue({}),
 }));
 
+vi.mock('../../utils/embed-queue', () => ({
+  enqueueEmbedJob: vi.fn().mockReturnValue({
+    id: 'mock-job',
+    jobId: 'mock-job',
+    url: 'https://example.com',
+    status: 'pending',
+    retries: 0,
+    maxRetries: 3,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }),
+  getEmbedJob: vi.fn().mockReturnValue(null),
+}));
+
+vi.mock('../../utils/background-embedder', () => ({
+  processEmbedQueue: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock writeOutput
 vi.mock('../../utils/output', () => ({
   writeOutput: vi.fn(),
 }));
 
 describe('executeCrawl', () => {
-  let mockClient: any;
+  type CrawlMockClient = MockFirecrawlClient &
+    Required<
+      Pick<MockFirecrawlClient, 'startCrawl' | 'getCrawlStatus' | 'crawl'>
+    >;
+
+  let mockClient: CrawlMockClient;
 
   beforeEach(() => {
     setupTest();
@@ -100,13 +129,16 @@ describe('executeCrawl', () => {
 
     // Create mock client
     mockClient = {
+      scrape: vi.fn(),
       startCrawl: vi.fn(),
       getCrawlStatus: vi.fn(),
       crawl: vi.fn(),
     };
 
     // Mock getClient to return our mock
-    vi.mocked(getClient).mockReturnValue(mockClient as any);
+    vi.mocked(getClient).mockReturnValue(
+      mockClient as unknown as ReturnType<typeof getClient>
+    );
   });
 
   afterEach(() => {
@@ -897,6 +929,67 @@ describe('executeCrawl', () => {
         contentType: 'markdown',
       });
     });
+  });
+});
+
+describe('executeCrawlCancel', () => {
+  type CrawlCancelMock = MockFirecrawlClient &
+    Required<Pick<MockFirecrawlClient, 'cancelCrawl'>>;
+
+  let mockClient: CrawlCancelMock;
+
+  beforeEach(() => {
+    setupTest();
+    initializeConfig({
+      apiKey: 'test-api-key',
+      apiUrl: 'https://api.firecrawl.dev',
+    });
+
+    mockClient = { scrape: vi.fn(), cancelCrawl: vi.fn() };
+    vi.mocked(getClient).mockReturnValue(
+      mockClient as unknown as ReturnType<typeof getClient>
+    );
+  });
+
+  afterEach(() => {
+    teardownTest();
+    vi.clearAllMocks();
+  });
+
+  it('should cancel crawl and return status', async () => {
+    mockClient.cancelCrawl.mockResolvedValue(true);
+
+    const result = await executeCrawlCancel('job-123');
+
+    expect(mockClient.cancelCrawl).toHaveBeenCalledWith('job-123');
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ status: 'cancelled' });
+  });
+
+  it('should return error when cancel fails', async () => {
+    mockClient.cancelCrawl.mockRejectedValue(new Error('Cancel failed'));
+
+    const result = await executeCrawlCancel('job-123');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Cancel failed');
+  });
+});
+
+describe('handleCrawlCommand cancel mode', () => {
+  it('should write cancel output and exit without crawling', async () => {
+    const mockClient = {
+      scrape: vi.fn(),
+      cancelCrawl: vi.fn().mockResolvedValue(true),
+    };
+    vi.mocked(getClient).mockReturnValue(
+      mockClient as unknown as ReturnType<typeof getClient>
+    );
+
+    await handleCrawlCommand({ urlOrJobId: 'job-123', cancel: true });
+
+    expect(mockClient.cancelCrawl).toHaveBeenCalledWith('job-123');
+    expect(writeOutput).toHaveBeenCalled();
   });
 });
 

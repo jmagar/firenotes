@@ -2,12 +2,10 @@
  * Crawl command implementation
  */
 
-import type {
-  Document,
-  CrawlOptions as FirecrawlCrawlOptions,
-} from '@mendable/firecrawl-js';
+import type { CrawlOptions as FirecrawlCrawlOptions } from '@mendable/firecrawl-js';
 import { Command } from 'commander';
 import type {
+  CrawlCancelResult,
   CrawlJobData,
   CrawlOptions,
   CrawlResult,
@@ -43,6 +41,29 @@ async function checkCrawlStatus(
         expiresAt: status.expiresAt,
       },
     };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
+ * Execute crawl cancel
+ */
+export async function executeCrawlCancel(
+  jobId: string
+): Promise<CrawlCancelResult> {
+  try {
+    const app = getClient();
+    const ok = await app.cancelCrawl(jobId);
+
+    if (!ok) {
+      return { success: false, error: 'Cancel failed' };
+    }
+
+    return { success: true, data: { status: 'cancelled' } };
   } catch (error) {
     return {
       success: false,
@@ -286,6 +307,21 @@ async function handleManualEmbedding(
  * Handle crawl command output
  */
 export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
+  if (options.cancel) {
+    const result = await executeCrawlCancel(options.urlOrJobId);
+    if (!result.success) {
+      console.error('Error:', result.error || 'Unknown error occurred');
+      process.exit(1);
+    }
+
+    const outputContent = formatJson(
+      { success: true, data: result.data },
+      options.pretty
+    );
+    writeOutput(outputContent, options.output, !!options.output);
+    return;
+  }
+
   // Handle manual embedding trigger for job ID
   if (options.embed && isJobId(options.urlOrJobId)) {
     await handleManualEmbedding(options.urlOrJobId, options.apiKey);
@@ -397,6 +433,7 @@ export function createCrawlCommand(): Command {
       '-u, --url <url>',
       'URL to crawl (alternative to positional argument)'
     )
+    .option('--cancel', 'Cancel an existing crawl job', false)
     .option('--status', 'Check status of existing crawl job', false)
     .option(
       '--wait',
