@@ -6,7 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeCrawl, handleCrawlCommand } from '../../commands/crawl';
 import { getClient } from '../../utils/client';
 import { initializeConfig } from '../../utils/config';
-import { setupTest, teardownTest } from '../utils/mock-client';
+import {
+  type MockFirecrawlClient,
+  setupTest,
+  teardownTest,
+} from '../utils/mock-client';
 
 // autoEmbed is mocked below via mockAutoEmbed
 
@@ -84,7 +88,7 @@ vi.mock('../../utils/output', () => ({
 }));
 
 describe('executeCrawl', () => {
-  let mockClient: any;
+  let mockClient: MockFirecrawlClient;
 
   beforeEach(() => {
     setupTest();
@@ -102,6 +106,7 @@ describe('executeCrawl', () => {
     };
 
     // Mock getClient to return our mock
+    // biome-ignore lint/suspicious/noExplicitAny: Test mock requires flexible typing
     vi.mocked(getClient).mockReturnValue(mockClient as any);
   });
 
@@ -116,7 +121,7 @@ describe('executeCrawl', () => {
         id: '550e8400-e29b-41d4-a716-446655440000',
         url: 'https://example.com',
       };
-      mockClient.startCrawl.mockResolvedValue(mockResponse);
+      mockClient.startCrawl!.mockResolvedValue(mockResponse);
 
       const result = await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -142,7 +147,7 @@ describe('executeCrawl', () => {
         id: '550e8400-e29b-41d4-a716-446655440000',
         url: 'https://example.com',
       };
-      mockClient.startCrawl.mockResolvedValue(mockResponse);
+      mockClient.startCrawl!.mockResolvedValue(mockResponse);
 
       await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -162,7 +167,7 @@ describe('executeCrawl', () => {
         id: '550e8400-e29b-41d4-a716-446655440000',
         url: 'https://example.com',
       };
-      mockClient.startCrawl.mockResolvedValue(mockResponse);
+      mockClient.startCrawl!.mockResolvedValue(mockResponse);
 
       await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -182,7 +187,7 @@ describe('executeCrawl', () => {
         id: '550e8400-e29b-41d4-a716-446655440000',
         url: 'https://example.com',
       };
-      mockClient.startCrawl.mockResolvedValue(mockResponse);
+      mockClient.startCrawl!.mockResolvedValue(mockResponse);
 
       await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -202,7 +207,7 @@ describe('executeCrawl', () => {
         id: '550e8400-e29b-41d4-a716-446655440000',
         url: 'https://example.com',
       };
-      mockClient.startCrawl.mockResolvedValue(mockResponse);
+      mockClient.startCrawl!.mockResolvedValue(mockResponse);
 
       await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -222,7 +227,7 @@ describe('executeCrawl', () => {
         id: '550e8400-e29b-41d4-a716-446655440000',
         url: 'https://example.com',
       };
-      mockClient.startCrawl.mockResolvedValue(mockResponse);
+      mockClient.startCrawl!.mockResolvedValue(mockResponse);
 
       await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -242,7 +247,7 @@ describe('executeCrawl', () => {
         id: '550e8400-e29b-41d4-a716-446655440000',
         url: 'https://example.com',
       };
-      mockClient.startCrawl.mockResolvedValue(mockResponse);
+      mockClient.startCrawl!.mockResolvedValue(mockResponse);
 
       await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -288,7 +293,7 @@ describe('executeCrawl', () => {
         creditsUsed: 50,
         expiresAt: '2024-12-31T23:59:59Z',
       };
-      mockClient.getCrawlStatus.mockResolvedValue(mockStatus);
+      mockClient.getCrawlStatus!.mockResolvedValue(mockStatus);
 
       const result = await executeCrawl({
         urlOrJobId: '550e8400-e29b-41d4-a716-446655440000',
@@ -319,7 +324,7 @@ describe('executeCrawl', () => {
         total: 100,
         completed: 45,
       };
-      mockClient.getCrawlStatus.mockResolvedValue(mockStatus);
+      mockClient.getCrawlStatus!.mockResolvedValue(mockStatus);
 
       const result = await executeCrawl({
         urlOrJobId: '550e8400-e29b-41d4-a716-446655440000',
@@ -336,7 +341,7 @@ describe('executeCrawl', () => {
         total: 100,
         completed: 45,
       };
-      mockClient.getCrawlStatus.mockResolvedValue(mockStatus);
+      mockClient.getCrawlStatus!.mockResolvedValue(mockStatus);
 
       const result = await executeCrawl({
         urlOrJobId: '550e8400-e29b-41d4-a716-446655440000',
@@ -361,7 +366,7 @@ describe('executeCrawl', () => {
         completed: 100,
         data: [{ markdown: '# Page 1' }],
       };
-      mockClient.crawl.mockResolvedValue(mockCrawlJob);
+      mockClient.crawl!.mockResolvedValue(mockCrawlJob);
 
       const result = await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -389,7 +394,7 @@ describe('executeCrawl', () => {
         completed: 100,
         data: [],
       };
-      mockClient.crawl.mockResolvedValue(mockCrawlJob);
+      mockClient.crawl!.mockResolvedValue(mockCrawlJob);
 
       await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -413,7 +418,7 @@ describe('executeCrawl', () => {
         completed: 100,
         data: [],
       };
-      mockClient.crawl.mockResolvedValue(mockCrawlJob);
+      mockClient.crawl!.mockResolvedValue(mockCrawlJob);
 
       await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -437,7 +442,7 @@ describe('executeCrawl', () => {
         completed: 50,
         data: [],
       };
-      mockClient.crawl.mockResolvedValue(mockCrawlJob);
+      mockClient.crawl!.mockResolvedValue(mockCrawlJob);
 
       await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -494,10 +499,10 @@ describe('executeCrawl', () => {
         data: [],
       };
 
-      mockClient.startCrawl.mockResolvedValue(mockStartResponse);
+      mockClient.startCrawl!.mockResolvedValue(mockStartResponse);
       // First call returns scraping status, second returns completed
-      mockClient.getCrawlStatus
-        .mockResolvedValueOnce(mockScrapingStatus)
+      mockClient
+        .getCrawlStatus!.mockResolvedValueOnce(mockScrapingStatus)
         .mockResolvedValueOnce(mockCompletedStatus);
 
       // Start the async operation
@@ -528,7 +533,7 @@ describe('executeCrawl', () => {
   describe('Error handling', () => {
     it('should return error result when startCrawl fails', async () => {
       const errorMessage = 'API Error: Invalid URL';
-      mockClient.startCrawl.mockRejectedValue(new Error(errorMessage));
+      mockClient.startCrawl!.mockRejectedValue(new Error(errorMessage));
 
       const result = await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -542,7 +547,7 @@ describe('executeCrawl', () => {
 
     it('should return error result when getCrawlStatus fails', async () => {
       const errorMessage = 'Job not found';
-      mockClient.getCrawlStatus.mockRejectedValue(new Error(errorMessage));
+      mockClient.getCrawlStatus!.mockRejectedValue(new Error(errorMessage));
 
       const result = await executeCrawl({
         urlOrJobId: '550e8400-e29b-41d4-a716-446655440000',
@@ -557,7 +562,7 @@ describe('executeCrawl', () => {
 
     it('should return error result when crawl fails', async () => {
       const errorMessage = 'Crawl timeout';
-      mockClient.crawl.mockRejectedValue(new Error(errorMessage));
+      mockClient.crawl!.mockRejectedValue(new Error(errorMessage));
 
       const result = await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -571,7 +576,7 @@ describe('executeCrawl', () => {
     });
 
     it('should handle non-Error exceptions', async () => {
-      mockClient.startCrawl.mockRejectedValue('String error');
+      mockClient.startCrawl!.mockRejectedValue('String error');
 
       const result = await executeCrawl({
         urlOrJobId: 'https://example.com',
@@ -616,7 +621,7 @@ describe('executeCrawl', () => {
           },
         ],
       };
-      mockClient.crawl.mockResolvedValue(mockCrawlJob);
+      mockClient.crawl!.mockResolvedValue(mockCrawlJob);
 
       await handleCrawlCommand({
         urlOrJobId: 'https://example.com',
@@ -654,7 +659,7 @@ describe('executeCrawl', () => {
           },
         ],
       };
-      mockClient.crawl.mockResolvedValue(mockCrawlJob);
+      mockClient.crawl!.mockResolvedValue(mockCrawlJob);
 
       await handleCrawlCommand({
         urlOrJobId: 'https://example.com',
@@ -686,7 +691,7 @@ describe('executeCrawl', () => {
           },
         ],
       };
-      mockClient.crawl.mockResolvedValue(mockCrawlJob);
+      mockClient.crawl!.mockResolvedValue(mockCrawlJob);
 
       await handleCrawlCommand({
         urlOrJobId: 'https://example.com',
@@ -712,7 +717,7 @@ describe('executeCrawl', () => {
           },
         ],
       };
-      mockClient.crawl.mockResolvedValue(mockCrawlJob);
+      mockClient.crawl!.mockResolvedValue(mockCrawlJob);
 
       await handleCrawlCommand({
         urlOrJobId: 'https://example.com',
@@ -727,10 +732,10 @@ describe('executeCrawl', () => {
         id: '550e8400-e29b-41d4-a716-446655440000',
         url: 'https://example.com',
       };
-      mockClient.startCrawl.mockResolvedValue(mockResponse);
+      mockClient.startCrawl!.mockResolvedValue(mockResponse);
 
       // Mock getCrawlStatus to return completed status with data
-      mockClient.getCrawlStatus.mockResolvedValue({
+      mockClient.getCrawlStatus!.mockResolvedValue({
         id: '550e8400-e29b-41d4-a716-446655440000',
         status: 'completed',
         total: 1,
@@ -757,10 +762,10 @@ describe('executeCrawl', () => {
         id: '550e8400-e29b-41d4-a716-446655440000',
         url: 'https://example.com',
       };
-      mockClient.startCrawl.mockResolvedValue(mockResponse);
+      mockClient.startCrawl!.mockResolvedValue(mockResponse);
 
       // Mock getCrawlStatus to return failed status
-      mockClient.getCrawlStatus.mockResolvedValue({
+      mockClient.getCrawlStatus!.mockResolvedValue({
         id: '550e8400-e29b-41d4-a716-446655440000',
         status: 'failed',
         total: 0,
@@ -781,7 +786,7 @@ describe('executeCrawl', () => {
         id: '550e8400-e29b-41d4-a716-446655440000',
         url: 'https://example.com',
       };
-      mockClient.startCrawl.mockResolvedValue(mockResponse);
+      mockClient.startCrawl!.mockResolvedValue(mockResponse);
 
       await handleCrawlCommand({
         urlOrJobId: 'https://example.com',
@@ -809,7 +814,7 @@ describe('executeCrawl', () => {
           },
         ],
       };
-      mockClient.crawl.mockResolvedValue(mockCrawlJob);
+      mockClient.crawl!.mockResolvedValue(mockCrawlJob);
 
       await handleCrawlCommand({
         urlOrJobId: 'https://example.com',
@@ -848,7 +853,7 @@ describe('executeCrawl', () => {
           },
         ],
       };
-      mockClient.crawl.mockResolvedValue(mockCrawlJob);
+      mockClient.crawl!.mockResolvedValue(mockCrawlJob);
 
       await handleCrawlCommand({
         urlOrJobId: 'https://example.com',

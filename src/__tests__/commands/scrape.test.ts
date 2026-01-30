@@ -6,7 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeScrape, handleScrapeCommand } from '../../commands/scrape';
 import { getClient } from '../../utils/client';
 import { initializeConfig } from '../../utils/config';
-import { setupTest, teardownTest } from '../utils/mock-client';
+import {
+  type MockFirecrawlClient,
+  setupTest,
+  teardownTest,
+} from '../utils/mock-client';
 
 // Mock the Firecrawl client module
 vi.mock('../../utils/client', async () => {
@@ -28,7 +32,7 @@ vi.mock('../../utils/output', () => ({
 }));
 
 describe('executeScrape', () => {
-  let mockClient: any;
+  let mockClient: MockFirecrawlClient;
 
   beforeEach(() => {
     setupTest();
@@ -44,6 +48,7 @@ describe('executeScrape', () => {
     };
 
     // Mock getClient to return our mock
+    // biome-ignore lint/suspicious/noExplicitAny: Test mock requires flexible typing
     vi.mocked(getClient).mockReturnValue(mockClient as any);
   });
 
@@ -55,28 +60,28 @@ describe('executeScrape', () => {
   describe('API call generation', () => {
     it('should call scrape with correct URL and default markdown format', async () => {
       const mockResponse = { markdown: '# Test Content' };
-      mockClient.scrape.mockResolvedValue(mockResponse);
+      mockClient.scrape!.mockResolvedValue(mockResponse);
 
       await executeScrape({
         url: 'https://example.com',
       });
 
-      expect(mockClient.scrape).toHaveBeenCalledTimes(1);
-      expect(mockClient.scrape).toHaveBeenCalledWith('https://example.com', {
+      expect(mockClient.scrape!).toHaveBeenCalledTimes(1);
+      expect(mockClient.scrape!).toHaveBeenCalledWith('https://example.com', {
         formats: ['markdown'],
       });
     });
 
     it('should call scrape with specified format', async () => {
       const mockResponse = { html: '<html>...</html>' };
-      mockClient.scrape.mockResolvedValue(mockResponse);
+      mockClient.scrape!.mockResolvedValue(mockResponse);
 
       await executeScrape({
         url: 'https://example.com',
         formats: ['html'],
       });
 
-      expect(mockClient.scrape).toHaveBeenCalledWith('https://example.com', {
+      expect(mockClient.scrape!).toHaveBeenCalledWith('https://example.com', {
         formats: ['html'],
       });
     });
@@ -86,14 +91,14 @@ describe('executeScrape', () => {
         markdown: '# Test',
         screenshot: 'base64image...',
       };
-      mockClient.scrape.mockResolvedValue(mockResponse);
+      mockClient.scrape!.mockResolvedValue(mockResponse);
 
       await executeScrape({
         url: 'https://example.com',
         screenshot: true,
       });
 
-      expect(mockClient.scrape).toHaveBeenCalledWith('https://example.com', {
+      expect(mockClient.scrape!).toHaveBeenCalledWith('https://example.com', {
         formats: ['screenshot'],
       });
     });
@@ -103,7 +108,7 @@ describe('executeScrape', () => {
         markdown: '# Test',
         screenshot: 'base64image...',
       };
-      mockClient.scrape.mockResolvedValue(mockResponse);
+      mockClient.scrape!.mockResolvedValue(mockResponse);
 
       await executeScrape({
         url: 'https://example.com',
@@ -111,21 +116,21 @@ describe('executeScrape', () => {
         screenshot: true,
       });
 
-      expect(mockClient.scrape).toHaveBeenCalledWith('https://example.com', {
+      expect(mockClient.scrape!).toHaveBeenCalledWith('https://example.com', {
         formats: ['markdown', 'screenshot'],
       });
     });
 
     it('should include onlyMainContent parameter when provided', async () => {
       const mockResponse = { markdown: '# Test' };
-      mockClient.scrape.mockResolvedValue(mockResponse);
+      mockClient.scrape!.mockResolvedValue(mockResponse);
 
       await executeScrape({
         url: 'https://example.com',
         onlyMainContent: true,
       });
 
-      expect(mockClient.scrape).toHaveBeenCalledWith('https://example.com', {
+      expect(mockClient.scrape!).toHaveBeenCalledWith('https://example.com', {
         formats: ['markdown'],
         onlyMainContent: true,
       });
@@ -133,14 +138,14 @@ describe('executeScrape', () => {
 
     it('should include waitFor parameter when provided', async () => {
       const mockResponse = { markdown: '# Test' };
-      mockClient.scrape.mockResolvedValue(mockResponse);
+      mockClient.scrape!.mockResolvedValue(mockResponse);
 
       await executeScrape({
         url: 'https://example.com',
         waitFor: 2000,
       });
 
-      expect(mockClient.scrape).toHaveBeenCalledWith('https://example.com', {
+      expect(mockClient.scrape!).toHaveBeenCalledWith('https://example.com', {
         formats: ['markdown'],
         waitFor: 2000,
       });
@@ -148,14 +153,14 @@ describe('executeScrape', () => {
 
     it('should include includeTags parameter when provided', async () => {
       const mockResponse = { markdown: '# Test' };
-      mockClient.scrape.mockResolvedValue(mockResponse);
+      mockClient.scrape!.mockResolvedValue(mockResponse);
 
       await executeScrape({
         url: 'https://example.com',
         includeTags: ['article', 'main'],
       });
 
-      expect(mockClient.scrape).toHaveBeenCalledWith('https://example.com', {
+      expect(mockClient.scrape!).toHaveBeenCalledWith('https://example.com', {
         formats: ['markdown'],
         includeTags: ['article', 'main'],
       });
@@ -163,14 +168,14 @@ describe('executeScrape', () => {
 
     it('should include excludeTags parameter when provided', async () => {
       const mockResponse = { markdown: '# Test' };
-      mockClient.scrape.mockResolvedValue(mockResponse);
+      mockClient.scrape!.mockResolvedValue(mockResponse);
 
       await executeScrape({
         url: 'https://example.com',
         excludeTags: ['nav', 'footer'],
       });
 
-      expect(mockClient.scrape).toHaveBeenCalledWith('https://example.com', {
+      expect(mockClient.scrape!).toHaveBeenCalledWith('https://example.com', {
         formats: ['markdown'],
         excludeTags: ['nav', 'footer'],
       });
@@ -178,7 +183,7 @@ describe('executeScrape', () => {
 
     it('should combine all parameters correctly', async () => {
       const mockResponse = { markdown: '# Test', screenshot: 'base64...' };
-      mockClient.scrape.mockResolvedValue(mockResponse);
+      mockClient.scrape!.mockResolvedValue(mockResponse);
 
       await executeScrape({
         url: 'https://example.com',
@@ -190,7 +195,7 @@ describe('executeScrape', () => {
         excludeTags: ['nav'],
       });
 
-      expect(mockClient.scrape).toHaveBeenCalledWith('https://example.com', {
+      expect(mockClient.scrape!).toHaveBeenCalledWith('https://example.com', {
         formats: ['markdown', 'screenshot'],
         onlyMainContent: true,
         waitFor: 3000,
@@ -206,7 +211,7 @@ describe('executeScrape', () => {
         markdown: '# Test Content',
         url: 'https://example.com',
       };
-      mockClient.scrape.mockResolvedValue(mockResponse);
+      mockClient.scrape!.mockResolvedValue(mockResponse);
 
       const result = await executeScrape({
         url: 'https://example.com',
@@ -228,7 +233,7 @@ describe('executeScrape', () => {
           description: 'Test description',
         },
       };
-      mockClient.scrape.mockResolvedValue(mockResponse);
+      mockClient.scrape!.mockResolvedValue(mockResponse);
 
       const result = await executeScrape({
         url: 'https://example.com',
@@ -240,7 +245,7 @@ describe('executeScrape', () => {
 
     it('should return error result when scrape fails', async () => {
       const errorMessage = 'API Error: Invalid URL';
-      mockClient.scrape.mockRejectedValue(new Error(errorMessage));
+      mockClient.scrape!.mockRejectedValue(new Error(errorMessage));
 
       const result = await executeScrape({
         url: 'https://example.com',
@@ -253,7 +258,7 @@ describe('executeScrape', () => {
     });
 
     it('should handle non-Error exceptions', async () => {
-      mockClient.scrape.mockRejectedValue('String error');
+      mockClient.scrape!.mockRejectedValue('String error');
 
       const result = await executeScrape({
         url: 'https://example.com',
@@ -274,7 +279,7 @@ describe('executeScrape', () => {
       ];
 
       for (const format of formatList) {
-        mockClient.scrape.mockResolvedValue({ [format]: 'test' });
+        mockClient.scrape!.mockResolvedValue({ [format]: 'test' });
         const result = await executeScrape({
           url: 'https://example.com',
           formats: [format],
@@ -284,7 +289,7 @@ describe('executeScrape', () => {
     });
 
     it('should accept multiple formats', async () => {
-      mockClient.scrape.mockResolvedValue({
+      mockClient.scrape!.mockResolvedValue({
         markdown: '# Test',
         links: ['http://a.com'],
         images: ['http://img.com/a.png'],
@@ -296,7 +301,7 @@ describe('executeScrape', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(mockClient.scrape).toHaveBeenCalledWith('https://example.com', {
+      expect(mockClient.scrape!).toHaveBeenCalledWith('https://example.com', {
         formats: ['markdown', 'links', 'images'],
       });
     });
@@ -304,7 +309,7 @@ describe('executeScrape', () => {
 });
 
 describe('handleScrapeCommand auto-embed', () => {
-  let mockClient: any;
+  let mockClient: MockFirecrawlClient;
 
   beforeEach(async () => {
     setupTest();
@@ -316,6 +321,7 @@ describe('handleScrapeCommand auto-embed', () => {
     mockClient = {
       scrape: vi.fn(),
     };
+    // biome-ignore lint/suspicious/noExplicitAny: Test mock requires flexible typing
     vi.mocked(getClient).mockReturnValue(mockClient as any);
 
     // Reset mocks between tests
@@ -333,7 +339,7 @@ describe('handleScrapeCommand auto-embed', () => {
       markdown: '# Test Content',
       metadata: { title: 'Test Page' },
     };
-    mockClient.scrape.mockResolvedValue(mockResponse);
+    mockClient.scrape!.mockResolvedValue(mockResponse);
 
     await handleScrapeCommand({
       url: 'https://example.com',
@@ -355,7 +361,7 @@ describe('handleScrapeCommand auto-embed', () => {
       markdown: '# Test Content',
       metadata: { title: 'Test Page' },
     };
-    mockClient.scrape.mockResolvedValue(mockResponse);
+    mockClient.scrape!.mockResolvedValue(mockResponse);
 
     await handleScrapeCommand({
       url: 'https://example.com',
@@ -368,7 +374,7 @@ describe('handleScrapeCommand auto-embed', () => {
   });
 
   it('should skip autoEmbed when scrape fails', async () => {
-    mockClient.scrape.mockRejectedValue(new Error('Scrape failed'));
+    mockClient.scrape!.mockRejectedValue(new Error('Scrape failed'));
 
     await handleScrapeCommand({
       url: 'https://example.com',
@@ -384,7 +390,7 @@ describe('handleScrapeCommand auto-embed', () => {
       markdown: '# Default embed',
       metadata: { title: 'Default' },
     };
-    mockClient.scrape.mockResolvedValue(mockResponse);
+    mockClient.scrape!.mockResolvedValue(mockResponse);
 
     await handleScrapeCommand({
       url: 'https://example.com',
@@ -399,7 +405,7 @@ describe('handleScrapeCommand auto-embed', () => {
       html: '<h1>HTML Content</h1>',
       metadata: { title: 'HTML Page' },
     };
-    mockClient.scrape.mockResolvedValue(mockResponse);
+    mockClient.scrape!.mockResolvedValue(mockResponse);
 
     await handleScrapeCommand({
       url: 'https://example.com',
@@ -420,7 +426,7 @@ describe('handleScrapeCommand auto-embed', () => {
       rawHtml: '<html><body>Raw</body></html>',
       metadata: {},
     };
-    mockClient.scrape.mockResolvedValue(mockResponse);
+    mockClient.scrape!.mockResolvedValue(mockResponse);
 
     await handleScrapeCommand({
       url: 'https://example.com',
