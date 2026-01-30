@@ -21,7 +21,8 @@ interface QdrantPoint {
     url?: string;
     content?: string;
     title?: string;
-    [key: string]: any;
+    chunk_index?: number;
+    [key: string]: unknown;
   };
 }
 
@@ -44,7 +45,12 @@ async function fetchAllPoints(): Promise<QdrantPoint[]> {
   );
 
   while (true) {
-    const scrollBody: any = {
+    const scrollBody: {
+      limit: number;
+      with_payload: boolean;
+      with_vector: boolean;
+      offset?: string;
+    } = {
       limit,
       with_payload: true,
       with_vector: false,
@@ -103,10 +109,12 @@ function findDuplicates(points: QdrantPoint[]): DuplicateGroup[] {
     // Create unique key: url + chunk_index
     const key = `${url}:::${chunkIndex ?? 0}`;
 
-    if (!chunkMap.has(key)) {
-      chunkMap.set(key, []);
+    const existingIds = chunkMap.get(key);
+    if (existingIds) {
+      existingIds.push(point.id);
+    } else {
+      chunkMap.set(key, [point.id]);
     }
-    chunkMap.get(key)!.push(point.id);
   }
 
   const duplicates: DuplicateGroup[] = [];

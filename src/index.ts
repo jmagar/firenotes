@@ -5,9 +5,9 @@
  * Entry point for the CLI application
  */
 
+import { resolve } from 'node:path';
 import { Command } from 'commander';
 import { config as loadDotenv } from 'dotenv';
-import { resolve } from 'path';
 
 // Load .env from the CLI project directory, not the current working directory
 // __dirname is available in CommonJS (tsconfig uses "module": "commonjs")

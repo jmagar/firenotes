@@ -6,8 +6,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import type { Document } from '@mendable/firecrawl-js';
 import { getClient } from './client';
 import { getConfig, initializeConfig } from './config';

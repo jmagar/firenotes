@@ -10,7 +10,11 @@ import {
 } from '../../commands/scrape';
 import { getClient } from '../../utils/client';
 import { initializeConfig } from '../../utils/config';
-import { setupTest, teardownTest } from '../utils/mock-client';
+import {
+  type MockFirecrawlClient,
+  setupTest,
+  teardownTest,
+} from '../utils/mock-client';
 
 // Mock the Firecrawl client module
 vi.mock('../../utils/client', async () => {
@@ -32,7 +36,7 @@ vi.mock('../../utils/output', () => ({
 }));
 
 describe('executeScrape', () => {
-  let mockClient: any;
+  let mockClient: MockFirecrawlClient;
 
   beforeEach(() => {
     setupTest();
@@ -48,7 +52,9 @@ describe('executeScrape', () => {
     };
 
     // Mock getClient to return our mock
-    vi.mocked(getClient).mockReturnValue(mockClient as any);
+    vi.mocked(getClient).mockReturnValue(
+      mockClient as unknown as ReturnType<typeof getClient>
+    );
   });
 
   afterEach(() => {
@@ -325,7 +331,7 @@ describe('createScrapeCommand', () => {
 });
 
 describe('handleScrapeCommand auto-embed', () => {
-  let mockClient: any;
+  let mockClient: MockFirecrawlClient;
 
   beforeEach(async () => {
     setupTest();
@@ -337,7 +343,9 @@ describe('handleScrapeCommand auto-embed', () => {
     mockClient = {
       scrape: vi.fn(),
     };
-    vi.mocked(getClient).mockReturnValue(mockClient as any);
+    vi.mocked(getClient).mockReturnValue(
+      mockClient as unknown as ReturnType<typeof getClient>
+    );
 
     // Reset mocks between tests
     const { autoEmbed } = await import('../../utils/embedpipeline');

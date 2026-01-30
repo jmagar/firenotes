@@ -14,7 +14,11 @@ import {
   initializeConfig,
   resetConfig,
 } from '../../utils/config';
-import { setupTest, teardownTest } from '../utils/mock-client';
+import {
+  type MockFirecrawlClient,
+  setupTest,
+  teardownTest,
+} from '../utils/mock-client';
 
 // Track config state during autoEmbed calls
 let configStateWhenEmbedCalled: ReturnType<typeof getConfig> | null = null;
@@ -29,25 +33,45 @@ vi.mock('../../utils/client', async () => {
 });
 
 // Mock embedpipeline and capture config state
+type EmbedPage = {
+  markdown?: string;
+  html?: string;
+  url?: string;
+  title?: string;
+  metadata?: {
+    sourceURL?: string;
+    url?: string;
+    title?: string;
+  };
+};
+
+type CrawlMockClient = MockFirecrawlClient &
+  Required<
+    Pick<MockFirecrawlClient, 'startCrawl' | 'getCrawlStatus' | 'crawl'>
+  >;
+
 vi.mock('../../utils/embedpipeline', () => ({
   batchEmbed: vi.fn().mockImplementation(async () => {
     // Capture config state when embedding is called
     const { getConfig } = await import('../../utils/config');
     configStateWhenEmbedCalled = getConfig();
   }),
-  createEmbedItems: vi.fn().mockImplementation((pages, sourceCommand) => {
-    return pages
-      .filter((page: any) => page.markdown || page.html)
-      .map((page: any) => ({
-        content: page.markdown || page.html || '',
-        metadata: {
-          url: page.url || page.metadata?.sourceURL || page.metadata?.url || '',
-          title: page.title || page.metadata?.title,
-          sourceCommand,
-          contentType: page.markdown ? 'markdown' : 'html',
-        },
-      }));
-  }),
+  createEmbedItems: vi
+    .fn()
+    .mockImplementation((pages: EmbedPage[], sourceCommand) => {
+      return pages
+        .filter((page) => page.markdown || page.html)
+        .map((page) => ({
+          content: page.markdown || page.html || '',
+          metadata: {
+            url:
+              page.url || page.metadata?.sourceURL || page.metadata?.url || '',
+            title: page.title || page.metadata?.title,
+            sourceCommand,
+            contentType: page.markdown ? 'markdown' : 'html',
+          },
+        }));
+    }),
 }));
 
 // Mock settings
@@ -60,8 +84,26 @@ vi.mock('../../utils/output', () => ({
   writeOutput: vi.fn(),
 }));
 
+vi.mock('../../utils/embed-queue', () => ({
+  enqueueEmbedJob: vi.fn().mockReturnValue({
+    id: 'mock-job',
+    jobId: 'mock-job',
+    url: 'https://example.com',
+    status: 'pending',
+    retries: 0,
+    maxRetries: 3,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }),
+  getEmbedJob: vi.fn().mockReturnValue(null),
+}));
+
+vi.mock('../../utils/background-embedder', () => ({
+  processEmbedQueue: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('Crawl embedding config initialization', () => {
-  let mockClient: any;
+  let mockClient: CrawlMockClient;
 
   beforeEach(() => {
     setupTest();
@@ -72,13 +114,16 @@ describe('Crawl embedding config initialization', () => {
 
     // Create mock client
     mockClient = {
+      scrape: vi.fn(),
       startCrawl: vi.fn(),
       getCrawlStatus: vi.fn(),
       crawl: vi.fn(),
     };
 
     // Mock getClient to return our mock
-    vi.mocked(getClient).mockReturnValue(mockClient as any);
+    vi.mocked(getClient).mockReturnValue(
+      mockClient as unknown as ReturnType<typeof getClient>
+    );
   });
 
   afterEach(() => {
