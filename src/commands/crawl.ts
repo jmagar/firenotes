@@ -6,6 +6,7 @@ import type { CrawlOptions as FirecrawlCrawlOptions } from '@mendable/firecrawl-
 import { Command } from 'commander';
 import type {
   CrawlCancelResult,
+  CrawlErrorsResult,
   CrawlJobData,
   CrawlOptions,
   CrawlResult,
@@ -64,6 +65,24 @@ export async function executeCrawlCancel(
     }
 
     return { success: true, data: { status: 'cancelled' } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
+ * Execute crawl errors fetch
+ */
+export async function executeCrawlErrors(
+  jobId: string
+): Promise<CrawlErrorsResult> {
+  try {
+    const app = getClient();
+    const errors = await app.getCrawlErrors(jobId);
+    return { success: true, data: errors };
   } catch (error) {
     return {
       success: false,
@@ -322,6 +341,21 @@ export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
     return;
   }
 
+  if (options.errors) {
+    const result = await executeCrawlErrors(options.urlOrJobId);
+    if (!result.success) {
+      console.error('Error:', result.error || 'Unknown error occurred');
+      process.exit(1);
+    }
+
+    const outputContent = formatJson(
+      { success: true, data: result.data },
+      options.pretty
+    );
+    writeOutput(outputContent, options.output, !!options.output);
+    return;
+  }
+
   // Handle manual embedding trigger for job ID
   if (options.embed && isJobId(options.urlOrJobId)) {
     await handleManualEmbedding(options.urlOrJobId, options.apiKey);
@@ -434,6 +468,7 @@ export function createCrawlCommand(): Command {
       'URL to crawl (alternative to positional argument)'
     )
     .option('--cancel', 'Cancel an existing crawl job', false)
+    .option('--errors', 'Fetch crawl errors for a job ID', false)
     .option('--status', 'Check status of existing crawl job', false)
     .option(
       '--wait',
@@ -507,6 +542,8 @@ export function createCrawlCommand(): Command {
       const crawlOptions = {
         urlOrJobId: isStatusCheck ? urlOrJobId : normalizeUrl(urlOrJobId),
         status: isStatusCheck,
+        cancel: options.cancel,
+        errors: options.errors,
         wait: options.wait,
         pollInterval: options.pollInterval,
         timeout: options.timeout,

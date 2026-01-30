@@ -7,6 +7,7 @@ import {
   createCrawlCommand,
   executeCrawl,
   executeCrawlCancel,
+  executeCrawlErrors,
   handleCrawlCommand,
 } from '../../commands/crawl';
 import { getClient } from '../../utils/client';
@@ -990,6 +991,53 @@ describe('handleCrawlCommand cancel mode', () => {
 
     expect(mockClient.cancelCrawl).toHaveBeenCalledWith('job-123');
     expect(writeOutput).toHaveBeenCalled();
+  });
+});
+
+describe('executeCrawlErrors', () => {
+  type CrawlErrorsMock = MockFirecrawlClient &
+    Required<Pick<MockFirecrawlClient, 'getCrawlErrors'>>;
+
+  let mockClient: CrawlErrorsMock;
+
+  beforeEach(() => {
+    setupTest();
+    initializeConfig({
+      apiKey: 'test-api-key',
+      apiUrl: 'https://api.firecrawl.dev',
+    });
+
+    mockClient = { scrape: vi.fn(), getCrawlErrors: vi.fn() };
+    vi.mocked(getClient).mockReturnValue(
+      mockClient as unknown as ReturnType<typeof getClient>
+    );
+  });
+
+  afterEach(() => {
+    teardownTest();
+    vi.clearAllMocks();
+  });
+
+  it('should return crawl errors and robotsBlocked', async () => {
+    mockClient.getCrawlErrors.mockResolvedValue({
+      errors: [
+        {
+          id: 'err-1',
+          url: 'https://a.com',
+          error: 'timeout',
+          timestamp: '2024-01-01',
+          code: 'TIMEOUT',
+        },
+      ],
+      robotsBlocked: ['https://b.com/robots'],
+    });
+
+    const result = await executeCrawlErrors('job-123');
+
+    expect(mockClient.getCrawlErrors).toHaveBeenCalledWith('job-123');
+    expect(result.success).toBe(true);
+    expect(result.data?.errors.length).toBe(1);
+    expect(result.data?.robotsBlocked.length).toBe(1);
   });
 });
 

@@ -13,6 +13,8 @@ export interface CrawlOptions {
   status?: boolean;
   /** Cancel an existing crawl job */
   cancel?: boolean;
+  /** Fetch errors for an existing crawl job */
+  errors?: boolean;
   /** Wait for crawl to complete */
   wait?: boolean;
   /** Polling interval in seconds when waiting */
@@ -93,6 +95,25 @@ export interface CrawlStatusData {
 export interface CrawlStatusResult {
   success: boolean;
   data?: CrawlStatusData;
+  error?: string;
+}
+
+export interface CrawlErrorItem {
+  id: string;
+  url: string;
+  error: string;
+  timestamp?: string;
+  code?: string;
+}
+
+export interface CrawlErrorsData {
+  errors: CrawlErrorItem[];
+  robotsBlocked: string[];
+}
+
+export interface CrawlErrorsResult {
+  success: boolean;
+  data?: CrawlErrorsData;
   error?: string;
 }
 
