@@ -160,6 +160,24 @@ describe('createBatchCommand', () => {
     ).rejects.toThrow();
   });
 
+  it('should require job id for --cancel', async () => {
+    const cmd = createBatchCommand();
+    cmd.exitOverride();
+
+    await expect(
+      cmd.parseAsync(['node', 'test', '--cancel'], { from: 'node' })
+    ).rejects.toThrow();
+  });
+
+  it('should require job id for --errors', async () => {
+    const cmd = createBatchCommand();
+    cmd.exitOverride();
+
+    await expect(
+      cmd.parseAsync(['node', 'test', '--errors'], { from: 'node' })
+    ).rejects.toThrow();
+  });
+
   it('should write output when executing', async () => {
     const mockClient = {
       startBatchScrape: vi.fn().mockResolvedValue({ id: 'batch-1', url: 'u' }),

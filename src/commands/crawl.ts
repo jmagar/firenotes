@@ -117,6 +117,9 @@ export async function executeCrawl(
   try {
     const app = getClient({ apiKey: options.apiKey });
     const { urlOrJobId, status, pollInterval, timeout } = options;
+    if (!urlOrJobId) {
+      return { success: false, error: 'URL or job ID is required' };
+    }
 
     // Progress implies wait
     const wait = options.wait || options.progress;
@@ -358,6 +361,11 @@ export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
     return;
   }
 
+  if (!options.urlOrJobId) {
+    console.error('Error: URL or job ID is required.');
+    process.exit(1);
+  }
+
   if (options.cancel) {
     const result = await executeCrawlCancel(options.urlOrJobId);
     if (!result.success) {
@@ -563,7 +571,6 @@ export function createCrawlCommand(): Command {
       if (options.active) {
         await handleCrawlCommand({
           active: true,
-          urlOrJobId: '',
           output: options.output,
           pretty: options.pretty,
           apiKey: options.apiKey,
@@ -576,6 +583,13 @@ export function createCrawlCommand(): Command {
       if (!urlOrJobId) {
         console.error(
           'Error: URL or job ID is required. Provide it as argument or use --url option.'
+        );
+        process.exit(1);
+      }
+
+      if ((options.cancel || options.errors) && !isJobId(urlOrJobId)) {
+        console.error(
+          'Error: job ID is required for --cancel/--errors (URLs are not valid).'
         );
         process.exit(1);
       }

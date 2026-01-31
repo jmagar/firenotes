@@ -1108,11 +1108,12 @@ describe('createCrawlCommand', () => {
     const cmd = createCrawlCommand();
     cmd.exitOverride();
 
-    await cmd.parseAsync(['node', 'test', 'job-123', '--cancel'], {
+    const jobId = '550e8400-e29b-41d4-a716-446655440000';
+    await cmd.parseAsync(['node', 'test', jobId, '--cancel'], {
       from: 'node',
     });
 
-    expect(cancelClient.cancelCrawl).toHaveBeenCalledWith('job-123');
+    expect(cancelClient.cancelCrawl).toHaveBeenCalledWith(jobId);
   });
 
   it('should not normalize job id for --errors', async () => {
@@ -1128,11 +1129,34 @@ describe('createCrawlCommand', () => {
     const cmd = createCrawlCommand();
     cmd.exitOverride();
 
-    await cmd.parseAsync(['node', 'test', 'job-123', '--errors'], {
+    const jobId = '550e8400-e29b-41d4-a716-446655440000';
+    await cmd.parseAsync(['node', 'test', jobId, '--errors'], {
       from: 'node',
     });
 
-    expect(errorsClient.getCrawlErrors).toHaveBeenCalledWith('job-123');
+    expect(errorsClient.getCrawlErrors).toHaveBeenCalledWith(jobId);
+  });
+
+  it('should require job id for --cancel', async () => {
+    const cmd = createCrawlCommand();
+    cmd.exitOverride();
+
+    await expect(
+      cmd.parseAsync(['node', 'test', 'https://example.com', '--cancel'], {
+        from: 'node',
+      })
+    ).rejects.toThrow();
+  });
+
+  it('should require job id for --errors', async () => {
+    const cmd = createCrawlCommand();
+    cmd.exitOverride();
+
+    await expect(
+      cmd.parseAsync(['node', 'test', 'https://example.com', '--errors'], {
+        from: 'node',
+      })
+    ).rejects.toThrow();
   });
 
   it('should default scrapeTimeout to 15 seconds when not provided', async () => {

@@ -8,7 +8,7 @@ export interface CrawlOptions {
   /** API key for Firecrawl */
   apiKey?: string;
   /** URL to crawl or job ID to check status */
-  urlOrJobId: string;
+  urlOrJobId?: string;
   /** Check status of existing crawl job */
   status?: boolean;
   /** Cancel an existing crawl job */
