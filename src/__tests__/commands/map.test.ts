@@ -4,11 +4,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeMap } from '../../commands/map';
-import {
-  DEFAULT_USER_AGENT,
-  initializeConfig,
-  resetConfig,
-} from '../../utils/config';
+import type { IContainer } from '../../container/types';
+import { DEFAULT_USER_AGENT } from '../../utils/config';
+import { createTestContainer } from '../utils/test-container';
 
 // Mock output utility to prevent side effects
 vi.mock('../../utils/output', () => ({
@@ -30,12 +28,6 @@ describe('executeMap', () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    resetConfig();
-    initializeConfig({
-      apiKey: 'test-api-key',
-      apiUrl: 'https://api.firecrawl.dev',
-    });
-
     // Default fetch mock returning empty links
     fetchSpy = mockFetchResponse({ links: [] });
     vi.stubGlobal('fetch', fetchSpy);
@@ -43,17 +35,17 @@ describe('executeMap', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    resetConfig();
   });
 
   describe('API call generation', () => {
     it('should call /v1/map with correct URL and default options', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({
         links: ['https://example.com/page1', 'https://example.com/page2'],
       });
       vi.stubGlobal('fetch', fetchSpy);
 
-      await executeMap({
+      await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
@@ -69,18 +61,13 @@ describe('executeMap', () => {
     });
 
     it('should include default User-Agent as HTTP header when configured', async () => {
-      // Reset and initialize with default User-Agent
-      resetConfig();
-      initializeConfig({
-        apiKey: 'test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
+      const container = createTestContainer(undefined, {
         userAgent: DEFAULT_USER_AGENT,
       });
-
       fetchSpy = mockFetchResponse({ links: [] });
       vi.stubGlobal('fetch', fetchSpy);
 
-      await executeMap({
+      await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
@@ -89,17 +76,13 @@ describe('executeMap', () => {
     });
 
     it('should include custom User-Agent as HTTP header when configured', async () => {
-      resetConfig();
-      initializeConfig({
-        apiKey: 'test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
+      const container = createTestContainer(undefined, {
         userAgent: 'custom-bot/1.0',
       });
-
       fetchSpy = mockFetchResponse({ links: [] });
       vi.stubGlobal('fetch', fetchSpy);
 
-      await executeMap({
+      await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
@@ -107,25 +90,26 @@ describe('executeMap', () => {
       expect(options.headers['User-Agent']).toBe('custom-bot/1.0');
     });
 
-    it('should always include default User-Agent header', async () => {
-      // Default config always includes DEFAULT_USER_AGENT
+    it('should not include User-Agent header when not configured', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({ links: [] });
       vi.stubGlobal('fetch', fetchSpy);
 
-      await executeMap({
+      await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
       const [, options] = fetchSpy.mock.calls[0];
-      // User-Agent is always set (defaults to DEFAULT_USER_AGENT in config)
-      expect(options.headers['User-Agent']).toBe(DEFAULT_USER_AGENT);
+      // User-Agent is not set when not in config
+      expect(options.headers['User-Agent']).toBeUndefined();
     });
 
     it('should include limit option when provided', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({ links: ['https://example.com/page1'] });
       vi.stubGlobal('fetch', fetchSpy);
 
-      await executeMap({
+      await executeMap(container, {
         urlOrJobId: 'https://example.com',
         limit: 50,
       });
@@ -135,10 +119,11 @@ describe('executeMap', () => {
     });
 
     it('should include search option when provided', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({ links: ['https://example.com/blog'] });
       vi.stubGlobal('fetch', fetchSpy);
 
-      await executeMap({
+      await executeMap(container, {
         urlOrJobId: 'https://example.com',
         search: 'blog',
       });
@@ -148,12 +133,13 @@ describe('executeMap', () => {
     });
 
     it('should include includeSubdomains option when provided', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({
         links: ['https://sub.example.com/page1'],
       });
       vi.stubGlobal('fetch', fetchSpy);
 
-      await executeMap({
+      await executeMap(container, {
         urlOrJobId: 'https://example.com',
         includeSubdomains: true,
       });
@@ -163,10 +149,11 @@ describe('executeMap', () => {
     });
 
     it('should include ignoreQueryParameters option when provided', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({ links: ['https://example.com/page1'] });
       vi.stubGlobal('fetch', fetchSpy);
 
-      await executeMap({
+      await executeMap(container, {
         urlOrJobId: 'https://example.com',
         ignoreQueryParameters: true,
       });
@@ -176,10 +163,11 @@ describe('executeMap', () => {
     });
 
     it('should include timeout option converted to milliseconds', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({ links: ['https://example.com/page1'] });
       vi.stubGlobal('fetch', fetchSpy);
 
-      await executeMap({
+      await executeMap(container, {
         urlOrJobId: 'https://example.com',
         timeout: 60,
       });
@@ -189,14 +177,9 @@ describe('executeMap', () => {
     });
 
     it('should combine all options correctly', async () => {
-      // Configure User-Agent for this test
-      resetConfig();
-      initializeConfig({
-        apiKey: 'test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
+      const container = createTestContainer(undefined, {
         userAgent: DEFAULT_USER_AGENT,
       });
-
       fetchSpy = mockFetchResponse({
         links: [
           'https://example.com/blog/post1',
@@ -205,7 +188,7 @@ describe('executeMap', () => {
       });
       vi.stubGlobal('fetch', fetchSpy);
 
-      await executeMap({
+      await executeMap(container, {
         urlOrJobId: 'https://example.com',
         limit: 100,
         search: 'blog',
@@ -229,12 +212,13 @@ describe('executeMap', () => {
 
   describe('Response handling', () => {
     it('should return success result with mapped links (string format)', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({
         links: ['https://example.com/page1', 'https://example.com/page2'],
       });
       vi.stubGlobal('fetch', fetchSpy);
 
-      const result = await executeMap({
+      const result = await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
@@ -258,6 +242,7 @@ describe('executeMap', () => {
     });
 
     it('should return success result with mapped links (object format)', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({
         links: [
           {
@@ -274,7 +259,7 @@ describe('executeMap', () => {
       });
       vi.stubGlobal('fetch', fetchSpy);
 
-      const result = await executeMap({
+      const result = await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
@@ -298,6 +283,7 @@ describe('executeMap', () => {
     });
 
     it('should handle links without title or description', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({
         links: [
           { url: 'https://example.com/page1' },
@@ -306,7 +292,7 @@ describe('executeMap', () => {
       });
       vi.stubGlobal('fetch', fetchSpy);
 
-      const result = await executeMap({
+      const result = await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
@@ -327,10 +313,11 @@ describe('executeMap', () => {
     });
 
     it('should handle empty links array', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({ links: [] });
       vi.stubGlobal('fetch', fetchSpy);
 
-      const result = await executeMap({
+      const result = await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
@@ -341,6 +328,7 @@ describe('executeMap', () => {
     });
 
     it('should return error result when API returns non-OK status', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse(
         { error: 'API Error: Invalid URL' },
         false,
@@ -348,7 +336,7 @@ describe('executeMap', () => {
       );
       vi.stubGlobal('fetch', fetchSpy);
 
-      const result = await executeMap({
+      const result = await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
@@ -359,6 +347,7 @@ describe('executeMap', () => {
     });
 
     it('should handle non-JSON error responses', async () => {
+      const container = createTestContainer();
       vi.stubGlobal(
         'fetch',
         vi.fn().mockResolvedValue({
@@ -368,7 +357,7 @@ describe('executeMap', () => {
         })
       );
 
-      const result = await executeMap({
+      const result = await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
@@ -377,12 +366,13 @@ describe('executeMap', () => {
     });
 
     it('should handle fetch rejection', async () => {
+      const container = createTestContainer();
       vi.stubGlobal(
         'fetch',
         vi.fn().mockRejectedValue(new Error('Network error'))
       );
 
-      const result = await executeMap({
+      const result = await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
@@ -391,9 +381,10 @@ describe('executeMap', () => {
     });
 
     it('should handle non-Error exceptions', async () => {
+      const container = createTestContainer();
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue('String error'));
 
-      const result = await executeMap({
+      const result = await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
@@ -404,6 +395,7 @@ describe('executeMap', () => {
 
   describe('Data transformation', () => {
     it('should transform object links to expected format', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({
         links: [
           {
@@ -416,7 +408,7 @@ describe('executeMap', () => {
       });
       vi.stubGlobal('fetch', fetchSpy);
 
-      const result = await executeMap({
+      const result = await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 
@@ -432,12 +424,13 @@ describe('executeMap', () => {
     });
 
     it('should normalize string links to objects', async () => {
+      const container = createTestContainer();
       fetchSpy = mockFetchResponse({
         links: ['https://example.com/page1', 'https://example.com/page2'],
       });
       vi.stubGlobal('fetch', fetchSpy);
 
-      const result = await executeMap({
+      const result = await executeMap(container, {
         urlOrJobId: 'https://example.com',
       });
 

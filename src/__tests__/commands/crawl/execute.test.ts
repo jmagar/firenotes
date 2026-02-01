@@ -1,12 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeCrawl } from '../../../commands/crawl/execute';
 import type { CrawlOptions } from '../../../types/crawl';
+import { createTestContainer } from '../../utils/test-container';
 
 // Mock dependencies
-vi.mock('../../../utils/client', () => ({
-  getClient: vi.fn(),
-}));
-
 vi.mock('../../../utils/job', () => ({
   isJobId: vi.fn(),
 }));
@@ -31,7 +28,6 @@ import { attachEmbedWebhook } from '../../../commands/crawl/embed';
 import { buildCrawlOptions } from '../../../commands/crawl/options';
 import { pollCrawlProgress } from '../../../commands/crawl/polling';
 import { checkCrawlStatus } from '../../../commands/crawl/status';
-import { getClient } from '../../../utils/client';
 import { isJobId } from '../../../utils/job';
 
 describe('executeCrawl', () => {
@@ -40,17 +36,19 @@ describe('executeCrawl', () => {
   });
 
   it('should return error when URL or job ID is missing', async () => {
+    const container = createTestContainer();
     const options: CrawlOptions = {
       urlOrJobId: '',
     };
 
-    const result = await executeCrawl(options);
+    const result = await executeCrawl(container, options);
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('URL or job ID is required');
   });
 
   it('should check status when status flag is set', async () => {
+    const container = createTestContainer();
     const mockStatusResult = {
       success: true,
       data: { id: 'job-123', status: 'completed', total: 10, completed: 10 },
@@ -63,16 +61,17 @@ describe('executeCrawl', () => {
       status: true,
     };
 
-    const result = await executeCrawl(options);
+    const result = await executeCrawl(container, options);
 
     expect(checkCrawlStatus).toHaveBeenCalledWith(
-      'https://example.com',
-      options
+      expect.any(Object),
+      'https://example.com'
     );
     expect(result).toEqual(mockStatusResult);
   });
 
   it('should check status when input is a job ID', async () => {
+    const container = createTestContainer();
     const mockStatusResult = {
       success: true,
       data: { id: 'job-456', status: 'processing', total: 5, completed: 2 },
@@ -85,22 +84,26 @@ describe('executeCrawl', () => {
       urlOrJobId: 'job-456',
     };
 
-    const result = await executeCrawl(options);
+    const result = await executeCrawl(container, options);
 
     expect(isJobId).toHaveBeenCalledWith('job-456');
-    expect(checkCrawlStatus).toHaveBeenCalledWith('job-456', options);
+    expect(checkCrawlStatus).toHaveBeenCalledWith(
+      expect.any(Object),
+      'job-456'
+    );
     expect(result).toEqual(mockStatusResult);
   });
 
   it('should start async crawl and return job ID', async () => {
     const mockClient = {
+      scrape: vi.fn(),
       startCrawl: vi.fn().mockResolvedValue({
         id: 'job-789',
         url: 'https://example.com',
       }),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
     vi.mocked(isJobId).mockReturnValue(false);
     vi.mocked(buildCrawlOptions).mockReturnValue({ limit: 10 } as never);
     vi.mocked(attachEmbedWebhook).mockReturnValue({ limit: 10 } as never);
@@ -110,7 +113,7 @@ describe('executeCrawl', () => {
       limit: 10,
     };
 
-    const result = await executeCrawl(options);
+    const result = await executeCrawl(container, options);
 
     expect(buildCrawlOptions).toHaveBeenCalledWith(options);
     expect(attachEmbedWebhook).toHaveBeenCalledWith({ limit: 10 }, true, false);
@@ -137,10 +140,11 @@ describe('executeCrawl', () => {
     };
 
     const mockClient = {
+      scrape: vi.fn(),
       crawl: vi.fn().mockResolvedValue(mockCrawlJob),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
     vi.mocked(isJobId).mockReturnValue(false);
     vi.mocked(buildCrawlOptions).mockReturnValue({
       limit: 5,
@@ -157,7 +161,7 @@ describe('executeCrawl', () => {
       limit: 5,
     };
 
-    const result = await executeCrawl(options);
+    const result = await executeCrawl(container, options);
 
     expect(buildCrawlOptions).toHaveBeenCalledWith(options);
     expect(attachEmbedWebhook).toHaveBeenCalledWith(
@@ -185,13 +189,14 @@ describe('executeCrawl', () => {
     };
 
     const mockClient = {
+      scrape: vi.fn(),
       startCrawl: vi.fn().mockResolvedValue({
         id: 'job-222',
         url: 'https://example.com',
       }),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
     vi.mocked(isJobId).mockReturnValue(false);
     vi.mocked(buildCrawlOptions).mockReturnValue({
       limit: 8,
@@ -213,7 +218,7 @@ describe('executeCrawl', () => {
       timeout: 60,
     };
 
-    const result = await executeCrawl(options);
+    const result = await executeCrawl(container, options);
 
     expect(buildCrawlOptions).toHaveBeenCalledWith(options);
     expect(attachEmbedWebhook).toHaveBeenCalledWith(
@@ -226,11 +231,15 @@ describe('executeCrawl', () => {
       pollInterval: 3000,
       crawlTimeout: 60000,
     });
-    expect(pollCrawlProgress).toHaveBeenCalledWith('job-222', {
-      apiKey: undefined,
-      pollInterval: 3000,
-      timeout: 60000,
-    });
+    expect(pollCrawlProgress).toHaveBeenCalledWith(
+      expect.any(Object),
+      'job-222',
+      {
+        apiKey: undefined,
+        pollInterval: 3000,
+        timeout: 60000,
+      }
+    );
     expect(result).toEqual({
       success: true,
       data: mockCrawlJob,
@@ -239,13 +248,14 @@ describe('executeCrawl', () => {
 
   it('should disable embedding when embed is false', async () => {
     const mockClient = {
+      scrape: vi.fn(),
       startCrawl: vi.fn().mockResolvedValue({
         id: 'job-333',
         url: 'https://example.com',
       }),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
     vi.mocked(isJobId).mockReturnValue(false);
     vi.mocked(buildCrawlOptions).mockReturnValue({ limit: 10 } as never);
     vi.mocked(attachEmbedWebhook).mockReturnValue({ limit: 10 } as never);
@@ -255,7 +265,7 @@ describe('executeCrawl', () => {
       embed: false,
     };
 
-    await executeCrawl(options);
+    await executeCrawl(container, options);
 
     expect(attachEmbedWebhook).toHaveBeenCalledWith(
       { limit: 10 },
@@ -266,12 +276,13 @@ describe('executeCrawl', () => {
 
   it('should handle API errors', async () => {
     const mockClient = {
+      scrape: vi.fn(),
       startCrawl: vi
         .fn()
         .mockRejectedValue(new Error('API Error: Rate limit exceeded')),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
     vi.mocked(isJobId).mockReturnValue(false);
     vi.mocked(buildCrawlOptions).mockReturnValue({ limit: 10 } as never);
     vi.mocked(attachEmbedWebhook).mockReturnValue({ limit: 10 } as never);
@@ -280,7 +291,7 @@ describe('executeCrawl', () => {
       urlOrJobId: 'https://example.com',
     };
 
-    const result = await executeCrawl(options);
+    const result = await executeCrawl(container, options);
 
     expect(result.success).toBe(false);
     expect(result.error).toBe(
@@ -290,10 +301,11 @@ describe('executeCrawl', () => {
 
   it('should handle unknown errors', async () => {
     const mockClient = {
+      scrape: vi.fn(),
       startCrawl: vi.fn().mockRejectedValue('String error'),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
     vi.mocked(isJobId).mockReturnValue(false);
     vi.mocked(buildCrawlOptions).mockReturnValue({ limit: 10 } as never);
     vi.mocked(attachEmbedWebhook).mockReturnValue({ limit: 10 } as never);
@@ -302,7 +314,7 @@ describe('executeCrawl', () => {
       urlOrJobId: 'https://example.com',
     };
 
-    const result = await executeCrawl(options);
+    const result = await executeCrawl(container, options);
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('Crawl operation failed: Unknown error occurred');
@@ -310,13 +322,16 @@ describe('executeCrawl', () => {
 
   it('should pass apiKey to getClient', async () => {
     const mockClient = {
+      scrape: vi.fn(),
       startCrawl: vi.fn().mockResolvedValue({
         id: 'job-444',
         url: 'https://example.com',
       }),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient, {
+      apiKey: 'test-api-key',
+    });
     vi.mocked(isJobId).mockReturnValue(false);
     vi.mocked(buildCrawlOptions).mockReturnValue({ limit: 10 } as never);
     vi.mocked(attachEmbedWebhook).mockReturnValue({ limit: 10 } as never);
@@ -326,9 +341,9 @@ describe('executeCrawl', () => {
       apiKey: 'test-api-key',
     };
 
-    await executeCrawl(options);
+    await executeCrawl(container, options);
 
-    expect(getClient).toHaveBeenCalledWith({ apiKey: 'test-api-key' });
+    expect(container.config.apiKey).toBe('test-api-key');
   });
 
   it('should use default pollInterval when not provided in wait mode', async () => {
@@ -341,13 +356,14 @@ describe('executeCrawl', () => {
     };
 
     const mockClient = {
+      scrape: vi.fn(),
       startCrawl: vi.fn().mockResolvedValue({
         id: 'job-555',
         url: 'https://example.com',
       }),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
     vi.mocked(isJobId).mockReturnValue(false);
     vi.mocked(buildCrawlOptions).mockReturnValue({ limit: 3 } as never);
     vi.mocked(attachEmbedWebhook).mockReturnValue({ limit: 3 } as never);
@@ -359,12 +375,16 @@ describe('executeCrawl', () => {
       limit: 3,
     };
 
-    await executeCrawl(options);
+    await executeCrawl(container, options);
 
-    expect(pollCrawlProgress).toHaveBeenCalledWith('job-555', {
-      apiKey: undefined,
-      pollInterval: 5000,
-      timeout: undefined,
-    });
+    expect(pollCrawlProgress).toHaveBeenCalledWith(
+      expect.any(Object),
+      'job-555',
+      {
+        apiKey: undefined,
+        pollInterval: 5000,
+        timeout: undefined,
+      }
+    );
   });
 });

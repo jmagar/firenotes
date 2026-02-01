@@ -8,27 +8,12 @@ import {
   executeScrape,
   handleScrapeCommand,
 } from '../../commands/scrape';
-import { getClient } from '../../utils/client';
-import { initializeConfig } from '../../utils/config';
+import type { IContainer } from '../../container/types';
 import {
   type MockFirecrawlClient,
   setupTest,
   teardownTest,
 } from '../utils/mock-client';
-
-// Mock the Firecrawl client module
-vi.mock('../../utils/client', async () => {
-  const actual = await vi.importActual('../../utils/client');
-  return {
-    ...actual,
-    getClient: vi.fn(),
-  };
-});
-
-// Mock the embed pipeline module
-vi.mock('../../utils/embedpipeline', () => ({
-  autoEmbed: vi.fn().mockResolvedValue(undefined),
-}));
 
 // Mock the output module to prevent console output in tests
 vi.mock('../../utils/output', () => ({
@@ -37,24 +22,33 @@ vi.mock('../../utils/output', () => ({
 
 describe('executeScrape', () => {
   let mockClient: MockFirecrawlClient;
+  let mockContainer: IContainer;
 
   beforeEach(() => {
     setupTest();
-    // Initialize config with test API key
-    initializeConfig({
-      apiKey: 'test-api-key',
-      apiUrl: 'https://api.firecrawl.dev',
-    });
 
     // Create mock client
     mockClient = {
       scrape: vi.fn(),
     };
 
-    // Mock getClient to return our mock
-    vi.mocked(getClient).mockReturnValue(
-      mockClient as unknown as ReturnType<typeof getClient>
-    );
+    // Create mock container
+    mockContainer = {
+      config: {
+        apiKey: 'test-api-key',
+        apiUrl: 'https://api.firecrawl.dev',
+        teiUrl: 'http://localhost:8080',
+        qdrantUrl: 'http://localhost:6333',
+        qdrantCollection: 'test_collection',
+      },
+      getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+      getEmbedPipeline: vi.fn().mockReturnValue({
+        autoEmbed: vi.fn().mockResolvedValue(undefined),
+      }),
+      getTeiService: vi.fn(),
+      getQdrantService: vi.fn(),
+      getHttpClient: vi.fn(),
+    } as unknown as IContainer;
   });
 
   afterEach(() => {
@@ -67,7 +61,7 @@ describe('executeScrape', () => {
       const mockResponse = { markdown: '# Test Content' };
       mockClient.scrape.mockResolvedValue(mockResponse);
 
-      await executeScrape({
+      await executeScrape(mockContainer, {
         url: 'https://example.com',
       });
 
@@ -81,7 +75,7 @@ describe('executeScrape', () => {
       const mockResponse = { html: '<html>...</html>' };
       mockClient.scrape.mockResolvedValue(mockResponse);
 
-      await executeScrape({
+      await executeScrape(mockContainer, {
         url: 'https://example.com',
         formats: ['html'],
       });
@@ -98,7 +92,7 @@ describe('executeScrape', () => {
       };
       mockClient.scrape.mockResolvedValue(mockResponse);
 
-      await executeScrape({
+      await executeScrape(mockContainer, {
         url: 'https://example.com',
         screenshot: true,
       });
@@ -115,7 +109,7 @@ describe('executeScrape', () => {
       };
       mockClient.scrape.mockResolvedValue(mockResponse);
 
-      await executeScrape({
+      await executeScrape(mockContainer, {
         url: 'https://example.com',
         formats: ['markdown'],
         screenshot: true,
@@ -130,7 +124,7 @@ describe('executeScrape', () => {
       const mockResponse = { markdown: '# Test' };
       mockClient.scrape.mockResolvedValue(mockResponse);
 
-      await executeScrape({
+      await executeScrape(mockContainer, {
         url: 'https://example.com',
         onlyMainContent: true,
       });
@@ -145,7 +139,7 @@ describe('executeScrape', () => {
       const mockResponse = { markdown: '# Test' };
       mockClient.scrape.mockResolvedValue(mockResponse);
 
-      await executeScrape({
+      await executeScrape(mockContainer, {
         url: 'https://example.com',
         waitFor: 2000,
       });
@@ -160,7 +154,7 @@ describe('executeScrape', () => {
       const mockResponse = { markdown: '# Test' };
       mockClient.scrape.mockResolvedValue(mockResponse);
 
-      await executeScrape({
+      await executeScrape(mockContainer, {
         url: 'https://example.com',
         includeTags: ['article', 'main'],
       });
@@ -175,7 +169,7 @@ describe('executeScrape', () => {
       const mockResponse = { markdown: '# Test' };
       mockClient.scrape.mockResolvedValue(mockResponse);
 
-      await executeScrape({
+      await executeScrape(mockContainer, {
         url: 'https://example.com',
         excludeTags: ['nav', 'footer'],
       });
@@ -190,7 +184,7 @@ describe('executeScrape', () => {
       const mockResponse = { markdown: '# Test', screenshot: 'base64...' };
       mockClient.scrape.mockResolvedValue(mockResponse);
 
-      await executeScrape({
+      await executeScrape(mockContainer, {
         url: 'https://example.com',
         formats: ['markdown'],
         screenshot: true,
@@ -218,7 +212,7 @@ describe('executeScrape', () => {
       };
       mockClient.scrape.mockResolvedValue(mockResponse);
 
-      const result = await executeScrape({
+      const result = await executeScrape(mockContainer, {
         url: 'https://example.com',
       });
 
@@ -240,7 +234,7 @@ describe('executeScrape', () => {
       };
       mockClient.scrape.mockResolvedValue(mockResponse);
 
-      const result = await executeScrape({
+      const result = await executeScrape(mockContainer, {
         url: 'https://example.com',
       });
 
@@ -252,7 +246,7 @@ describe('executeScrape', () => {
       const errorMessage = 'API Error: Invalid URL';
       mockClient.scrape.mockRejectedValue(new Error(errorMessage));
 
-      const result = await executeScrape({
+      const result = await executeScrape(mockContainer, {
         url: 'https://example.com',
       });
 
@@ -265,7 +259,7 @@ describe('executeScrape', () => {
     it('should handle non-Error exceptions', async () => {
       mockClient.scrape.mockRejectedValue('String error');
 
-      const result = await executeScrape({
+      const result = await executeScrape(mockContainer, {
         url: 'https://example.com',
       });
 
@@ -285,7 +279,7 @@ describe('executeScrape', () => {
 
       for (const format of formatList) {
         mockClient.scrape.mockResolvedValue({ [format]: 'test' });
-        const result = await executeScrape({
+        const result = await executeScrape(mockContainer, {
           url: 'https://example.com',
           formats: [format],
         });
@@ -300,7 +294,7 @@ describe('executeScrape', () => {
         images: ['http://img.com/a.png'],
       });
 
-      const result = await executeScrape({
+      const result = await executeScrape(mockContainer, {
         url: 'https://example.com',
         formats: ['markdown', 'links', 'images'],
       });
@@ -332,24 +326,34 @@ describe('createScrapeCommand', () => {
 
 describe('handleScrapeCommand auto-embed', () => {
   let mockClient: MockFirecrawlClient;
+  let mockContainer: IContainer;
+  let mockAutoEmbed: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     setupTest();
-    initializeConfig({
-      apiKey: 'test-api-key',
-      apiUrl: 'https://api.firecrawl.dev',
-    });
 
     mockClient = {
       scrape: vi.fn(),
     };
-    vi.mocked(getClient).mockReturnValue(
-      mockClient as unknown as ReturnType<typeof getClient>
-    );
 
-    // Reset mocks between tests
-    const { autoEmbed } = await import('../../utils/embedpipeline');
-    vi.mocked(autoEmbed).mockClear();
+    mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
+
+    mockContainer = {
+      config: {
+        apiKey: 'test-api-key',
+        apiUrl: 'https://api.firecrawl.dev',
+        teiUrl: 'http://localhost:8080',
+        qdrantUrl: 'http://localhost:6333',
+        qdrantCollection: 'test_collection',
+      },
+      getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+      getEmbedPipeline: vi.fn().mockReturnValue({
+        autoEmbed: mockAutoEmbed,
+      }),
+      getTeiService: vi.fn(),
+      getQdrantService: vi.fn(),
+      getHttpClient: vi.fn(),
+    } as unknown as IContainer;
   });
 
   afterEach(() => {
@@ -364,14 +368,13 @@ describe('handleScrapeCommand auto-embed', () => {
     };
     mockClient.scrape.mockResolvedValue(mockResponse);
 
-    await handleScrapeCommand({
+    await handleScrapeCommand(mockContainer, {
       url: 'https://example.com',
       formats: ['markdown'],
     });
 
-    const { autoEmbed } = await import('../../utils/embedpipeline');
-    expect(autoEmbed).toHaveBeenCalledTimes(1);
-    expect(autoEmbed).toHaveBeenCalledWith('# Test Content', {
+    expect(mockAutoEmbed).toHaveBeenCalledTimes(1);
+    expect(mockAutoEmbed).toHaveBeenCalledWith('# Test Content', {
       url: 'https://example.com',
       title: 'Test Page',
       sourceCommand: 'scrape',
@@ -386,26 +389,24 @@ describe('handleScrapeCommand auto-embed', () => {
     };
     mockClient.scrape.mockResolvedValue(mockResponse);
 
-    await handleScrapeCommand({
+    await handleScrapeCommand(mockContainer, {
       url: 'https://example.com',
       formats: ['markdown'],
       embed: false,
     });
 
-    const { autoEmbed } = await import('../../utils/embedpipeline');
-    expect(autoEmbed).not.toHaveBeenCalled();
+    expect(mockAutoEmbed).not.toHaveBeenCalled();
   });
 
   it('should skip autoEmbed when scrape fails', async () => {
     mockClient.scrape.mockRejectedValue(new Error('Scrape failed'));
 
-    await handleScrapeCommand({
+    await handleScrapeCommand(mockContainer, {
       url: 'https://example.com',
       formats: ['markdown'],
     });
 
-    const { autoEmbed } = await import('../../utils/embedpipeline');
-    expect(autoEmbed).not.toHaveBeenCalled();
+    expect(mockAutoEmbed).not.toHaveBeenCalled();
   });
 
   it('should call autoEmbed when embed is undefined (default on)', async () => {
@@ -415,12 +416,11 @@ describe('handleScrapeCommand auto-embed', () => {
     };
     mockClient.scrape.mockResolvedValue(mockResponse);
 
-    await handleScrapeCommand({
+    await handleScrapeCommand(mockContainer, {
       url: 'https://example.com',
     });
 
-    const { autoEmbed } = await import('../../utils/embedpipeline');
-    expect(autoEmbed).toHaveBeenCalledTimes(1);
+    expect(mockAutoEmbed).toHaveBeenCalledTimes(1);
   });
 
   it('should use html content when markdown is not available', async () => {
@@ -430,13 +430,12 @@ describe('handleScrapeCommand auto-embed', () => {
     };
     mockClient.scrape.mockResolvedValue(mockResponse);
 
-    await handleScrapeCommand({
+    await handleScrapeCommand(mockContainer, {
       url: 'https://example.com',
       formats: ['html'],
     });
 
-    const { autoEmbed } = await import('../../utils/embedpipeline');
-    expect(autoEmbed).toHaveBeenCalledWith('<h1>HTML Content</h1>', {
+    expect(mockAutoEmbed).toHaveBeenCalledWith('<h1>HTML Content</h1>', {
       url: 'https://example.com',
       title: 'HTML Page',
       sourceCommand: 'scrape',
@@ -451,13 +450,12 @@ describe('handleScrapeCommand auto-embed', () => {
     };
     mockClient.scrape.mockResolvedValue(mockResponse);
 
-    await handleScrapeCommand({
+    await handleScrapeCommand(mockContainer, {
       url: 'https://example.com',
       formats: ['rawHtml'],
     });
 
-    const { autoEmbed } = await import('../../utils/embedpipeline');
-    expect(autoEmbed).toHaveBeenCalledWith(
+    expect(mockAutoEmbed).toHaveBeenCalledWith(
       '<html><body>Raw</body></html>',
       expect.objectContaining({
         url: 'https://example.com',

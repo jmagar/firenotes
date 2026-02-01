@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleCrawlCommand } from '../../../commands/crawl/command';
 import type { CrawlOptions } from '../../../types/crawl';
+import { createTestContainer } from '../../utils/test-container';
 
 // Mock dependencies
 vi.mock('../../../utils/command', () => ({
@@ -60,6 +61,7 @@ describe('handleCrawlCommand', () => {
   });
 
   it('should exit when URL or job ID is missing', async () => {
+    const container = createTestContainer();
     const mockExit = vi
       .spyOn(process, 'exit')
       .mockImplementation(() => undefined as never);
@@ -69,7 +71,7 @@ describe('handleCrawlCommand', () => {
       urlOrJobId: '',
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
     expect(mockError).toHaveBeenCalledWith('Error: URL or job ID is required.');
     expect(mockExit).toHaveBeenCalledWith(1);
@@ -79,6 +81,7 @@ describe('handleCrawlCommand', () => {
   });
 
   it('should handle cancel operation successfully', async () => {
+    const container = createTestContainer();
     const mockCancelResult = {
       success: true,
       data: { status: 'cancelled' },
@@ -92,9 +95,12 @@ describe('handleCrawlCommand', () => {
       cancel: true,
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
-    expect(executeCrawlCancel).toHaveBeenCalledWith('job-123', options);
+    expect(executeCrawlCancel).toHaveBeenCalledWith(
+      expect.any(Object),
+      'job-123'
+    );
     expect(formatJson).toHaveBeenCalledWith(
       { success: true, data: { status: 'cancelled' } },
       undefined
@@ -107,6 +113,7 @@ describe('handleCrawlCommand', () => {
   });
 
   it('should handle cancel operation failure', async () => {
+    const container = createTestContainer();
     const mockExit = vi
       .spyOn(process, 'exit')
       .mockImplementation(() => undefined as never);
@@ -122,7 +129,7 @@ describe('handleCrawlCommand', () => {
       cancel: true,
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
     expect(mockError).toHaveBeenCalledWith('Error:', 'Job not found');
     expect(mockExit).toHaveBeenCalledWith(1);
@@ -132,6 +139,7 @@ describe('handleCrawlCommand', () => {
   });
 
   it('should handle errors operation successfully', async () => {
+    const container = createTestContainer();
     const mockErrorsResult = {
       success: true,
       data: [{ url: 'https://example.com/404', error: '404 Not Found' }],
@@ -145,9 +153,12 @@ describe('handleCrawlCommand', () => {
       errors: true,
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
-    expect(executeCrawlErrors).toHaveBeenCalledWith('job-456', options);
+    expect(executeCrawlErrors).toHaveBeenCalledWith(
+      expect.any(Object),
+      'job-456'
+    );
     expect(formatJson).toHaveBeenCalledWith(
       { success: true, data: mockErrorsResult.data },
       undefined
@@ -160,6 +171,7 @@ describe('handleCrawlCommand', () => {
   });
 
   it('should handle manual embedding trigger', async () => {
+    const container = createTestContainer();
     vi.mocked(isJobId).mockReturnValue(true);
     vi.mocked(handleManualEmbedding).mockResolvedValue(undefined);
 
@@ -168,13 +180,18 @@ describe('handleCrawlCommand', () => {
       embed: true,
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
     expect(isJobId).toHaveBeenCalledWith('job-789');
-    expect(handleManualEmbedding).toHaveBeenCalledWith('job-789', undefined);
+    expect(handleManualEmbedding).toHaveBeenCalledWith(
+      expect.any(Object),
+      'job-789',
+      undefined
+    );
   });
 
   it('should handle crawl execution failure', async () => {
+    const container = createTestContainer();
     const mockExit = vi
       .spyOn(process, 'exit')
       .mockImplementation(() => undefined as never);
@@ -190,7 +207,7 @@ describe('handleCrawlCommand', () => {
       urlOrJobId: 'https://example.com',
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
     expect(mockError).toHaveBeenCalledWith('Error:', 'Network error');
     expect(mockExit).toHaveBeenCalledWith(1);
@@ -200,6 +217,7 @@ describe('handleCrawlCommand', () => {
   });
 
   it('should handle status check result', async () => {
+    const container = createTestContainer();
     const mockStatusData = {
       id: 'job-111',
       status: 'completed' as const,
@@ -221,7 +239,7 @@ describe('handleCrawlCommand', () => {
       pretty: true,
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
     expect(formatCrawlStatus).toHaveBeenCalledWith(mockStatusData);
     expect(writeOutput).toHaveBeenCalledWith(
@@ -232,6 +250,7 @@ describe('handleCrawlCommand', () => {
   });
 
   it('should handle async job result with auto-embedding', async () => {
+    const container = createTestContainer();
     const mockJobResult = {
       jobId: 'job-222',
       url: 'https://example.com',
@@ -249,7 +268,7 @@ describe('handleCrawlCommand', () => {
       urlOrJobId: 'https://example.com',
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
     expect(handleAsyncEmbedding).toHaveBeenCalledWith(
       'job-222',
@@ -269,6 +288,7 @@ describe('handleCrawlCommand', () => {
   });
 
   it('should handle completed crawl result with auto-embedding', async () => {
+    const container = createTestContainer();
     const mockCrawlData = {
       id: 'job-333',
       status: 'completed' as const,
@@ -289,9 +309,12 @@ describe('handleCrawlCommand', () => {
       wait: true,
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
-    expect(handleSyncEmbedding).toHaveBeenCalledWith(mockCrawlData);
+    expect(handleSyncEmbedding).toHaveBeenCalledWith(
+      expect.any(Object),
+      mockCrawlData
+    );
     expect(formatJson).toHaveBeenCalledWith(mockCrawlData, undefined);
     expect(writeOutput).toHaveBeenCalledWith(
       '{"data":[...]}',
@@ -301,6 +324,7 @@ describe('handleCrawlCommand', () => {
   });
 
   it('should skip auto-embedding when embed is false', async () => {
+    const container = createTestContainer();
     const mockJobResult = {
       jobId: 'job-444',
       url: 'https://example.com',
@@ -319,13 +343,14 @@ describe('handleCrawlCommand', () => {
       embed: false,
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
     expect(handleAsyncEmbedding).not.toHaveBeenCalled();
     expect(handleSyncEmbedding).not.toHaveBeenCalled();
   });
 
   it('should write output to file when output path is specified', async () => {
+    const container = createTestContainer();
     const mockJobResult = {
       jobId: 'job-555',
       url: 'https://example.com',
@@ -344,7 +369,7 @@ describe('handleCrawlCommand', () => {
       output: 'output.json',
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
     expect(writeOutput).toHaveBeenCalledWith(
       '{"jobId":"job-555"}',
@@ -354,6 +379,7 @@ describe('handleCrawlCommand', () => {
   });
 
   it('should use pretty formatting when requested', async () => {
+    const container = createTestContainer();
     const mockJobResult = {
       jobId: 'job-666',
       url: 'https://example.com',
@@ -372,7 +398,7 @@ describe('handleCrawlCommand', () => {
       pretty: true,
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
     expect(formatJson).toHaveBeenCalledWith(
       { success: true, data: mockJobResult },
@@ -381,6 +407,7 @@ describe('handleCrawlCommand', () => {
   });
 
   it('should return early when crawl result has no data', async () => {
+    const container = createTestContainer();
     vi.mocked(isJobId).mockReturnValue(false);
     vi.mocked(executeCrawl).mockResolvedValue({
       success: true,
@@ -391,7 +418,7 @@ describe('handleCrawlCommand', () => {
       urlOrJobId: 'https://example.com',
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
     expect(handleAsyncEmbedding).not.toHaveBeenCalled();
     expect(handleSyncEmbedding).not.toHaveBeenCalled();
@@ -399,6 +426,7 @@ describe('handleCrawlCommand', () => {
   });
 
   it('should pass apiKey to embedding functions', async () => {
+    const container = createTestContainer(undefined, { apiKey: 'test-key' });
     const mockJobResult = {
       jobId: 'job-777',
       url: 'https://example.com',
@@ -417,7 +445,7 @@ describe('handleCrawlCommand', () => {
       apiKey: 'test-key',
     };
 
-    await handleCrawlCommand(options);
+    await handleCrawlCommand(container, options);
 
     expect(handleAsyncEmbedding).toHaveBeenCalledWith(
       'job-777',

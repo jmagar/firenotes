@@ -2,12 +2,12 @@
  * Status operations for crawl jobs
  */
 
+import type { IContainer } from '../../container/types';
 import type {
   CrawlCancelResult,
   CrawlErrorsResult,
   CrawlStatusResult,
 } from '../../types/crawl';
-import { getClient } from '../../utils/client';
 
 /**
  * Format error message for status operations
@@ -26,17 +26,17 @@ function formatError(operation: string, jobId: string, error: unknown): string {
 /**
  * Execute crawl status check
  *
+ * @param container - Dependency injection container
  * @param jobId - Crawl job ID
- * @param options - Optional configuration
  * @returns Status result with job details or error
  * @throws Never throws - errors are returned in result object
  */
 export async function checkCrawlStatus(
-  jobId: string,
-  options?: { apiKey?: string }
+  container: IContainer,
+  jobId: string
 ): Promise<CrawlStatusResult> {
   try {
-    const app = getClient({ apiKey: options?.apiKey });
+    const app = container.getFirecrawlClient();
     const status = await app.getCrawlStatus(jobId);
 
     return {
@@ -61,17 +61,17 @@ export async function checkCrawlStatus(
 /**
  * Execute crawl cancel
  *
+ * @param container - Dependency injection container
  * @param jobId - Crawl job ID
- * @param options - Optional configuration
  * @returns Cancel result indicating success or failure
  * @throws Never throws - errors are returned in result object
  */
 export async function executeCrawlCancel(
-  jobId: string,
-  options?: { apiKey?: string }
+  container: IContainer,
+  jobId: string
 ): Promise<CrawlCancelResult> {
   try {
-    const app = getClient({ apiKey: options?.apiKey });
+    const app = container.getFirecrawlClient();
     const ok = await app.cancelCrawl(jobId);
 
     if (!ok) {
@@ -90,17 +90,17 @@ export async function executeCrawlCancel(
 /**
  * Execute crawl errors fetch
  *
+ * @param container - Dependency injection container
  * @param jobId - Crawl job ID
- * @param options - Optional configuration
  * @returns Errors result containing array of errors or failure
  * @throws Never throws - errors are returned in result object
  */
 export async function executeCrawlErrors(
-  jobId: string,
-  options?: { apiKey?: string }
+  container: IContainer,
+  jobId: string
 ): Promise<CrawlErrorsResult> {
   try {
-    const app = getClient({ apiKey: options?.apiKey });
+    const app = container.getFirecrawlClient();
     const errors = await app.getCrawlErrors(jobId);
     return { success: true, data: errors };
   } catch (error) {

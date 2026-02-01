@@ -4,13 +4,12 @@
 
 import type { FormatOption } from '@mendable/firecrawl-js';
 import { Command } from 'commander';
+import type { IContainer } from '../container/types';
 import type {
   ScrapeFormat,
   ScrapeOptions,
   ScrapeResult,
 } from '../types/scrape';
-import { getClient } from '../utils/client';
-import { autoEmbed } from '../utils/embedpipeline';
 import { parseScrapeOptions } from '../utils/options';
 import { handleScrapeOutput } from '../utils/output';
 import { normalizeUrl } from '../utils/url';
@@ -51,10 +50,11 @@ function outputTiming(
  * Execute the scrape command
  */
 export async function executeScrape(
+  container: IContainer,
   options: ScrapeOptions
 ): Promise<ScrapeResult> {
-  // Get client instance (updates global config if apiKey provided)
-  const app = getClient({ apiKey: options.apiKey });
+  // Get client instance from container
+  const app = container.getFirecrawlClient();
 
   // Build scrape options
   const formats: FormatOption[] = [];
@@ -133,22 +133,25 @@ export async function executeScrape(
  * Handle scrape command output
  */
 export async function handleScrapeCommand(
+  container: IContainer,
   options: ScrapeOptions
 ): Promise<void> {
-  const result = await executeScrape(options);
+  const result = await executeScrape(container, options);
 
   // Start embedding concurrently with output
   const embedPromise =
     options.embed !== false && result.success && result.data
-      ? autoEmbed(
-          result.data.markdown || result.data.html || result.data.rawHtml || '',
-          {
+      ? (async () => {
+          const pipeline = container.getEmbedPipeline();
+          const data = result.data!; // Already checked above
+          const content = data.markdown || data.html || data.rawHtml || '';
+          await pipeline.autoEmbed(content, {
             url: options.url,
-            title: result.data.metadata?.title,
+            title: data.metadata?.title,
             sourceCommand: 'scrape',
             contentType: options.formats?.[0] || 'markdown',
-          }
-        )
+          });
+        })()
       : Promise.resolve();
 
   // Determine effective formats for output handling
@@ -222,39 +225,46 @@ export function createScrapeCommand(): Command {
       false
     )
     .option('--no-embed', 'Skip auto-embedding of scraped content')
-    .action(async (positionalUrl, positionalFormats, options) => {
-      // Use positional URL if provided, otherwise use --url option
-      const url = positionalUrl || options.url;
-      if (!url) {
-        console.error(
-          'Error: URL is required. Provide it as argument or use --url option.'
-        );
-        process.exit(1);
-      }
+    .action(
+      async (positionalUrl, positionalFormats, options, command: Command) => {
+        const container = command._container;
+        if (!container) {
+          throw new Error('Container not initialized');
+        }
 
-      // Merge formats: positional formats take precedence, then --format flag, then default to markdown
-      let format: string;
-      if (positionalFormats && positionalFormats.length > 0) {
-        // Positional formats: join them with commas for parseFormats
-        format = positionalFormats.join(',');
-      } else if (options.html) {
-        // Handle --html shortcut flag
-        format = 'html';
-      } else if (options.format) {
-        // Use --format option
-        format = options.format;
-      } else {
-        // Default to markdown
-        format = 'markdown';
-      }
+        // Use positional URL if provided, otherwise use --url option
+        const url = positionalUrl || options.url;
+        if (!url) {
+          console.error(
+            'Error: URL is required. Provide it as argument or use --url option.'
+          );
+          process.exit(1);
+        }
 
-      const scrapeOptions = parseScrapeOptions({
-        ...options,
-        url: normalizeUrl(url),
-        format,
-      });
-      await handleScrapeCommand(scrapeOptions);
-    });
+        // Merge formats: positional formats take precedence, then --format flag, then default to markdown
+        let format: string;
+        if (positionalFormats && positionalFormats.length > 0) {
+          // Positional formats: join them with commas for parseFormats
+          format = positionalFormats.join(',');
+        } else if (options.html) {
+          // Handle --html shortcut flag
+          format = 'html';
+        } else if (options.format) {
+          // Use --format option
+          format = options.format;
+        } else {
+          // Default to markdown
+          format = 'markdown';
+        }
+
+        const scrapeOptions = parseScrapeOptions({
+          ...options,
+          url: normalizeUrl(url),
+          format,
+        });
+        await handleScrapeCommand(container, scrapeOptions);
+      }
+    );
 
   return scrapeCmd;
 }

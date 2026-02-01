@@ -3,10 +3,9 @@
  */
 
 import type { CrawlOptions as FirecrawlCrawlOptions } from '@mendable/firecrawl-js';
+import type { IContainer } from '../../container/types';
 import type { CrawlJobData } from '../../types/crawl';
-import { getClient } from '../../utils/client';
 import { buildEmbedderWebhookConfig } from '../../utils/embedder-webhook';
-import { batchEmbed, createEmbedItems } from '../../utils/embedpipeline';
 import { recordJob } from '../../utils/job-history';
 
 /**
@@ -82,14 +81,16 @@ export async function handleAsyncEmbedding(
  *
  * Embeds pages inline (used with --wait or --progress mode).
  *
+ * @param container - Dependency injection container
  * @param crawlJobData - Completed crawl job data
  *
  * @example
  * ```typescript
- * await handleSyncEmbedding(crawlJobData);
+ * await handleSyncEmbedding(container, crawlJobData);
  * ```
  */
 export async function handleSyncEmbedding(
+  container: IContainer,
   crawlJobData: CrawlJobData
 ): Promise<void> {
   if (crawlJobData.id) {
@@ -101,8 +102,20 @@ export async function handleSyncEmbedding(
     return;
   }
 
-  const embedItems = createEmbedItems(pagesToEmbed, 'crawl');
-  await batchEmbed(embedItems);
+  const pipeline = container.getEmbedPipeline();
+
+  // Embed each page using the pipeline
+  for (const page of pagesToEmbed) {
+    const content = page.markdown || page.html;
+    if (content) {
+      await pipeline.autoEmbed(content, {
+        url: page.metadata?.sourceURL || page.metadata?.url || '',
+        title: page.metadata?.title,
+        sourceCommand: 'crawl',
+        contentType: page.markdown ? 'markdown' : 'html',
+      });
+    }
+  }
 }
 
 /**
@@ -111,15 +124,17 @@ export async function handleSyncEmbedding(
  * Checks job status, enqueues if not already queued,
  * and processes the embedding queue.
  *
+ * @param container - Dependency injection container
  * @param jobId - Crawl job ID
  * @param apiKey - Optional API key
  *
  * @example
  * ```typescript
- * await handleManualEmbedding('job-123', 'my-api-key');
+ * await handleManualEmbedding(container, 'job-123', 'my-api-key');
  * ```
  */
 export async function handleManualEmbedding(
+  container: IContainer,
   jobId: string,
   apiKey?: string
 ): Promise<void> {
@@ -133,7 +148,7 @@ export async function handleManualEmbedding(
 
   if (!existingJob) {
     // Get crawl info to queue it
-    const app = getClient({ apiKey });
+    const app = container.getFirecrawlClient();
     const status = await app.getCrawlStatus(jobId);
 
     if (status.status !== 'completed') {

@@ -4,13 +4,7 @@ import {
   executeCrawlCancel,
   executeCrawlErrors,
 } from '../../../commands/crawl/status';
-
-// Mock the client module
-vi.mock('../../../utils/client', () => ({
-  getClient: vi.fn(),
-}));
-
-import { getClient } from '../../../utils/client';
+import { createTestContainer } from '../../utils/test-container';
 
 describe('checkCrawlStatus', () => {
   beforeEach(() => {
@@ -31,16 +25,16 @@ describe('checkCrawlStatus', () => {
       getCrawlStatus: vi.fn().mockResolvedValue(mockStatus),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
 
-    const result = await checkCrawlStatus('test-job-123', {});
+    const result = await checkCrawlStatus(container, 'test-job-123');
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual(mockStatus);
     expect(mockClient.getCrawlStatus).toHaveBeenCalledWith('test-job-123');
   });
 
-  it('should pass apiKey to getClient', async () => {
+  it('should use container client', async () => {
     const mockClient = {
       getCrawlStatus: vi.fn().mockResolvedValue({
         id: 'test-job',
@@ -50,11 +44,13 @@ describe('checkCrawlStatus', () => {
       }),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient, {
+      apiKey: 'test-api-key',
+    });
 
-    await checkCrawlStatus('test-job', { apiKey: 'test-api-key' });
+    await checkCrawlStatus(container, 'test-job');
 
-    expect(getClient).toHaveBeenCalledWith({ apiKey: 'test-api-key' });
+    expect(mockClient.getCrawlStatus).toHaveBeenCalledWith('test-job');
   });
 
   it('should return error on failure', async () => {
@@ -62,9 +58,9 @@ describe('checkCrawlStatus', () => {
       getCrawlStatus: vi.fn().mockRejectedValue(new Error('Network error')),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
 
-    const result = await checkCrawlStatus('test-job-123', {});
+    const result = await checkCrawlStatus(container, 'test-job-123');
 
     expect(result.success).toBe(false);
     expect(result.error).toBe(
@@ -77,9 +73,9 @@ describe('checkCrawlStatus', () => {
       getCrawlStatus: vi.fn().mockRejectedValue('String error'),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
 
-    const result = await checkCrawlStatus('test-job-456', {});
+    const result = await checkCrawlStatus(container, 'test-job-456');
 
     expect(result.success).toBe(false);
     expect(result.error).toBe(
@@ -98,25 +94,25 @@ describe('executeCrawlCancel', () => {
       cancelCrawl: vi.fn().mockResolvedValue(true),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
 
-    const result = await executeCrawlCancel('test-job-123');
+    const result = await executeCrawlCancel(container, 'test-job-123');
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual({ status: 'cancelled' });
     expect(mockClient.cancelCrawl).toHaveBeenCalledWith('test-job-123');
   });
 
-  it('should pass apiKey to getClient when provided', async () => {
+  it('should use container client with provided API key', async () => {
     const mockClient = {
       cancelCrawl: vi.fn().mockResolvedValue(true),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient, { apiKey: 'test-key' });
 
-    await executeCrawlCancel('test-job', { apiKey: 'test-key' });
+    await executeCrawlCancel(container, 'test-job');
 
-    expect(getClient).toHaveBeenCalledWith({ apiKey: 'test-key' });
+    expect(mockClient.cancelCrawl).toHaveBeenCalledWith('test-job');
   });
 
   it('should handle cancel failure', async () => {
@@ -124,9 +120,9 @@ describe('executeCrawlCancel', () => {
       cancelCrawl: vi.fn().mockResolvedValue(false),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
 
-    const result = await executeCrawlCancel('test-job-789');
+    const result = await executeCrawlCancel(container, 'test-job-789');
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('Failed to cancel job test-job-789');
@@ -137,25 +133,24 @@ describe('executeCrawlCancel', () => {
       cancelCrawl: vi.fn().mockRejectedValue(new Error('API error')),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
 
-    const result = await executeCrawlCancel('test-job-000');
+    const result = await executeCrawlCancel(container, 'test-job-000');
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('Failed to cancel job test-job-000: API error');
   });
 
-  it('should handle undefined options', async () => {
+  it('should work with default container', async () => {
     const mockClient = {
       cancelCrawl: vi.fn().mockResolvedValue(true),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
 
-    const result = await executeCrawlCancel('test-job');
+    const result = await executeCrawlCancel(container, 'test-job');
 
     expect(result.success).toBe(true);
-    expect(getClient).toHaveBeenCalledWith({ apiKey: undefined });
   });
 });
 
@@ -174,25 +169,25 @@ describe('executeCrawlErrors', () => {
       getCrawlErrors: vi.fn().mockResolvedValue(mockErrors),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
 
-    const result = await executeCrawlErrors('test-job-123');
+    const result = await executeCrawlErrors(container, 'test-job-123');
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual(mockErrors);
     expect(mockClient.getCrawlErrors).toHaveBeenCalledWith('test-job-123');
   });
 
-  it('should pass apiKey to getClient when provided', async () => {
+  it('should use container client with API key', async () => {
     const mockClient = {
       getCrawlErrors: vi.fn().mockResolvedValue([]),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient, { apiKey: 'my-key' });
 
-    await executeCrawlErrors('test-job', { apiKey: 'my-key' });
+    await executeCrawlErrors(container, 'test-job');
 
-    expect(getClient).toHaveBeenCalledWith({ apiKey: 'my-key' });
+    expect(mockClient.getCrawlErrors).toHaveBeenCalledWith('test-job');
   });
 
   it('should return empty array for no errors', async () => {
@@ -200,9 +195,9 @@ describe('executeCrawlErrors', () => {
       getCrawlErrors: vi.fn().mockResolvedValue([]),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
 
-    const result = await executeCrawlErrors('test-job');
+    const result = await executeCrawlErrors(container, 'test-job');
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual([]);
@@ -213,9 +208,9 @@ describe('executeCrawlErrors', () => {
       getCrawlErrors: vi.fn().mockRejectedValue(new Error('Fetch failed')),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
 
-    const result = await executeCrawlErrors('test-job-111');
+    const result = await executeCrawlErrors(container, 'test-job-111');
 
     expect(result.success).toBe(false);
     expect(result.error).toBe(
@@ -228,9 +223,9 @@ describe('executeCrawlErrors', () => {
       getCrawlErrors: vi.fn().mockRejectedValue({ message: 'Custom error' }),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
 
-    const result = await executeCrawlErrors('test-job-222');
+    const result = await executeCrawlErrors(container, 'test-job-222');
 
     expect(result.success).toBe(false);
     expect(result.error).toBe(
@@ -238,16 +233,15 @@ describe('executeCrawlErrors', () => {
     );
   });
 
-  it('should handle undefined options', async () => {
+  it('should work with default container', async () => {
     const mockClient = {
       getCrawlErrors: vi.fn().mockResolvedValue([]),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
 
-    const result = await executeCrawlErrors('test-job');
+    const result = await executeCrawlErrors(container, 'test-job');
 
     expect(result.success).toBe(true);
-    expect(getClient).toHaveBeenCalledWith({ apiKey: undefined });
   });
 });
