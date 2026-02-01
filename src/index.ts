@@ -33,25 +33,33 @@ import { createScrapeCommand } from './commands/scrape';
 import { createSearchCommand } from './commands/search';
 import { createStatusCommand, handleStatusCommand } from './commands/status';
 import { createVersionCommand } from './commands/version';
-import { createContainer } from './container/ContainerFactory';
+import {
+  createContainer,
+  createContainerWithOverride,
+} from './container/ContainerFactory';
+import type { IContainer } from './container/types';
 import { ensureAuthenticated, printBanner } from './utils/auth';
 import { initializeConfig, updateConfig } from './utils/config';
 import { isUrl, normalizeUrl } from './utils/url';
+
+/**
+ * Extend Commander's Command type to include container instance
+ */
+declare module 'commander' {
+  interface Command {
+    _container?: IContainer;
+  }
+}
 
 // Initialize global configuration from environment variables
 initializeConfig();
 
 /**
  * Dependency Injection Container
- *
- * Initialize the container for its side effects:
- * - Validates environment variables
- * - Loads credentials from OS keychain
- * - Sets up default configuration
- *
- * Note: The container itself is created per-command in the preAction hook.
+ * Phase 2: Commands receive container as first parameter.
+ * This enables isolated configuration per command execution.
  */
-createContainer();
+const baseContainer: IContainer = createContainer();
 
 /**
  * Signal handlers for graceful shutdown
@@ -103,12 +111,16 @@ program
   .option('--status', 'Show version, auth status, concurrency, and credits')
   .allowUnknownOption() // Allow unknown options when URL is passed directly
   .hook('preAction', async (thisCommand, actionCommand) => {
-    // Update global config if API key is provided via global option
-    // Phase 2: This will be replaced with container-based config override
+    // Create container with optional API key override
     const globalOptions = thisCommand.opts();
-    if (globalOptions.apiKey) {
-      updateConfig({ apiKey: globalOptions.apiKey });
-    }
+    const commandContainer = globalOptions.apiKey
+      ? createContainerWithOverride(baseContainer, {
+          apiKey: globalOptions.apiKey,
+        })
+      : baseContainer;
+
+    // Store container on command for access in handlers
+    actionCommand._container = commandContainer;
 
     // Check if this command requires authentication
     const commandName = actionCommand.name();
