@@ -23,6 +23,7 @@ import {
 import { createCrawlCommand } from './commands/crawl';
 import { createEmbedCommand } from './commands/embed';
 import { createExtractCommand } from './commands/extract';
+import { createListCommand } from './commands/list';
 import { createLoginCommand } from './commands/login';
 import { createLogoutCommand } from './commands/logout';
 import { createMapCommand } from './commands/map';
@@ -30,7 +31,7 @@ import { createQueryCommand } from './commands/query';
 import { createRetrieveCommand } from './commands/retrieve';
 import { createScrapeCommand } from './commands/scrape';
 import { createSearchCommand } from './commands/search';
-import { handleStatusCommand } from './commands/status';
+import { createStatusCommand, handleStatusCommand } from './commands/status';
 import { createVersionCommand } from './commands/version';
 
 import { ensureAuthenticated, printBanner } from './utils/auth';
@@ -113,6 +114,8 @@ program.addCommand(createScrapeCommand());
 
 // Add crawl, map, and search commands to main program
 program.addCommand(createCrawlCommand());
+program.addCommand(createListCommand());
+program.addCommand(createStatusCommand());
 program.addCommand(createMapCommand());
 program.addCommand(createSearchCommand());
 

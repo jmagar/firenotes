@@ -13,7 +13,6 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 export interface EmbedJob {
@@ -29,7 +28,23 @@ export interface EmbedJob {
   apiKey?: string;
 }
 
-const QUEUE_DIR = join(homedir(), '.config', 'firecrawl-cli', 'embed-queue');
+function resolveQueueDir(): string {
+  const configuredDir = process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+  if (configuredDir) {
+    return configuredDir.startsWith('/')
+      ? configuredDir
+      : join(process.cwd(), configuredDir);
+  }
+
+  return join(
+    process.env.HOME ?? process.env.USERPROFILE ?? '.',
+    '.config',
+    'firecrawl-cli',
+    'embed-queue'
+  );
+}
+
+const QUEUE_DIR = resolveQueueDir();
 const MAX_RETRIES = 3;
 
 /**
@@ -141,6 +156,19 @@ export function getPendingJobs(): EmbedJob[] {
     .sort(
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+}
+
+/**
+ * Get pending jobs that have been stale for at least maxAgeMs
+ */
+export function getStalePendingJobs(maxAgeMs: number): EmbedJob[] {
+  const cutoff = Date.now() - maxAgeMs;
+  return getPendingJobs()
+    .filter((job) => new Date(job.updatedAt).getTime() <= cutoff)
+    .sort(
+      (a, b) =>
+        new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
     );
 }
 

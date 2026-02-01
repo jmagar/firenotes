@@ -1,4 +1,4 @@
-# 🔥 Firecrawl CLI
+# 🔥 **Firecrawl CLI**
 
 Command-line interface for Firecrawl. Scrape, crawl, extract, and embed data from any website directly from your terminal. Includes a built-in embedding pipeline for semantic search over scraped content via Qdrant and TEI.
 
@@ -311,6 +311,21 @@ firecrawl crawl https://example.com --progress
 # Check crawl status
 firecrawl crawl <job-id>
 
+# List active crawl jobs
+firecrawl list
+
+# Show job and embedding status summary
+firecrawl status
+
+# Cancel a crawl job
+firecrawl crawl <job-id> --cancel
+
+# Fetch crawl errors
+firecrawl crawl <job-id> --errors
+
+# List active crawl jobs
+firecrawl list
+
 # Manually trigger embeddings for completed crawl
 firecrawl crawl <job-id> --embed
 
@@ -328,6 +343,8 @@ firecrawl crawl https://example.com --limit 100 --max-depth 3
 | `--wait`                    | Wait for crawl to complete and embed inline            |
 | `--progress`                | Show progress while waiting (implies --wait)           |
 | `--embed`                   | Manually trigger embeddings for a completed job        |
+| `--cancel`                  | Cancel an existing crawl job (job ID required)         |
+| `--errors`                  | Fetch crawl errors for a job ID                        |
 | `--no-embed`                | Skip auto-embedding (useful for large crawls)          |
 | `--limit <n>`               | Maximum pages to crawl                                 |
 | `--max-depth <n>`           | Maximum crawl depth                                    |
@@ -384,7 +401,112 @@ firecrawl crawl https://example.com --limit 1000 --max-depth 10 --wait --progres
 
 # Save results
 firecrawl crawl https://example.com --wait -o crawl-results.json --pretty
+
+# Cancel a crawl job
+firecrawl crawl <job-id> --cancel
+
+# Fetch crawl errors
+firecrawl crawl <job-id> --errors
 ```
+
+---
+
+### `list` - List active crawl jobs
+
+Show currently active crawl jobs for your account.
+
+```bash
+firecrawl list
+```
+
+#### List Options
+
+| Option                | Description                     |
+| --------------------- | ------------------------------- |
+| `-k, --api-key <key>` | Firecrawl API key override      |
+| `--no-pretty`         | Disable pretty JSON output      |
+| `-o, --output <path>` | Save output to file             |
+
+---
+
+### `status` - Job and embedding status
+
+Show active crawls plus optional crawl/batch/extract job status and embedding queue summary.
+
+```bash
+# Summary (active crawls + embedding queue + recent jobs)
+firecrawl status
+
+# Check specific jobs
+firecrawl status --crawl <job-id>
+firecrawl status --batch <job-id>
+firecrawl status --extract <job-id>
+
+# Include a specific embedding job
+firecrawl status --embed <job-id>
+```
+
+#### Status Options
+
+| Option                 | Description                                     |
+| ---------------------- | ----------------------------------------------- |
+| `--crawl <job-ids>`    | Comma-separated crawl job IDs to check          |
+| `--batch <job-ids>`    | Comma-separated batch job IDs to check          |
+| `--extract <job-ids>`  | Comma-separated extract job IDs to check        |
+| `--embed [job-id]`     | Show embedding queue status (optionally by job) |
+| `--json`               | Output JSON (compact)                           |
+| `--pretty`             | Pretty print JSON output                        |
+| `-o, --output <path>`  | Save output to file                             |
+
+---
+
+### `batch` - Batch scrape multiple URLs
+
+Start batch scrapes, wait for completion, or manage jobs by ID.
+
+```bash
+# Start a batch scrape (async)
+firecrawl batch https://a.com https://b.com https://c.com
+
+# Wait for completion
+firecrawl batch https://a.com https://b.com --wait
+
+# Check status
+firecrawl batch <job-id> --status
+
+# Cancel a batch job
+firecrawl batch <job-id> --cancel
+
+# Fetch batch errors
+firecrawl batch <job-id> --errors
+```
+
+#### Batch Options
+
+| Option                      | Description                               |
+| --------------------------- | ----------------------------------------- |
+| `--wait`                    | Wait for batch scrape to complete         |
+| `--poll-interval <seconds>` | Status polling interval                   |
+| `--timeout <seconds>`       | Timeout for wait mode                     |
+| `--status`                  | Get status for a batch job ID             |
+| `--cancel`                  | Cancel a batch job                        |
+| `--errors`                  | Fetch batch scrape errors                 |
+| `--format <formats>`        | Scrape formats for batch results          |
+| `--only-main-content`       | Only return main content                  |
+| `--wait-for <ms>`           | Wait before scraping (JS-rendered pages)  |
+| `--scrape-timeout <seconds>`| Per-page scrape timeout                   |
+| `--screenshot`              | Include screenshot format                 |
+| `--include-tags <tags>`     | Comma-separated tags to include           |
+| `--exclude-tags <tags>`     | Comma-separated tags to exclude           |
+| `--max-concurrency <number>`| Max concurrency for batch scraping        |
+| `--ignore-invalid-urls`     | Ignore invalid URLs                       |
+| `--webhook <url>`           | Webhook URL for batch completion          |
+| `--zero-data-retention`     | Enable zero data retention                |
+| `--idempotency-key <key>`   | Idempotency key for batch job             |
+| `--append-to-id <id>`       | Append results to existing batch id       |
+| `--integration <name>`      | Integration name for analytics            |
+| `-o, --output <path>`       | Save to file                              |
+| `--pretty`                  | Pretty print JSON output                  |
 
 ---
 
@@ -404,12 +526,16 @@ firecrawl extract https://site1.com https://site2.com --prompt "Get company info
 
 # Show source URLs
 firecrawl extract https://example.com --prompt "Find pricing" --show-sources --pretty
+
+# Check extract job status
+firecrawl extract <job-id> --status
 ```
 
 #### Extract Options
 
 | Option                     | Description                           |
 | -------------------------- | ------------------------------------- |
+| `--status`                 | Get extract job status by ID          |
 | `--prompt <prompt>`        | Natural language extraction prompt    |
 | `--schema <json>`          | JSON schema for structured extraction |
 | `--system-prompt <prompt>` | System prompt for extraction          |
@@ -582,7 +708,7 @@ These options work with any command:
 | `-V, --version`       | Show version                    |
 | `-h, --help`          | Show help                       |
 
-### Check Status
+### Check Status (CLI)
 
 ```bash
 firecrawl --status

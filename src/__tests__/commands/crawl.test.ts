@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createCrawlCommand,
   executeCrawl,
-  executeCrawlActive,
   executeCrawlCancel,
   executeCrawlErrors,
   handleCrawlCommand,
@@ -173,6 +172,48 @@ describe('executeCrawl', () => {
           status: 'processing',
         },
       });
+    });
+
+    it('should include webhook config when embedder webhook URL is set', async () => {
+      const originalUrl = process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL;
+      const originalSecret = process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET;
+      process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL =
+        'https://example.com/embedder';
+      process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET = 'test-secret';
+      initializeConfig();
+
+      const mockResponse = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        url: 'https://example.com',
+      };
+      mockClient.startCrawl.mockResolvedValue(mockResponse);
+
+      await executeCrawl({
+        urlOrJobId: 'https://example.com',
+      });
+
+      expect(mockClient.startCrawl).toHaveBeenCalledWith(
+        'https://example.com',
+        expect.objectContaining({
+          webhook: {
+            url: 'https://example.com/embedder',
+            headers: { 'x-firecrawl-embedder-secret': 'test-secret' },
+            events: ['completed', 'failed'],
+          },
+        })
+      );
+
+      if (originalUrl === undefined) {
+        delete process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL;
+      } else {
+        process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL = originalUrl;
+      }
+      if (originalSecret === undefined) {
+        delete process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET;
+      } else {
+        process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET = originalSecret;
+      }
+      initializeConfig();
     });
 
     it('should include limit option when provided', async () => {
@@ -799,9 +840,10 @@ describe('executeCrawl', () => {
     });
 
     it('should queue embedding for async job start instead of blocking', async () => {
+      const { enqueueEmbedJob } = await import('../../utils/embed-queue');
       const mockResponse = {
         id: '550e8400-e29b-41d4-a716-446655440000',
-        url: 'https://example.com',
+        url: 'http://localhost:53002/v2/crawl/550e8400-e29b-41d4-a716-446655440000',
       };
       mockClient.startCrawl.mockResolvedValue(mockResponse);
 
@@ -811,6 +853,11 @@ describe('executeCrawl', () => {
 
       // Async jobs now queue for background processing, not inline embedding
       expect(mockAutoEmbed).not.toHaveBeenCalled();
+      expect(enqueueEmbedJob).toHaveBeenCalledWith(
+        mockResponse.id,
+        'https://example.com',
+        undefined
+      );
     });
 
     it('should not embed when crawl fails after polling', async () => {
@@ -1042,62 +1089,7 @@ describe('executeCrawlErrors', () => {
   });
 });
 
-describe('executeCrawlActive', () => {
-  type CrawlActiveMock = MockFirecrawlClient &
-    Required<Pick<MockFirecrawlClient, 'getActiveCrawls'>>;
-
-  let mockClient: CrawlActiveMock;
-
-  beforeEach(() => {
-    setupTest();
-    initializeConfig({
-      apiKey: 'test-api-key',
-      apiUrl: 'https://api.firecrawl.dev',
-    });
-
-    mockClient = { scrape: vi.fn(), getActiveCrawls: vi.fn() };
-    vi.mocked(getClient).mockReturnValue(
-      mockClient as unknown as ReturnType<typeof getClient>
-    );
-  });
-
-  afterEach(() => {
-    teardownTest();
-    vi.clearAllMocks();
-  });
-
-  it('should return active crawls list (SDK shape)', async () => {
-    mockClient.getActiveCrawls.mockResolvedValue({
-      success: true,
-      crawls: [
-        { id: 'job-1', teamId: 'team-1', url: 'https://a.com', options: null },
-      ],
-    });
-
-    const result = await executeCrawlActive();
-
-    expect(mockClient.getActiveCrawls).toHaveBeenCalledTimes(1);
-    expect(result.success).toBe(true);
-    expect(result.data?.crawls.length).toBe(1);
-  });
-});
-
 describe('createCrawlCommand', () => {
-  it('should allow --active with no positional argument', async () => {
-    const activeClient = {
-      getActiveCrawls: vi.fn().mockResolvedValue({ success: true, crawls: [] }),
-    };
-    vi.mocked(getClient).mockReturnValue(
-      activeClient as unknown as ReturnType<typeof getClient>
-    );
-    const cmd = createCrawlCommand();
-    cmd.exitOverride();
-
-    await cmd.parseAsync(['node', 'test', '--active'], { from: 'node' });
-
-    expect(activeClient.getActiveCrawls).toHaveBeenCalledTimes(1);
-  });
-
   it('should not normalize job id for --cancel', async () => {
     const cancelClient = {
       cancelCrawl: vi.fn().mockResolvedValue(true),

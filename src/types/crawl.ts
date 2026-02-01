@@ -15,8 +15,6 @@ export interface CrawlOptions {
   cancel?: boolean;
   /** Fetch errors for an existing crawl job */
   errors?: boolean;
-  /** List active crawl jobs */
-  active?: boolean;
   /** Wait for crawl to complete */
   wait?: boolean;
   /** Polling interval in seconds when waiting */

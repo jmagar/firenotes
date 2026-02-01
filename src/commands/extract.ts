@@ -6,6 +6,7 @@ import type { ExtractOptions, ExtractResult } from '../types/extract';
 import { getClient } from '../utils/client';
 import { formatJson, handleCommandError } from '../utils/command';
 import { batchEmbed, type EmbedItem } from '../utils/embedpipeline';
+import { recordJob } from '../utils/job-history';
 import { writeOutput } from '../utils/output';
 
 /**
@@ -47,6 +48,8 @@ export async function executeExtract(
       if (status.error) {
         return { success: false, error: status.error };
       }
+
+      recordJob('extract', options.jobId);
 
       return {
         success: true,
@@ -105,6 +108,10 @@ export async function executeExtract(
         success: false,
         error: result.error || 'Extraction failed',
       };
+    }
+
+    if ((result as { id?: string }).id) {
+      recordJob('extract', (result as { id?: string }).id as string);
     }
 
     return {

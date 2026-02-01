@@ -10,6 +10,7 @@ import {
   formatJson,
   handleCommandError,
 } from '../utils/command';
+import { recordJob } from '../utils/job-history';
 import { parseFormats } from '../utils/options';
 import { writeOutput } from '../utils/output';
 import { normalizeUrl } from '../utils/url';
@@ -69,16 +70,19 @@ export async function executeBatch(
       if (!ok) {
         return { success: false, error: 'Cancel failed' };
       }
+      recordJob('batch', options.jobId);
       return { success: true, data: { success: true, message: 'cancelled' } };
     }
 
     if (options.errors && options.jobId) {
       const errors = await app.getBatchScrapeErrors(options.jobId);
+      recordJob('batch', options.jobId);
       return { success: true, data: errors };
     }
 
     if (options.status && options.jobId) {
       const status = await app.getBatchScrapeStatus(options.jobId);
+      recordJob('batch', options.jobId);
       return { success: true, data: status };
     }
 
@@ -91,10 +95,16 @@ export async function executeBatch(
           pollInterval: options.pollInterval,
           timeout: options.timeout,
         });
+        if (job?.id) {
+          recordJob('batch', job.id);
+        }
         return { success: true, data: job };
       }
 
       const started = await app.startBatchScrape(options.urls, batchOptions);
+      if (started?.id) {
+        recordJob('batch', started.id);
+      }
       return { success: true, data: started };
     }
 
