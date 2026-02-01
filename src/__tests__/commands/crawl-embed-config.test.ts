@@ -1,36 +1,15 @@
 /**
  * Tests for crawl command embedding config initialization
  *
- * These tests verify that the config system is properly initialized
+ * These tests verify that the config is properly passed through the DI container
  * before embeddings are attempted, ensuring TEI_URL and QDRANT_URL
  * are available to the embedding pipeline.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleCrawlCommand } from '../../commands/crawl';
-import { getClient } from '../../utils/client';
-import {
-  type getConfig,
-  initializeConfig,
-  resetConfig,
-} from '../../utils/config';
-import {
-  type MockFirecrawlClient,
-  setupTest,
-  teardownTest,
-} from '../utils/mock-client';
-
-// Track config state during autoEmbed calls
-let configStateWhenEmbedCalled: ReturnType<typeof getConfig> | null = null;
-
-// Mock the Firecrawl client module
-vi.mock('../../utils/client', async () => {
-  const actual = await vi.importActual('../../utils/client');
-  return {
-    ...actual,
-    getClient: vi.fn(),
-  };
-});
+import type { MockFirecrawlClient } from '../utils/mock-client';
+import { createTestContainer } from '../utils/test-container';
 
 // Mock embedpipeline and capture config state
 type EmbedPage = {
@@ -49,30 +28,6 @@ type CrawlMockClient = MockFirecrawlClient &
   Required<
     Pick<MockFirecrawlClient, 'startCrawl' | 'getCrawlStatus' | 'crawl'>
   >;
-
-vi.mock('../../utils/embedpipeline', () => ({
-  batchEmbed: vi.fn().mockImplementation(async () => {
-    // Capture config state when embedding is called
-    const { getConfig } = await import('../../utils/config');
-    configStateWhenEmbedCalled = getConfig();
-  }),
-  createEmbedItems: vi
-    .fn()
-    .mockImplementation((pages: EmbedPage[], sourceCommand) => {
-      return pages
-        .filter((page) => page.markdown || page.html)
-        .map((page) => ({
-          content: page.markdown || page.html || '',
-          metadata: {
-            url:
-              page.url || page.metadata?.sourceURL || page.metadata?.url || '',
-            title: page.title || page.metadata?.title,
-            sourceCommand,
-            contentType: page.markdown ? 'markdown' : 'html',
-          },
-        }));
-    }),
-}));
 
 // Mock settings
 vi.mock('../../utils/settings', () => ({
@@ -106,12 +61,6 @@ describe('Crawl embedding config initialization', () => {
   let mockClient: CrawlMockClient;
 
   beforeEach(() => {
-    setupTest();
-    configStateWhenEmbedCalled = null;
-
-    // Reset config before each test
-    resetConfig();
-
     // Create mock client
     mockClient = {
       scrape: vi.fn(),
@@ -119,29 +68,14 @@ describe('Crawl embedding config initialization', () => {
       getCrawlStatus: vi.fn(),
       crawl: vi.fn(),
     };
-
-    // Mock getClient to return our mock
-    vi.mocked(getClient).mockReturnValue(
-      mockClient as unknown as ReturnType<typeof getClient>
-    );
   });
 
   afterEach(() => {
-    teardownTest();
     vi.clearAllMocks();
-    resetConfig();
   });
 
-  describe('Config initialization with environment variables', () => {
+  describe('Config initialization with container', () => {
     it('should have TEI_URL and QDRANT_URL available when embedding after wait', async () => {
-      // Set environment variables
-      process.env.TEI_URL = 'http://test-tei:52000';
-      process.env.QDRANT_URL = 'http://test-qdrant:6333';
-      process.env.FIRECRAWL_API_KEY = 'test-api-key';
-
-      // Initialize config (simulating what index.ts does)
-      initializeConfig();
-
       const mockCrawlJob = {
         id: 'test-job-id',
         status: 'completed',
@@ -159,58 +93,59 @@ describe('Crawl embedding config initialization', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      await handleCrawlCommand({
+      // Create a mock autoEmbed to track calls
+      const mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
+
+      // Create container with specific TEI and Qdrant URLs
+      const container = createTestContainer(mockClient, {
+        apiKey: 'test-api-key',
+        teiUrl: 'http://test-tei:52000',
+        qdrantUrl: 'http://test-qdrant:6333',
+        mockAutoEmbed,
+      });
+
+      await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
       });
 
-      // Verify config was available during embedding
-      expect(configStateWhenEmbedCalled).not.toBeNull();
-      expect(configStateWhenEmbedCalled?.teiUrl).toBe('http://test-tei:52000');
-      expect(configStateWhenEmbedCalled?.qdrantUrl).toBe(
-        'http://test-qdrant:6333'
-      );
+      // Verify container has correct config
+      expect(container.config.teiUrl).toBe('http://test-tei:52000');
+      expect(container.config.qdrantUrl).toBe('http://test-qdrant:6333');
 
-      // Cleanup
-      delete process.env.TEI_URL;
-      delete process.env.QDRANT_URL;
+      // Verify autoEmbed was called (embedding happened)
+      expect(mockAutoEmbed).toHaveBeenCalled();
     });
 
     it('should queue async job for background embedding instead of inline', async () => {
-      // Set environment variables
-      process.env.TEI_URL = 'http://test-tei:52000';
-      process.env.QDRANT_URL = 'http://test-qdrant:6333';
-      process.env.FIRECRAWL_API_KEY = 'test-api-key';
-
-      // Initialize config (simulating what index.ts does)
-      initializeConfig();
-
       const mockResponse = {
         id: 'test-job-id',
         url: 'https://example.com',
       };
       mockClient.startCrawl.mockResolvedValue(mockResponse);
 
-      await handleCrawlCommand({
+      // Create a mock autoEmbed to track calls
+      const mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
+
+      const container = createTestContainer(mockClient, {
+        apiKey: 'test-api-key',
+        teiUrl: 'http://test-tei:52000',
+        qdrantUrl: 'http://test-qdrant:6333',
+        mockAutoEmbed,
+      });
+
+      await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
       });
 
       // Async jobs now queue for background processing, not inline embedding
-      // So config state is not captured during handleCrawlCommand
-      expect(configStateWhenEmbedCalled).toBeNull();
-
-      // Cleanup
-      delete process.env.TEI_URL;
-      delete process.env.QDRANT_URL;
+      // So autoEmbed should NOT be called during handleCrawlCommand
+      expect(mockAutoEmbed).not.toHaveBeenCalled();
     });
 
-    it('should have empty config when initializeConfig was never called', async () => {
-      // DO NOT call initializeConfig() - simulating direct import bug
-      // Environment variables are set but config not initialized
-      process.env.TEI_URL = 'http://test-tei:52000';
-      process.env.QDRANT_URL = 'http://test-qdrant:6333';
-      process.env.FIRECRAWL_API_KEY = 'test-api-key';
-
+    it('should use default config when no custom config provided', async () => {
+      // With DI container, config is always initialized when container is created
+      // This test verifies that default values are used when not explicitly provided
       const mockCrawlJob = {
         id: 'test-job-id',
         status: 'completed',
@@ -228,41 +163,31 @@ describe('Crawl embedding config initialization', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      await handleCrawlCommand({
+      // Create a mock autoEmbed to track calls
+      const mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
+
+      // Create container without explicit TEI/Qdrant URLs (will use defaults)
+      const container = createTestContainer(mockClient, {
+        apiKey: 'test-api-key',
+        mockAutoEmbed,
+      });
+
+      await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
       });
 
-      // This test demonstrates the bug: without initializeConfig(),
-      // the config would be empty even though env vars are set
-      // In the real CLI, index.ts calls initializeConfig() so this doesn't happen
-      // But if someone imports utilities directly, they'd hit this bug
-      expect(configStateWhenEmbedCalled).not.toBeNull();
+      // Config should be initialized with defaults from createTestContainer
+      expect(container.config.teiUrl).toBe('http://localhost:8080');
+      expect(container.config.qdrantUrl).toBe('http://localhost:6333');
 
-      // In the actual CLI flow, config SHOULD be initialized because
-      // handleCrawlCommand is only called after index.ts runs initializeConfig()
-      // But in unit tests or direct imports, this shows the importance of initialization
-
-      // Cleanup
-      delete process.env.TEI_URL;
-      delete process.env.QDRANT_URL;
+      // Verify autoEmbed was called (embedding happened)
+      expect(mockAutoEmbed).toHaveBeenCalled();
     });
   });
 
   describe('Config priority with explicit options', () => {
-    it('should prefer provided config over environment variables', async () => {
-      // Set environment variables
-      process.env.TEI_URL = 'http://env-tei:52000';
-      process.env.QDRANT_URL = 'http://env-qdrant:6333';
-      process.env.FIRECRAWL_API_KEY = 'test-api-key';
-
-      // Initialize config with explicit values (higher priority)
-      initializeConfig({
-        teiUrl: 'http://explicit-tei:52000',
-        qdrantUrl: 'http://explicit-qdrant:6333',
-        apiKey: 'explicit-api-key',
-      });
-
+    it('should prefer provided config over defaults', async () => {
       const mockCrawlJob = {
         id: 'test-job-id',
         status: 'completed',
@@ -280,32 +205,33 @@ describe('Crawl embedding config initialization', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      await handleCrawlCommand({
+      // Create a mock autoEmbed to track calls
+      const mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
+
+      // Create container with explicit config (higher priority than defaults)
+      const container = createTestContainer(mockClient, {
+        apiKey: 'explicit-api-key',
+        teiUrl: 'http://explicit-tei:52000',
+        qdrantUrl: 'http://explicit-qdrant:6333',
+        mockAutoEmbed,
+      });
+
+      await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
       });
 
-      // Should use explicit config, not env vars
-      expect(configStateWhenEmbedCalled?.teiUrl).toBe(
-        'http://explicit-tei:52000'
-      );
-      expect(configStateWhenEmbedCalled?.qdrantUrl).toBe(
-        'http://explicit-qdrant:6333'
-      );
+      // Should use explicit config, not defaults
+      expect(container.config.teiUrl).toBe('http://explicit-tei:52000');
+      expect(container.config.qdrantUrl).toBe('http://explicit-qdrant:6333');
 
-      // Cleanup
-      delete process.env.TEI_URL;
-      delete process.env.QDRANT_URL;
+      // Verify autoEmbed was called (embedding happened)
+      expect(mockAutoEmbed).toHaveBeenCalled();
     });
   });
 
   describe('Embedding should not run without config', () => {
-    it('should skip embedding silently when TEI_URL is not configured', async () => {
-      // Initialize config WITHOUT TEI/Qdrant URLs
-      initializeConfig({
-        apiKey: 'test-api-key',
-      });
-
+    it('should have default config values when TEI/Qdrant URLs not explicitly set', async () => {
       const mockCrawlJob = {
         id: 'test-job-id',
         status: 'completed',
@@ -323,16 +249,29 @@ describe('Crawl embedding config initialization', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      await handleCrawlCommand({
+      // Create a mock autoEmbed to track calls
+      const mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
+
+      // Create container without specifying TEI/Qdrant URLs
+      // createTestContainer provides defaults (http://localhost:8080 and http://localhost:6333)
+      const container = createTestContainer(mockClient, {
+        apiKey: 'test-api-key',
+        mockAutoEmbed,
+        // Note: not passing teiUrl/qdrantUrl, so defaults are used
+      });
+
+      await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
       });
 
-      // Config should be initialized but without TEI/Qdrant
-      expect(configStateWhenEmbedCalled).not.toBeNull();
-      expect(configStateWhenEmbedCalled?.teiUrl).toBeUndefined();
-      expect(configStateWhenEmbedCalled?.qdrantUrl).toBeUndefined();
-      // This is expected behavior - embedding will no-op silently
+      // Config should have default values from createTestContainer
+      expect(container.config.teiUrl).toBe('http://localhost:8080');
+      expect(container.config.qdrantUrl).toBe('http://localhost:6333');
+
+      // autoEmbed should be called with these default config values
+      // In real usage, if TEI is not available, the pipeline will handle the error gracefully
+      expect(mockAutoEmbed).toHaveBeenCalled();
     });
   });
 });

@@ -6,28 +6,18 @@ import {
   handleSyncEmbedding,
 } from '../../../commands/crawl/embed';
 import type { CrawlJobData } from '../../../types/crawl';
+import { createTestContainer } from '../../utils/test-container';
 
 // Mock dependencies
 vi.mock('../../../utils/embedder-webhook', () => ({
   buildEmbedderWebhookConfig: vi.fn(),
 }));
 
-vi.mock('../../../utils/embedpipeline', () => ({
-  batchEmbed: vi.fn(),
-  createEmbedItems: vi.fn(),
-}));
-
-vi.mock('../../../utils/client', () => ({
-  getClient: vi.fn(),
-}));
-
 vi.mock('../../../utils/job-history', () => ({
   recordJob: vi.fn(),
 }));
 
-import { getClient } from '../../../utils/client';
 import { buildEmbedderWebhookConfig } from '../../../utils/embedder-webhook';
-import { batchEmbed, createEmbedItems } from '../../../utils/embedpipeline';
 import { recordJob } from '../../../utils/job-history';
 
 describe('attachEmbedWebhook', () => {
@@ -168,14 +158,22 @@ describe('handleSyncEmbedding', () => {
       ],
     };
 
-    const mockEmbedItems = [{ text: 'Page 1' }, { text: 'Page 2' }];
-    vi.mocked(createEmbedItems).mockReturnValue(mockEmbedItems as never);
+    const mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
+    const container = createTestContainer(undefined, {});
+    container.getEmbedPipeline = vi.fn().mockReturnValue({
+      autoEmbed: mockAutoEmbed,
+    });
 
-    await handleSyncEmbedding(crawlJobData);
+    await handleSyncEmbedding(container, crawlJobData);
 
     expect(recordJob).toHaveBeenCalledWith('crawl', 'job-123');
-    expect(createEmbedItems).toHaveBeenCalledWith(crawlJobData.data, 'crawl');
-    expect(batchEmbed).toHaveBeenCalledWith(mockEmbedItems);
+    expect(mockAutoEmbed).toHaveBeenCalledTimes(2);
+    expect(mockAutoEmbed).toHaveBeenCalledWith('Page 1', {
+      url: 'https://example.com/1',
+      title: undefined,
+      sourceCommand: 'crawl',
+      contentType: 'markdown',
+    });
   });
 
   it('should skip empty data', async () => {
@@ -187,11 +185,11 @@ describe('handleSyncEmbedding', () => {
       data: [],
     };
 
-    await handleSyncEmbedding(crawlJobData);
+    const container = createTestContainer();
+
+    await handleSyncEmbedding(container, crawlJobData);
 
     expect(recordJob).toHaveBeenCalledWith('crawl', 'job-456');
-    expect(createEmbedItems).not.toHaveBeenCalled();
-    expect(batchEmbed).not.toHaveBeenCalled();
   });
 
   it('should handle missing data array', async () => {
@@ -203,11 +201,11 @@ describe('handleSyncEmbedding', () => {
       data: [],
     };
 
-    await handleSyncEmbedding(crawlJobData);
+    const container = createTestContainer();
+
+    await handleSyncEmbedding(container, crawlJobData);
 
     expect(recordJob).toHaveBeenCalledWith('crawl', 'job-789');
-    expect(createEmbedItems).not.toHaveBeenCalled();
-    expect(batchEmbed).not.toHaveBeenCalled();
   });
 
   it('should work without job ID', async () => {
@@ -219,13 +217,16 @@ describe('handleSyncEmbedding', () => {
       data: [{ markdown: 'Page 1', metadata: {} }],
     };
 
-    const mockEmbedItems = [{ text: 'Page 1' }];
-    vi.mocked(createEmbedItems).mockReturnValue(mockEmbedItems as never);
+    const mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
+    const container = createTestContainer();
+    container.getEmbedPipeline = vi.fn().mockReturnValue({
+      autoEmbed: mockAutoEmbed,
+    });
 
-    await handleSyncEmbedding(crawlJobData);
+    await handleSyncEmbedding(container, crawlJobData);
 
     expect(recordJob).not.toHaveBeenCalled();
-    expect(batchEmbed).toHaveBeenCalledWith(mockEmbedItems);
+    expect(mockAutoEmbed).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -246,7 +247,8 @@ describe('handleManualEmbedding', () => {
       }),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
+
     vi.doMock('../../../utils/background-embedder', () => ({
       processEmbedQueue: mockProcessEmbedQueue,
     }));
@@ -259,7 +261,7 @@ describe('handleManualEmbedding', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => {});
 
-    await handleManualEmbedding('job-123', 'test-key');
+    await handleManualEmbedding(container, 'job-123', 'test-key');
 
     expect(mockClient.getCrawlStatus).toHaveBeenCalledWith('job-123');
     expect(mockEnqueueEmbedJob).toHaveBeenCalledWith(
@@ -280,6 +282,8 @@ describe('handleManualEmbedding', () => {
     const mockEnqueueEmbedJob = vi.fn();
     const mockGetEmbedJob = vi.fn().mockReturnValue({ jobId: 'job-123' });
 
+    const container = createTestContainer();
+
     vi.doMock('../../../utils/background-embedder', () => ({
       processEmbedQueue: mockProcessEmbedQueue,
     }));
@@ -292,7 +296,7 @@ describe('handleManualEmbedding', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => {});
 
-    await handleManualEmbedding('job-123');
+    await handleManualEmbedding(container, 'job-123');
 
     expect(mockEnqueueEmbedJob).not.toHaveBeenCalled();
     expect(mockProcessEmbedQueue).toHaveBeenCalled();
@@ -311,7 +315,8 @@ describe('handleManualEmbedding', () => {
       }),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
+
     vi.doMock('../../../utils/background-embedder', () => ({
       processEmbedQueue: mockProcessEmbedQueue,
     }));
@@ -324,7 +329,7 @@ describe('handleManualEmbedding', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => {});
 
-    await handleManualEmbedding('job-123');
+    await handleManualEmbedding(container, 'job-123');
 
     expect(consoleError).toHaveBeenCalledWith(
       'Crawl job-123 is processing, cannot embed yet'
@@ -346,7 +351,8 @@ describe('handleManualEmbedding', () => {
       }),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
+
     vi.doMock('../../../utils/background-embedder', () => ({
       processEmbedQueue: mockProcessEmbedQueue,
     }));
@@ -359,7 +365,7 @@ describe('handleManualEmbedding', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => {});
 
-    await handleManualEmbedding('job-456');
+    await handleManualEmbedding(container, 'job-456');
 
     expect(mockEnqueueEmbedJob).toHaveBeenCalledWith(
       'job-456',

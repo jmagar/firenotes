@@ -2,12 +2,12 @@
  * Core crawl execution logic
  */
 
+import type { IContainer } from '../../container/types';
 import type {
   CrawlOptions,
   CrawlResult,
   CrawlStatusResult,
 } from '../../types/crawl';
-import { getClient } from '../../utils/client';
 import { isJobId } from '../../utils/job';
 import { attachEmbedWebhook } from './embed';
 import { buildCrawlOptions } from './options';
@@ -22,14 +22,16 @@ import { checkCrawlStatus } from './status';
  * 2. Wait mode - polls until completion (with or without progress)
  * 3. Async mode - starts crawl and returns job ID
  *
+ * @param container - Dependency injection container
  * @param options - Crawl options
  * @returns Crawl result or status result
  */
 export async function executeCrawl(
+  container: IContainer,
   options: CrawlOptions
 ): Promise<CrawlResult | CrawlStatusResult> {
   try {
-    const app = getClient({ apiKey: options.apiKey });
+    const app = container.getFirecrawlClient();
     const { urlOrJobId } = options;
 
     if (!urlOrJobId) {
@@ -44,7 +46,7 @@ export async function executeCrawl(
       options.status ||
       (isJobId(urlOrJobId) && !urlOrJobId.includes('://'))
     ) {
-      return await checkCrawlStatus(urlOrJobId, options);
+      return await checkCrawlStatus(container, urlOrJobId);
     }
 
     // Build crawl options
@@ -62,8 +64,7 @@ export async function executeCrawl(
       if (options.progress) {
         // Start crawl and poll with progress display
         const response = await app.startCrawl(urlOrJobId, crawlOptions);
-        const data = await pollCrawlProgress(response.id, {
-          apiKey: options.apiKey,
+        const data = await pollCrawlProgress(container, response.id, {
           pollInterval: crawlOptions.pollInterval || 5000,
           timeout: crawlOptions.crawlTimeout,
         });

@@ -2,13 +2,14 @@
  * Progress polling for crawl operations
  */
 
+import type { IContainer } from '../../container/types';
 import type { CrawlJobData } from '../../types/crawl';
-import { getClient } from '../../utils/client';
 import { pollWithProgress } from '../../utils/polling';
 
 /**
  * Poll crawl job status with progress updates and timeout handling
  *
+ * @param container - Dependency injection container
  * @param jobId - Crawl job ID to poll
  * @param options - Polling configuration
  * @returns Final crawl job data when complete
@@ -16,21 +17,21 @@ import { pollWithProgress } from '../../utils/polling';
  *
  * @example
  * ```typescript
- * const data = await pollCrawlProgress('job-123', {
+ * const data = await pollCrawlProgress(container, 'job-123', {
  *   pollInterval: 5000,
  *   timeout: 60000,
  * });
  * ```
  */
 export async function pollCrawlProgress(
+  container: IContainer,
   jobId: string,
   options: {
-    apiKey?: string;
     pollInterval: number;
     timeout?: number;
   }
 ): Promise<CrawlJobData> {
-  const app = getClient({ apiKey: options.apiKey });
+  const app = container.getFirecrawlClient();
 
   try {
     // Write initial messages to stderr

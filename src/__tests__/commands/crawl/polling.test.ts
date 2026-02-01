@@ -1,16 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { pollCrawlProgress } from '../../../commands/crawl/polling';
+import { createTestContainer } from '../../utils/test-container';
 
 // Mock dependencies
-vi.mock('../../../utils/client', () => ({
-  getClient: vi.fn(),
-}));
-
 vi.mock('../../../utils/polling', () => ({
   pollWithProgress: vi.fn(),
 }));
 
-import { getClient } from '../../../utils/client';
 import { pollWithProgress } from '../../../utils/polling';
 
 describe('pollCrawlProgress', () => {
@@ -31,10 +27,10 @@ describe('pollCrawlProgress', () => {
       data: [],
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
     vi.mocked(pollWithProgress).mockResolvedValue(mockResult as never);
 
-    const result = await pollCrawlProgress('job-123', {
+    const result = await pollCrawlProgress(container, 'job-123', {
       pollInterval: 5000,
       timeout: 60000,
     });
@@ -50,20 +46,19 @@ describe('pollCrawlProgress', () => {
     );
   });
 
-  it('should pass apiKey to getClient', async () => {
+  it('should use container client', async () => {
     const mockClient = {
       getCrawlStatus: vi.fn(),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient, { apiKey: 'test-key' });
     vi.mocked(pollWithProgress).mockResolvedValue({} as never);
 
-    await pollCrawlProgress('job-123', {
-      apiKey: 'test-key',
+    await pollCrawlProgress(container, 'job-123', {
       pollInterval: 5000,
     });
 
-    expect(getClient).toHaveBeenCalledWith({ apiKey: 'test-key' });
+    expect(pollWithProgress).toHaveBeenCalled();
   });
 
   it('should use statusFetcher that calls getCrawlStatus', async () => {
@@ -78,13 +73,13 @@ describe('pollCrawlProgress', () => {
 
     let capturedStatusFetcher: ((id: string) => Promise<unknown>) | undefined;
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
     vi.mocked(pollWithProgress).mockImplementation(async (config) => {
       capturedStatusFetcher = config.statusFetcher;
       return {} as never;
     });
 
-    await pollCrawlProgress('job-123', {
+    await pollCrawlProgress(container, 'job-123', {
       pollInterval: 5000,
     });
 
@@ -104,13 +99,14 @@ describe('pollCrawlProgress', () => {
         }) => boolean)
       | undefined;
 
-    vi.mocked(getClient).mockReturnValue({ getCrawlStatus: vi.fn() } as never);
+    const mockClient = { getCrawlStatus: vi.fn() };
+    const container = createTestContainer(mockClient);
     vi.mocked(pollWithProgress).mockImplementation(async (config) => {
       capturedIsComplete = config.isComplete;
       return {} as never;
     });
 
-    await pollCrawlProgress('job-123', {
+    await pollCrawlProgress(container, 'job-123', {
       pollInterval: 5000,
     });
 
@@ -143,13 +139,14 @@ describe('pollCrawlProgress', () => {
         }) => string)
       | undefined;
 
-    vi.mocked(getClient).mockReturnValue({ getCrawlStatus: vi.fn() } as never);
+    const mockClient = { getCrawlStatus: vi.fn() };
+    const container = createTestContainer(mockClient);
     vi.mocked(pollWithProgress).mockImplementation(async (config) => {
       capturedFormatProgress = config.formatProgress;
       return {} as never;
     });
 
-    await pollCrawlProgress('job-123', {
+    await pollCrawlProgress(container, 'job-123', {
       pollInterval: 5000,
     });
 
@@ -169,10 +166,10 @@ describe('pollCrawlProgress', () => {
       getCrawlStatus: vi.fn(),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
     vi.mocked(pollWithProgress).mockResolvedValue({} as never);
 
-    await pollCrawlProgress('job-123', {
+    await pollCrawlProgress(container, 'job-123', {
       pollInterval: 5000,
     });
 
@@ -183,19 +180,19 @@ describe('pollCrawlProgress', () => {
     );
   });
 
-  it('should work without apiKey', async () => {
+  it('should work with default container config', async () => {
     const mockClient = {
       getCrawlStatus: vi.fn(),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
     vi.mocked(pollWithProgress).mockResolvedValue({} as never);
 
-    await pollCrawlProgress('job-123', {
+    await pollCrawlProgress(container, 'job-123', {
       pollInterval: 5000,
     });
 
-    expect(getClient).toHaveBeenCalledWith({ apiKey: undefined });
+    expect(pollWithProgress).toHaveBeenCalled();
   });
 
   it('should propagate errors from pollWithProgress', async () => {
@@ -203,13 +200,13 @@ describe('pollCrawlProgress', () => {
       getCrawlStatus: vi.fn(),
     };
 
-    vi.mocked(getClient).mockReturnValue(mockClient as never);
+    const container = createTestContainer(mockClient);
     vi.mocked(pollWithProgress).mockRejectedValue(
       new Error('Timeout after 60 seconds')
     );
 
     await expect(
-      pollCrawlProgress('job-123', {
+      pollCrawlProgress(container, 'job-123', {
         pollInterval: 5000,
         timeout: 60000,
       })

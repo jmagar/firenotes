@@ -3,6 +3,7 @@
  */
 
 import { Command } from 'commander';
+import type { IContainer } from '../../container/types';
 import type {
   CrawlOptions,
   CrawlResult,
@@ -48,9 +49,13 @@ function isStatusOnlyResult(data: unknown): boolean {
  * - Auto-embedding
  * - Output formatting
  *
+ * @param container - Dependency injection container
  * @param options - Crawl options
  */
-export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
+export async function handleCrawlCommand(
+  container: IContainer,
+  options: CrawlOptions
+): Promise<void> {
   if (!options.urlOrJobId) {
     console.error('Error: URL or job ID is required.');
     process.exit(1);
@@ -59,7 +64,7 @@ export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
 
   // Handle cancel operation
   if (options.cancel) {
-    const result = await executeCrawlCancel(options.urlOrJobId, options);
+    const result = await executeCrawlCancel(container, options.urlOrJobId);
     if (!result.success) {
       console.error('Error:', result.error || 'Unknown error occurred');
       process.exit(1);
@@ -75,7 +80,7 @@ export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
 
   // Handle errors operation
   if (options.errors) {
-    const result = await executeCrawlErrors(options.urlOrJobId, options);
+    const result = await executeCrawlErrors(container, options.urlOrJobId);
     if (!result.success) {
       console.error('Error:', result.error || 'Unknown error occurred');
       process.exit(1);
@@ -91,12 +96,12 @@ export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
 
   // Handle manual embedding trigger for job ID
   if (options.embed && isJobId(options.urlOrJobId)) {
-    await handleManualEmbedding(options.urlOrJobId, options.apiKey);
+    await handleManualEmbedding(container, options.urlOrJobId, options.apiKey);
     return;
   }
 
   // Execute crawl
-  const result = await executeCrawl(options);
+  const result = await executeCrawl(container, options);
 
   // Handle errors
   if (!result.success) {
@@ -139,7 +144,7 @@ export async function handleCrawlCommand(options: CrawlOptions): Promise<void> {
       );
     } else {
       // Synchronous result (--wait or --progress) - embed inline
-      await handleSyncEmbedding(crawlResult.data);
+      await handleSyncEmbedding(container, crawlResult.data);
     }
   }
 
@@ -237,7 +242,12 @@ export function createCrawlCommand(): Command {
     .option('--embed', 'Manually trigger embedding for a completed crawl job')
     .option('--no-embed', 'Skip auto-embedding of crawl results')
     .option('--no-default-excludes', 'Skip default exclude paths from settings')
-    .action(async (positionalUrlOrJobId, options) => {
+    .action(async (positionalUrlOrJobId, options, command: Command) => {
+      const container = command._container;
+      if (!container) {
+        throw new Error('Container not initialized');
+      }
+
       // Use positional argument if provided, otherwise use --url option
       const urlOrJobId = positionalUrlOrJobId || options.url;
       if (!urlOrJobId) {
@@ -313,7 +323,7 @@ export function createCrawlCommand(): Command {
         noDefaultExcludes: options.defaultExcludes === false,
       };
 
-      await handleCrawlCommand(crawlOptions);
+      await handleCrawlCommand(container, crawlOptions);
     });
 
   return crawlCmd;
