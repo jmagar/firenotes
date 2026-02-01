@@ -33,13 +33,27 @@ import { createScrapeCommand } from './commands/scrape';
 import { createSearchCommand } from './commands/search';
 import { createStatusCommand, handleStatusCommand } from './commands/status';
 import { createVersionCommand } from './commands/version';
-
+import { createContainer } from './container/ContainerFactory';
+import type { IContainer } from './container/types';
 import { ensureAuthenticated, printBanner } from './utils/auth';
 import { initializeConfig, updateConfig } from './utils/config';
 import { isUrl, normalizeUrl } from './utils/url';
 
 // Initialize global configuration from environment variables
 initializeConfig();
+
+/**
+ * Dependency Injection Container
+ *
+ * Phase 1: Container infrastructure is created but not yet used by commands.
+ * Phase 2: Commands will be migrated to use container instead of global config.
+ *
+ * The base container is initialized from:
+ * - Environment variables (FIRECRAWL_API_KEY, TEI_URL, QDRANT_URL, etc.)
+ * - OS credential store (via loadCredentials())
+ * - Defaults
+ */
+const baseContainer: IContainer = createContainer();
 
 /**
  * Signal handlers for graceful shutdown
@@ -92,6 +106,7 @@ program
   .allowUnknownOption() // Allow unknown options when URL is passed directly
   .hook('preAction', async (thisCommand, actionCommand) => {
     // Update global config if API key is provided via global option
+    // Phase 2: This will be replaced with container-based config override
     const globalOptions = thisCommand.opts();
     if (globalOptions.apiKey) {
       updateConfig({ apiKey: globalOptions.apiKey });
