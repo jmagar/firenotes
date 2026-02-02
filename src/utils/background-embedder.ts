@@ -10,8 +10,8 @@ import { timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import type { Document } from '@mendable/firecrawl-js';
-import { getClient } from './client';
-import { getConfig, initializeConfig } from './config';
+import { createDaemonContainer } from '../container/DaemonContainerFactory';
+import type { IContainer } from '../container/types';
 import {
   cleanupOldJobs,
   type EmbedJob,
@@ -49,6 +49,7 @@ function getBackoffDelay(retries: number): number {
  * Process a single embedding job
  */
 async function processEmbedJob(
+  container: IContainer,
   job: EmbedJob,
   crawlStatus?: { status?: string; data?: Document[] }
 ): Promise<void> {
@@ -59,22 +60,20 @@ async function processEmbedJob(
   try {
     markJobProcessing(job.jobId);
 
-    // Initialize config if needed (for standalone process)
-    const config = getConfig();
-    if (!config.teiUrl || !config.qdrantUrl) {
-      initializeConfig({ apiKey: job.apiKey });
-    }
+    // Create job-specific container with job's API key
+    const jobContainer = createDaemonContainer({
+      apiKey: job.apiKey,
+    });
 
     // Check if TEI/Qdrant are configured
-    const finalConfig = getConfig();
-    if (!finalConfig.teiUrl || !finalConfig.qdrantUrl) {
+    if (!jobContainer.config.teiUrl || !jobContainer.config.qdrantUrl) {
       throw new Error(
         'TEI_URL or QDRANT_URL not configured - skipping embedding'
       );
     }
 
     // Get crawl status and data (from webhook or API)
-    const client = getClient({ apiKey: job.apiKey });
+    const client = jobContainer.getFirecrawlClient();
     const status = crawlStatus?.status
       ? crawlStatus
       : await client.getCrawlStatus(job.jobId);
@@ -109,10 +108,12 @@ async function processEmbedJob(
       return;
     }
 
-    // Embed pages
+    // Embed pages using job-specific container config
     console.error(`[Embedder] Embedding ${pages.length} pages for ${job.url}`);
     const embedItems = createEmbedItems(pages, 'crawl');
     await batchEmbed(embedItems);
+    // Note: batchEmbed still uses legacy getConfig() internally
+    // This is acceptable for daemon backward compatibility
 
     console.error(
       `[Embedder] Successfully embedded ${pages.length} pages for ${job.url}`
@@ -134,7 +135,7 @@ async function processEmbedJob(
 /**
  * Process all pending jobs in the queue
  */
-export async function processEmbedQueue(): Promise<void> {
+export async function processEmbedQueue(container: IContainer): Promise<void> {
   const pendingJobs = getPendingJobs();
 
   if (pendingJobs.length === 0) {
@@ -145,14 +146,17 @@ export async function processEmbedQueue(): Promise<void> {
 
   // Process jobs sequentially to avoid overwhelming TEI/Qdrant
   for (const job of pendingJobs) {
-    await processEmbedJob(job);
+    await processEmbedJob(container, job);
   }
 }
 
 /**
  * Process stale pending jobs once, returning count processed.
  */
-export async function processStaleJobsOnce(maxAgeMs: number): Promise<number> {
+export async function processStaleJobsOnce(
+  container: IContainer,
+  maxAgeMs: number
+): Promise<number> {
   const staleJobs = getStalePendingJobs(maxAgeMs);
   if (staleJobs.length === 0) {
     return 0;
@@ -160,7 +164,7 @@ export async function processStaleJobsOnce(maxAgeMs: number): Promise<number> {
 
   console.error(`[Embedder] Processing ${staleJobs.length} stale jobs`);
   for (const job of staleJobs) {
-    await processEmbedJob(job);
+    await processEmbedJob(container, job);
   }
 
   return staleJobs.length;
@@ -178,7 +182,10 @@ async function readJsonBody(req: NodeJS.ReadableStream): Promise<unknown> {
   return JSON.parse(raw);
 }
 
-async function handleWebhookPayload(payload: unknown): Promise<void> {
+async function handleWebhookPayload(
+  container: IContainer,
+  payload: unknown
+): Promise<void> {
   const info = extractEmbedderWebhookJobInfo(payload);
   if (!info) {
     console.error('[Embedder] Webhook payload missing job ID');
@@ -211,14 +218,16 @@ async function handleWebhookPayload(payload: unknown): Promise<void> {
     return;
   }
 
-  await processEmbedJob(job, {
+  await processEmbedJob(container, job, {
     status: 'completed',
     data: info.pages,
   });
 }
 
-async function startEmbedderWebhookServer(): Promise<void> {
-  const settings = getEmbedderWebhookSettings();
+async function startEmbedderWebhookServer(
+  container: IContainer
+): Promise<void> {
+  const settings = getEmbedderWebhookSettings(container.config);
   const server = createServer(async (req, res) => {
     const requestUrl = new URL(req.url || '/', 'http://localhost');
 
@@ -274,7 +283,7 @@ async function startEmbedderWebhookServer(): Promise<void> {
 
     try {
       const payload = await readJsonBody(req);
-      void handleWebhookPayload(payload);
+      void handleWebhookPayload(container, payload);
       res.statusCode = 202;
       res.end();
     } catch (error) {
@@ -304,7 +313,9 @@ async function startEmbedderWebhookServer(): Promise<void> {
  *
  * Runs webhook server and processes jobs on completion events.
  */
-export async function startEmbedderDaemon(): Promise<void> {
+export async function startEmbedderDaemon(
+  container: IContainer
+): Promise<void> {
   console.error('[Embedder] Starting background embedder daemon');
 
   // Clean up old jobs on startup
@@ -313,7 +324,7 @@ export async function startEmbedderDaemon(): Promise<void> {
     console.error(`[Embedder] Cleaned up ${cleaned} old jobs`);
   }
 
-  await startEmbedderWebhookServer();
+  await startEmbedderWebhookServer(container);
 
   const staleMinutes = Number.parseFloat(
     process.env.FIRECRAWL_EMBEDDER_STALE_MINUTES ?? '10'
@@ -328,12 +339,12 @@ export async function startEmbedderDaemon(): Promise<void> {
     `[Embedder] Checking for stale jobs every ${Math.round(intervalMs / 1000)}s (stale after ${Math.round(staleMs / 1000)}s)`
   );
 
-  void processStaleJobsOnce(staleMs).catch((error) => {
+  void processStaleJobsOnce(container, staleMs).catch((error) => {
     console.error('[Embedder] Failed to process stale jobs:', error);
   });
 
   setInterval(() => {
-    void processStaleJobsOnce(staleMs).catch((error) => {
+    void processStaleJobsOnce(container, staleMs).catch((error) => {
       console.error('[Embedder] Failed to process stale jobs:', error);
     });
   }, intervalMs);
@@ -364,8 +375,10 @@ export function spawnBackgroundEmbedder(): void {
  *
  * Attempts to connect to the webhook server to verify daemon is responsive.
  */
-export async function isEmbedderRunning(): Promise<boolean> {
-  const settings = getEmbedderWebhookSettings();
+export async function isEmbedderRunning(
+  container?: IContainer
+): Promise<boolean> {
+  const settings = getEmbedderWebhookSettings(container?.config);
 
   try {
     // Attempt HTTP GET to webhook server (should return 405 Method Not Allowed)

@@ -3,6 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { IContainer } from '../../container/types';
 
 vi.mock('../../utils/embed-queue', () => ({
   getStalePendingJobs: vi.fn(),
@@ -21,10 +22,6 @@ vi.mock('../../utils/config', () => ({
   initializeConfig: vi.fn(),
 }));
 
-vi.mock('../../utils/client', () => ({
-  getClient: vi.fn(),
-}));
-
 vi.mock('../../utils/embedpipeline', () => ({
   createEmbedItems: vi
     .fn()
@@ -32,6 +29,10 @@ vi.mock('../../utils/embedpipeline', () => ({
       { content: 'hello', metadata: { url: 'https://example.com' } },
     ]),
   batchEmbed: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../container/DaemonContainerFactory', () => ({
+  createDaemonContainer: vi.fn(),
 }));
 
 describe('processStaleJobsOnce', () => {
@@ -42,7 +43,9 @@ describe('processStaleJobsOnce', () => {
   it('should process stale pending jobs', async () => {
     const { getStalePendingJobs, markJobProcessing, markJobCompleted } =
       await import('../../utils/embed-queue');
-    const { getClient } = await import('../../utils/client');
+    const { createDaemonContainer } = await import(
+      '../../container/DaemonContainerFactory'
+    );
 
     vi.mocked(getStalePendingJobs).mockReturnValue([
       {
@@ -57,7 +60,7 @@ describe('processStaleJobsOnce', () => {
       },
     ]);
 
-    vi.mocked(getClient).mockReturnValue({
+    const mockClient = {
       getCrawlStatus: vi.fn().mockResolvedValue({
         status: 'completed',
         data: [
@@ -67,13 +70,29 @@ describe('processStaleJobsOnce', () => {
           },
         ],
       }),
-    } as unknown as ReturnType<typeof getClient>);
+    };
+
+    const mockContainer: IContainer = {
+      config: {
+        apiKey: 'test-key',
+        teiUrl: 'http://tei:8080',
+        qdrantUrl: 'http://qdrant:6333',
+      },
+      getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+      getHttpClient: vi.fn(),
+      getTeiService: vi.fn(),
+      getQdrantService: vi.fn(),
+      getEmbedPipeline: vi.fn(),
+      dispose: vi.fn(),
+    };
+
+    vi.mocked(createDaemonContainer).mockReturnValue(mockContainer);
 
     const { processStaleJobsOnce } = await import(
       '../../utils/background-embedder'
     );
 
-    const processed = await processStaleJobsOnce(60_000);
+    const processed = await processStaleJobsOnce(mockContainer, 60_000);
 
     expect(processed).toBe(1);
     expect(markJobProcessing).toHaveBeenCalledWith('job-1');

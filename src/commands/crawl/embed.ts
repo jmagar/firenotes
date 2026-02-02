@@ -183,6 +183,6 @@ export async function handleManualEmbedding(
 
   // Process queue
   console.error(`Processing embedding queue for job ${jobId}...`);
-  await processEmbedQueue();
+  await processEmbedQueue(container);
   console.error(`Embedding processing complete`);
 }
