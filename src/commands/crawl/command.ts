@@ -21,7 +21,11 @@ import {
 } from './embed';
 import { executeCrawl } from './execute';
 import { formatCrawlStatus } from './format';
-import { executeCrawlCancel, executeCrawlErrors } from './status';
+import {
+  checkCrawlStatus,
+  executeCrawlCancel,
+  executeCrawlErrors,
+} from './status';
 
 /**
  * Type guard to check if result data is a status-only result
@@ -60,62 +64,6 @@ export async function handleCrawlCommand(
     console.error('Error: URL or job ID is required.');
     process.exit(1);
     return; // Ensure early return for testing
-  }
-
-  // Handle cancel operation
-  if (options.cancel) {
-    const result = await executeCrawlCancel(container, options.urlOrJobId);
-    if (!result.success) {
-      console.error('Error:', result.error || 'Unknown error occurred');
-      process.exit(1);
-      return;
-    }
-    const outputContent = formatJson(
-      { success: true, data: result.data },
-      options.pretty
-    );
-    if (options.output) {
-      try {
-        validateOutputPath(options.output);
-      } catch (error) {
-        console.error(
-          'Error:',
-          error instanceof Error ? error.message : 'Invalid output path'
-        );
-        process.exit(1);
-        return;
-      }
-    }
-    writeOutput(outputContent, options.output, !!options.output);
-    return;
-  }
-
-  // Handle errors operation
-  if (options.errors) {
-    const result = await executeCrawlErrors(container, options.urlOrJobId);
-    if (!result.success) {
-      console.error('Error:', result.error || 'Unknown error occurred');
-      process.exit(1);
-      return;
-    }
-    const outputContent = formatJson(
-      { success: true, data: result.data },
-      options.pretty
-    );
-    if (options.output) {
-      try {
-        validateOutputPath(options.output);
-      } catch (error) {
-        console.error(
-          'Error:',
-          error instanceof Error ? error.message : 'Invalid output path'
-        );
-        process.exit(1);
-        return;
-      }
-    }
-    writeOutput(outputContent, options.output, !!options.output);
-    return;
   }
 
   // Handle manual embedding trigger for job ID
@@ -219,6 +167,127 @@ export async function handleCrawlCommand(
 }
 
 /**
+ * Handle crawl status subcommand
+ *
+ * @param container - Dependency injection container
+ * @param jobId - Crawl job ID
+ * @param options - Command options (output, pretty)
+ */
+async function handleCrawlStatusCommand(
+  container: IContainer,
+  jobId: string,
+  options: { output?: string; pretty?: boolean }
+): Promise<void> {
+  const result = await checkCrawlStatus(container, jobId);
+
+  if (!result.success) {
+    console.error('Error:', result.error || 'Unknown error occurred');
+    process.exit(1);
+    return;
+  }
+
+  if (options.output) {
+    try {
+      validateOutputPath(options.output);
+    } catch (error) {
+      console.error(
+        'Error:',
+        error instanceof Error ? error.message : 'Invalid output path'
+      );
+      process.exit(1);
+      return;
+    }
+  }
+
+  const outputContent =
+    options.pretty || !options.output
+      ? formatCrawlStatus(result.data)
+      : formatJson({ success: true, data: result.data }, options.pretty);
+
+  writeOutput(outputContent, options.output, !!options.output);
+}
+
+/**
+ * Handle crawl cancel subcommand
+ *
+ * @param container - Dependency injection container
+ * @param jobId - Crawl job ID
+ * @param options - Command options (output, pretty)
+ */
+async function handleCrawlCancelCommand(
+  container: IContainer,
+  jobId: string,
+  options: { output?: string; pretty?: boolean }
+): Promise<void> {
+  const result = await executeCrawlCancel(container, jobId);
+
+  if (!result.success) {
+    console.error('Error:', result.error || 'Unknown error occurred');
+    process.exit(1);
+    return;
+  }
+
+  if (options.output) {
+    try {
+      validateOutputPath(options.output);
+    } catch (error) {
+      console.error(
+        'Error:',
+        error instanceof Error ? error.message : 'Invalid output path'
+      );
+      process.exit(1);
+      return;
+    }
+  }
+
+  const outputContent = formatJson(
+    { success: true, data: result.data },
+    options.pretty
+  );
+  writeOutput(outputContent, options.output, !!options.output);
+}
+
+/**
+ * Handle crawl errors subcommand
+ *
+ * @param container - Dependency injection container
+ * @param jobId - Crawl job ID
+ * @param options - Command options (output, pretty)
+ */
+async function handleCrawlErrorsCommand(
+  container: IContainer,
+  jobId: string,
+  options: { output?: string; pretty?: boolean }
+): Promise<void> {
+  const result = await executeCrawlErrors(container, jobId);
+
+  if (!result.success) {
+    console.error('Error:', result.error || 'Unknown error occurred');
+    process.exit(1);
+    return;
+  }
+
+  if (options.output) {
+    try {
+      validateOutputPath(options.output);
+    } catch (error) {
+      console.error(
+        'Error:',
+        error instanceof Error ? error.message : 'Invalid output path'
+      );
+      process.exit(1);
+      return;
+    }
+  }
+
+  const outputContent = formatJson(
+    { success: true, data: result.data },
+    options.pretty
+  );
+  writeOutput(outputContent, options.output, !!options.output);
+}
+
+/**
  * Create and configure the crawl command
  *
  * @returns Configured Commander.js command
@@ -231,9 +300,6 @@ export function createCrawlCommand(): Command {
       '-u, --url <url>',
       'URL to crawl (alternative to positional argument)'
     )
-    .option('--cancel', 'Cancel an existing crawl job', false)
-    .option('--errors', 'Fetch crawl errors for a job ID', false)
-    .option('--status', 'Check status of existing crawl job', false)
     .option(
       '--wait',
       'Wait for crawl to complete before returning results',
@@ -306,44 +372,21 @@ export function createCrawlCommand(): Command {
         return;
       }
 
-      if ((options.cancel || options.errors) && !isJobId(urlOrJobId)) {
-        console.error(
-          'Error: job ID is required for --cancel/--errors (URLs are not valid).'
+      // Auto-detect if it's a job ID and show deprecation warning
+      if (isJobId(urlOrJobId)) {
+        console.warn(
+          '⚠️  Detected job ID. Use "firecrawl crawl status <job-id>" instead.'
         );
-        process.exit(1);
+        await handleCrawlStatusCommand(container, urlOrJobId, {
+          output: options.output,
+          pretty: options.pretty,
+        });
         return;
       }
-
-      // Validate mutually exclusive options
-      if (options.cancel && options.errors) {
-        console.error('Error: --cancel and --errors are mutually exclusive');
-        process.exit(1);
-        return;
-      }
-
-      if (
-        (options.wait || options.progress) &&
-        (options.cancel || options.errors || options.status)
-      ) {
-        console.error(
-          'Error: --wait/--progress cannot be used with --cancel/--errors/--status'
-        );
-        process.exit(1);
-        return;
-      }
-
-      // Auto-detect if it's a job ID (UUID format)
-      const isStatusCheck =
-        options.status ||
-        options.cancel ||
-        options.errors ||
-        isJobId(urlOrJobId);
 
       const crawlOptions = {
-        urlOrJobId: isStatusCheck ? urlOrJobId : normalizeUrl(urlOrJobId),
-        status: isStatusCheck,
-        cancel: options.cancel,
-        errors: options.errors,
+        urlOrJobId: normalizeUrl(urlOrJobId),
+        status: false,
         wait: options.wait,
         pollInterval: options.pollInterval,
         timeout: options.timeout,
@@ -373,6 +416,54 @@ export function createCrawlCommand(): Command {
 
       await handleCrawlCommand(container, crawlOptions);
     });
+
+  // Status subcommand
+  const statusCmd = new Command('status')
+    .description('Check status of a crawl job')
+    .argument('<job-id>', 'Crawl job ID to check status')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--pretty', 'Pretty print JSON output', false)
+    .action(async (jobId: string, options, command: Command) => {
+      const container = command.parent?._container;
+      if (!container) {
+        throw new Error('Container not initialized');
+      }
+      await handleCrawlStatusCommand(container, jobId, options);
+    });
+
+  crawlCmd.addCommand(statusCmd);
+
+  // Cancel subcommand
+  const cancelCmd = new Command('cancel')
+    .description('Cancel a crawl job')
+    .argument('<job-id>', 'Crawl job ID to cancel')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--pretty', 'Pretty print JSON output', false)
+    .action(async (jobId: string, options, command: Command) => {
+      const container = command.parent?._container;
+      if (!container) {
+        throw new Error('Container not initialized');
+      }
+      await handleCrawlCancelCommand(container, jobId, options);
+    });
+
+  crawlCmd.addCommand(cancelCmd);
+
+  // Errors subcommand
+  const errorsCmd = new Command('errors')
+    .description('Get errors from a crawl job')
+    .argument('<job-id>', 'Crawl job ID to get errors')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--pretty', 'Pretty print JSON output', false)
+    .action(async (jobId: string, options, command: Command) => {
+      const container = command.parent?._container;
+      if (!container) {
+        throw new Error('Container not initialized');
+      }
+      await handleCrawlErrorsCommand(container, jobId, options);
+    });
+
+  crawlCmd.addCommand(errorsCmd);
 
   return crawlCmd;
 }

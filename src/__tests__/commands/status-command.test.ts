@@ -307,33 +307,6 @@ describe('handleJobStatusCommand', () => {
     expect(parsed.data.crawls[0].url).toBe('https://example.com');
   });
 
-  it('should cancel embed job when requested', async () => {
-    const { getEmbedJob, removeEmbedJob } = await import(
-      '../../utils/embed-queue'
-    );
-    vi.mocked(getEmbedJob).mockReturnValue({
-      id: 'job-1',
-      jobId: 'job-1',
-      url: 'https://example.com',
-      status: 'pending',
-      retries: 0,
-      maxRetries: 3,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    await handleJobStatusCommand(container, {
-      cancelEmbed: 'job-1',
-      json: true,
-    });
-
-    expect(removeEmbedJob).toHaveBeenCalledWith('job-1');
-    const output = vi.mocked(writeOutput).mock.calls[0]?.[0];
-    const parsed = JSON.parse(output as string);
-    expect(parsed.cancelledEmbedJobId).toBe('job-1');
-    expect(parsed.cancelledEmbedJobFound).toBe(true);
-  });
-
   it('should start active crawl and status lookups in parallel', async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
     vi.mocked(getRecentJobIds).mockImplementation((type: string) => {

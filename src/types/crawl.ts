@@ -9,12 +9,8 @@ export interface CrawlOptions {
   apiKey?: string;
   /** URL to crawl or job ID to check status */
   urlOrJobId?: string;
-  /** Check status of existing crawl job */
+  /** Check status of existing crawl job (internal use only) */
   status?: boolean;
-  /** Cancel an existing crawl job */
-  cancel?: boolean;
-  /** Fetch errors for an existing crawl job */
-  errors?: boolean;
   /** Wait for crawl to complete */
   wait?: boolean;
   /** Polling interval in seconds when waiting */

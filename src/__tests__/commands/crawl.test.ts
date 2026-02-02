@@ -1040,24 +1040,6 @@ describe('executeCrawlCancel', () => {
   });
 });
 
-describe('handleCrawlCommand cancel mode', () => {
-  it('should write cancel output and exit without crawling', async () => {
-    const mockClient = {
-      scrape: vi.fn(),
-      cancelCrawl: vi.fn().mockResolvedValue(true),
-    };
-    const container = createTestContainer(mockClient);
-
-    await handleCrawlCommand(container, {
-      urlOrJobId: 'job-123',
-      cancel: true,
-    });
-
-    expect(mockClient.cancelCrawl).toHaveBeenCalledWith('job-123');
-    expect(writeOutput).toHaveBeenCalled();
-  });
-});
-
 describe('executeCrawlErrors', () => {
   type CrawlErrorsMock = MockFirecrawlClient &
     Required<Pick<MockFirecrawlClient, 'getCrawlErrors'>>;
@@ -1106,79 +1088,171 @@ describe('createCrawlCommand', () => {
     vi.clearAllMocks();
   });
 
-  it('should not normalize job id for --cancel', async () => {
-    const mockClient: Partial<MockFirecrawlClient> = {
-      cancelCrawl: vi.fn().mockResolvedValue({ success: true }),
-    };
-    const container = createTestContainer(mockClient);
-
-    const cmd = createCrawlCommand();
-    cmd._container = container;
-
-    const actionSpy = vi.fn(async (positionalUrlOrJobId, options) => {
-      const urlOrJobId = positionalUrlOrJobId || options.url;
-      // Job IDs should not be normalized (no https:// prefix added)
-      expect(urlOrJobId).toBe('abc-123-def');
-      expect(options.cancel).toBe(true);
+  describe('status subcommand', () => {
+    it('should exist as a subcommand', () => {
+      const cmd = createCrawlCommand();
+      const statusCmd = cmd.commands.find((c) => c.name() === 'status');
+      expect(statusCmd).toBeDefined();
     });
 
-    cmd.action(actionSpy);
+    it('should require job-id argument', async () => {
+      const cmd = createCrawlCommand();
+      const statusCmd = cmd.commands.find((c) => c.name() === 'status');
+      expect(statusCmd).toBeDefined();
 
-    await cmd.parseAsync(['node', 'test', 'abc-123-def', '--cancel'], {
-      from: 'node',
+      statusCmd!.exitOverride();
+      await expect(
+        statusCmd!.parseAsync(['node', 'test'], { from: 'node' })
+      ).rejects.toThrow();
     });
 
-    expect(actionSpy).toHaveBeenCalled();
+    it('should call checkCrawlStatus and format output', async () => {
+      const mockClient: Partial<MockFirecrawlClient> = {
+        getCrawlStatus: vi.fn().mockResolvedValue({
+          id: 'job-123',
+          status: 'completed',
+          total: 100,
+          completed: 100,
+          creditsUsed: 50,
+          expiresAt: '2026-02-15T00:00:00Z',
+        }),
+      };
+      const container = createTestContainer(mockClient);
+
+      const cmd = createCrawlCommand();
+      cmd._container = container;
+
+      await cmd.parseAsync(['node', 'test', 'status', 'job-123'], {
+        from: 'node',
+      });
+
+      expect(mockClient.getCrawlStatus).toHaveBeenCalledWith('job-123');
+      expect(writeOutput).toHaveBeenCalled();
+    });
+
+    it('should format output correctly', async () => {
+      const mockClient: Partial<MockFirecrawlClient> = {
+        getCrawlStatus: vi.fn().mockResolvedValue({
+          id: 'job-123',
+          status: 'completed',
+          total: 100,
+          completed: 100,
+        }),
+      };
+      const container = createTestContainer(mockClient);
+
+      const cmd = createCrawlCommand();
+      cmd._container = container;
+
+      await cmd.parseAsync(['node', 'test', 'status', 'job-123'], {
+        from: 'node',
+      });
+
+      expect(writeOutput).toHaveBeenCalledWith(
+        expect.stringContaining('Job ID: job-123'),
+        undefined,
+        false
+      );
+    });
   });
 
-  it('should not normalize job id for --errors', async () => {
+  describe('cancel subcommand', () => {
+    it('should exist as a subcommand', () => {
+      const cmd = createCrawlCommand();
+      const cancelCmd = cmd.commands.find((c) => c.name() === 'cancel');
+      expect(cancelCmd).toBeDefined();
+    });
+
+    it('should call executeCrawlCancel with job-id', async () => {
+      const mockClient: Partial<MockFirecrawlClient> = {
+        cancelCrawl: vi.fn().mockResolvedValue(true),
+      };
+      const container = createTestContainer(mockClient);
+
+      const cmd = createCrawlCommand();
+      cmd._container = container;
+
+      await cmd.parseAsync(['node', 'test', 'cancel', 'job-456'], {
+        from: 'node',
+      });
+
+      expect(mockClient.cancelCrawl).toHaveBeenCalledWith('job-456');
+      expect(writeOutput).toHaveBeenCalled();
+    });
+
+    it('should handle failure gracefully', async () => {
+      const mockClient: Partial<MockFirecrawlClient> = {
+        cancelCrawl: vi.fn().mockRejectedValue(new Error('Cancel failed')),
+      };
+      const container = createTestContainer(mockClient);
+
+      const cmd = createCrawlCommand();
+      cmd._container = container;
+      cmd.exitOverride();
+
+      await expect(
+        cmd.parseAsync(['node', 'test', 'cancel', 'job-456'], {
+          from: 'node',
+        })
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('errors subcommand', () => {
+    it('should exist as a subcommand', () => {
+      const cmd = createCrawlCommand();
+      const errorsCmd = cmd.commands.find((c) => c.name() === 'errors');
+      expect(errorsCmd).toBeDefined();
+    });
+
+    it('should call executeCrawlErrors with job-id', async () => {
+      const mockClient: Partial<MockFirecrawlClient> = {
+        getCrawlErrors: vi.fn().mockResolvedValue({
+          errors: [],
+          robotsBlocked: [],
+        }),
+      };
+      const container = createTestContainer(mockClient);
+
+      const cmd = createCrawlCommand();
+      cmd._container = container;
+
+      await cmd.parseAsync(['node', 'test', 'errors', 'job-789'], {
+        from: 'node',
+      });
+
+      expect(mockClient.getCrawlErrors).toHaveBeenCalledWith('job-789');
+      expect(writeOutput).toHaveBeenCalled();
+    });
+  });
+
+  it('should auto-detect job ID and show deprecation warning', async () => {
+    const jobId = '550e8400-e29b-41d4-a716-446655440000';
     const mockClient: Partial<MockFirecrawlClient> = {
-      getCrawlErrors: vi.fn().mockResolvedValue({
-        errors: [],
-        robotsBlocked: [],
+      scrape: vi.fn(),
+      getCrawlStatus: vi.fn().mockResolvedValue({
+        id: jobId,
+        status: 'completed',
+        total: 100,
+        completed: 100,
       }),
     };
     const container = createTestContainer(mockClient);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const cmd = createCrawlCommand();
     cmd._container = container;
 
-    const actionSpy = vi.fn(async (positionalUrlOrJobId, options) => {
-      const urlOrJobId = positionalUrlOrJobId || options.url;
-      // Job IDs should not be normalized (no https:// prefix added)
-      expect(urlOrJobId).toBe('abc-123-def');
-      expect(options.errors).toBe(true);
-    });
-
-    cmd.action(actionSpy);
-
-    await cmd.parseAsync(['node', 'test', 'abc-123-def', '--errors'], {
+    await cmd.parseAsync(['node', 'test', jobId], {
       from: 'node',
     });
 
-    expect(actionSpy).toHaveBeenCalled();
-  });
+    expect(warnSpy).toHaveBeenCalledWith(
+      '⚠️  Detected job ID. Use "firecrawl crawl status <job-id>" instead.'
+    );
+    expect(mockClient.getCrawlStatus).toHaveBeenCalledWith(jobId);
 
-  it('should require job id for --cancel', async () => {
-    const cmd = createCrawlCommand();
-    cmd.exitOverride();
-
-    await expect(
-      cmd.parseAsync(['node', 'test', 'https://example.com', '--cancel'], {
-        from: 'node',
-      })
-    ).rejects.toThrow();
-  });
-
-  it('should require job id for --errors', async () => {
-    const cmd = createCrawlCommand();
-    cmd.exitOverride();
-
-    await expect(
-      cmd.parseAsync(['node', 'test', 'https://example.com', '--errors'], {
-        from: 'node',
-      })
-    ).rejects.toThrow();
+    warnSpy.mockRestore();
   });
 
   it('should default scrapeTimeout to 15 seconds when not provided', async () => {

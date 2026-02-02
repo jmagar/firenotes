@@ -48,28 +48,6 @@ export async function executeExtract(
   try {
     const app = container.getFirecrawlClient();
 
-    if (options.status && options.jobId) {
-      const status = await app.getExtractStatus(options.jobId);
-
-      if (status.error) {
-        return { success: false, error: status.error };
-      }
-
-      recordJob('extract', options.jobId);
-
-      return {
-        success: true,
-        data: {
-          extracted: status.data,
-          warning: status.warning,
-          status: status.status,
-          expiresAt: status.expiresAt,
-          tokensUsed: (status as { tokensUsed?: number }).tokensUsed,
-          sources: status.sources,
-        },
-      };
-    }
-
     // Build single-arg object for new Firecrawl SDK extract()
     const extractArgs: Record<string, unknown> = {
       urls: options.urls,
@@ -166,15 +144,6 @@ export async function handleExtractCommand(
 
   if (!result.data) return;
 
-  if (options.status) {
-    const outputContent = formatJson(
-      { success: true, data: result.data },
-      options.pretty
-    );
-    writeOutput(outputContent, options.output, !!options.output);
-    return;
-  }
-
   // Determine embed targets: prefer sources, fallback to input URLs
   const embedTargets =
     Array.isArray(result.data.sources) && result.data.sources.length > 0
@@ -222,16 +191,59 @@ import { Command } from 'commander';
 import { normalizeUrl } from '../utils/url';
 
 /**
+ * Handle extract status command
+ */
+async function handleExtractStatusCommand(
+  container: IContainer,
+  jobId: string,
+  options: { output?: string; pretty?: boolean }
+): Promise<void> {
+  try {
+    const app = container.getFirecrawlClient();
+    const status = await app.getExtractStatus(jobId);
+
+    if (status.error) {
+      console.error('Error:', status.error);
+      process.exit(1);
+    }
+
+    recordJob('extract', jobId);
+
+    const result = {
+      success: true,
+      data: {
+        extracted: status.data,
+        warning: status.warning,
+        status: status.status,
+        expiresAt: status.expiresAt,
+        tokensUsed: (status as { tokensUsed?: number }).tokensUsed,
+        sources: status.sources,
+      },
+    };
+
+    const outputContent = formatJson(result, options.pretty);
+    writeOutput(outputContent, options.output, !!options.output);
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error('Error:', message);
+    process.exit(1);
+  }
+}
+
+/**
  * Create and configure the extract command
+ *
+ * UX Pattern: Uses subcommands for actions (e.g., `extract status <job-id>`)
+ * instead of option flags. This is the preferred pattern for CLI UX:
+ * - Better discoverability
+ * - Clear semantic intent
+ * - Follows standard CLI conventions (resource action target)
  */
 export function createExtractCommand(): Command {
   const extractCmd = new Command('extract')
     .description('Extract structured data from URLs using Firecrawl')
-    .argument(
-      '[urls-or-job-id...]',
-      'URL(s) to extract from or a job ID for status'
-    )
-    .option('--status', 'Get extract job status by ID', false)
+    .argument('[urls...]', 'URL(s) to extract from')
     .option('--prompt <prompt>', 'Extraction prompt describing what to extract')
     .option('--schema <json>', 'JSON schema for structured extraction')
     .option('--system-prompt <prompt>', 'System prompt for extraction context')
@@ -257,26 +269,6 @@ export function createExtractCommand(): Command {
         throw new Error('Container not initialized');
       }
 
-      if (options.status) {
-        const jobId = rawUrls?.[0];
-        if (!jobId) {
-          console.error('Error: job ID is required for --status');
-          process.exit(1);
-        }
-
-        await handleExtractCommand(container, {
-          status: true,
-          jobId,
-          urls: [],
-          apiKey: options.apiKey,
-          output: options.output,
-          json: true,
-          pretty: options.pretty,
-          embed: false,
-        });
-        return;
-      }
-
       // Flatten URLs that may contain newlines (e.g. zsh doesn't word-split variables)
       const urls = rawUrls
         .flatMap((u) =>
@@ -297,6 +289,25 @@ export function createExtractCommand(): Command {
         json: options.json,
         pretty: options.pretty,
         embed: options.embed,
+      });
+    });
+
+  // Add status subcommand
+  extractCmd
+    .command('status')
+    .description('Get extract job status by ID')
+    .argument('<job-id>', 'Extract job ID')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--pretty', 'Pretty print JSON output', false)
+    .action(async (jobId: string, options, command: Command) => {
+      const container = command.parent?._container;
+      if (!container) {
+        throw new Error('Container not initialized');
+      }
+
+      await handleExtractStatusCommand(container, jobId, {
+        output: options.output,
+        pretty: options.pretty,
       });
     });
 

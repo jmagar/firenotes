@@ -11,12 +11,7 @@ import { isAuthenticated } from '../utils/auth';
 import { formatJson } from '../utils/command';
 import { DEFAULT_API_URL } from '../utils/config';
 import { loadCredentials } from '../utils/credentials';
-import {
-  getEmbedJob,
-  listEmbedJobs,
-  removeEmbedJob,
-  updateEmbedJob,
-} from '../utils/embed-queue';
+import { listEmbedJobs, updateEmbedJob } from '../utils/embed-queue';
 import { isJobId } from '../utils/job';
 import { getRecentJobIds, removeJobIds } from '../utils/job-history';
 import { validateOutputPath, writeOutput } from '../utils/output';
@@ -36,7 +31,6 @@ interface JobStatusOptions {
   batch?: string;
   extract?: string;
   embed?: string | boolean;
-  cancelEmbed?: string;
   output?: string;
   json?: boolean;
   pretty?: boolean;
@@ -470,27 +464,9 @@ export async function handleJobStatusCommand(
   options: JobStatusOptions
 ): Promise<void> {
   try {
-    let cancelledEmbedJobId: string | undefined;
-    let cancelledEmbedJobFound: boolean | undefined;
-    if (options.cancelEmbed) {
-      const existing = getEmbedJob(options.cancelEmbed);
-      cancelledEmbedJobId = options.cancelEmbed;
-      cancelledEmbedJobFound = Boolean(existing);
-      if (existing) {
-        removeEmbedJob(options.cancelEmbed);
-      }
-    }
-
     const data = await executeJobStatus(container, options);
     const wantsJson = options.json || options.pretty || options.output;
     if (!wantsJson) {
-      if (cancelledEmbedJobId) {
-        if (cancelledEmbedJobFound) {
-          console.log(`\nCancelled embed job ${cancelledEmbedJobId}\n`);
-        } else {
-          console.log(`\nEmbed job ${cancelledEmbedJobId} not found\n`);
-        }
-      }
       renderHumanStatus(data);
       return;
     }
@@ -504,8 +480,6 @@ export async function handleJobStatusCommand(
       {
         success: true,
         data,
-        cancelledEmbedJobId,
-        cancelledEmbedJobFound,
       },
       options.pretty ?? false
     );
@@ -516,6 +490,15 @@ export async function handleJobStatusCommand(
   }
 }
 
+/**
+ * UX Pattern Note:
+ * Actions on resources should use subcommands (e.g., `firecrawl embed cancel <id>`)
+ * rather than option flags (e.g., `--cancel-embed <id>`). This provides:
+ * - Better discoverability via help text
+ * - Clearer intent and semantics
+ * - Follows standard CLI patterns (resource action target)
+ * - Avoids cluttering status/info commands with action flags
+ */
 export function createStatusCommand(): Command {
   const statusCmd = new Command('status')
     .description('Show active jobs and embedding queue status')
@@ -527,7 +510,6 @@ export function createStatusCommand(): Command {
       '--embed [job-id]',
       'Show embedding queue status (optionally for job ID)'
     )
-    .option('--cancel-embed <job-id>', 'Cancel a pending embedding job')
     .option('--json', 'Output JSON (compact)', false)
     .option('--pretty', 'Pretty print JSON output', false)
     .option('-o, --output <path>', 'Output file path (default: stdout)')
@@ -543,7 +525,6 @@ export function createStatusCommand(): Command {
         batch: options.batch,
         extract: options.extract,
         embed: options.embed,
-        cancelEmbed: options.cancelEmbed,
         output: options.output,
         json: options.json,
         pretty: options.pretty,

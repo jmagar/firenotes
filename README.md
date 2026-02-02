@@ -308,7 +308,7 @@ firecrawl crawl https://example.com --wait
 # With progress indicator
 firecrawl crawl https://example.com --progress
 
-# Check crawl status
+# Check crawl status (auto-detects job ID)
 firecrawl crawl <job-id>
 
 # List active crawl jobs
@@ -317,10 +317,10 @@ firecrawl list
 # Show job and embedding status summary
 firecrawl status
 
-# Cancel a crawl job
+# Cancel a crawl job (legacy: use --cancel flag)
 firecrawl crawl <job-id> --cancel
 
-# Fetch crawl errors
+# Fetch crawl errors (legacy: use --errors flag)
 firecrawl crawl <job-id> --errors
 
 # List active crawl jobs
@@ -343,8 +343,9 @@ firecrawl crawl https://example.com --limit 100 --max-depth 3
 | `--wait`                    | Wait for crawl to complete and embed inline            |
 | `--progress`                | Show progress while waiting (implies --wait)           |
 | `--embed`                   | Manually trigger embeddings for a completed job        |
-| `--cancel`                  | Cancel an existing crawl job (job ID required)         |
-| `--errors`                  | Fetch crawl errors for a job ID                        |
+| `--cancel`                  | (Legacy) Cancel an existing crawl job (deprecated)     |
+| `--errors`                  | (Legacy) Fetch crawl errors for a job ID (deprecated)  |
+| `--status`                  | (Legacy) Check job status (deprecated, auto-detected)  |
 | `--no-embed`                | Skip auto-embedding (useful for large crawls)          |
 | `--limit <n>`               | Maximum pages to crawl                                 |
 | `--max-depth <n>`           | Maximum crawl depth                                    |
@@ -472,14 +473,22 @@ firecrawl batch https://a.com https://b.com https://c.com
 firecrawl batch https://a.com https://b.com --wait
 
 # Check status
-firecrawl batch <job-id> --status
+firecrawl batch status <job-id>
 
 # Cancel a batch job
-firecrawl batch <job-id> --cancel
+firecrawl batch cancel <job-id>
 
 # Fetch batch errors
-firecrawl batch <job-id> --errors
+firecrawl batch errors <job-id>
 ```
+
+#### Batch Subcommands
+
+| Subcommand | Description                           |
+| ---------- | ------------------------------------- |
+| `status`   | Get status for a batch job by ID      |
+| `cancel`   | Cancel a running batch scrape job     |
+| `errors`   | Get error details for a batch job     |
 
 #### Batch Options
 
@@ -488,9 +497,6 @@ firecrawl batch <job-id> --errors
 | `--wait`                    | Wait for batch scrape to complete         |
 | `--poll-interval <seconds>` | Status polling interval                   |
 | `--timeout <seconds>`       | Timeout for wait mode                     |
-| `--status`                  | Get status for a batch job ID             |
-| `--cancel`                  | Cancel a batch job                        |
-| `--errors`                  | Fetch batch scrape errors                 |
 | `--format <formats>`        | Scrape formats for batch results          |
 | `--only-main-content`       | Only return main content                  |
 | `--wait-for <ms>`           | Wait before scraping (JS-rendered pages)  |
@@ -528,14 +534,19 @@ firecrawl extract https://site1.com https://site2.com --prompt "Get company info
 firecrawl extract https://example.com --prompt "Find pricing" --show-sources --pretty
 
 # Check extract job status
-firecrawl extract <job-id> --status
+firecrawl extract status <job-id>
 ```
+
+#### Extract Subcommands
+
+| Subcommand | Description                           |
+| ---------- | ------------------------------------- |
+| `status`   | Get status for an extract job by ID   |
 
 #### Extract Options
 
 | Option                     | Description                           |
 | -------------------------- | ------------------------------------- |
-| `--status`                 | Get extract job status by ID          |
 | `--prompt <prompt>`        | Natural language extraction prompt    |
 | `--schema <json>`          | JSON schema for structured extraction |
 | `--system-prompt <prompt>` | System prompt for extraction          |

@@ -25,11 +25,6 @@ vi.mock('../../../commands/crawl/execute', () => ({
   executeCrawl: vi.fn(),
 }));
 
-vi.mock('../../../commands/crawl/status', () => ({
-  executeCrawlCancel: vi.fn(),
-  executeCrawlErrors: vi.fn(),
-}));
-
 vi.mock('../../../commands/crawl/embed', () => ({
   handleManualEmbedding: vi.fn(),
   handleAsyncEmbedding: vi.fn(),
@@ -47,10 +42,6 @@ import {
 } from '../../../commands/crawl/embed';
 import { executeCrawl } from '../../../commands/crawl/execute';
 import { formatCrawlStatus } from '../../../commands/crawl/format';
-import {
-  executeCrawlCancel,
-  executeCrawlErrors,
-} from '../../../commands/crawl/status';
 import { formatJson } from '../../../utils/command';
 import { isJobId } from '../../../utils/job';
 import { recordJob } from '../../../utils/job-history';
@@ -79,96 +70,6 @@ describe('handleCrawlCommand', () => {
 
     mockExit.mockRestore();
     mockError.mockRestore();
-  });
-
-  it('should handle cancel operation successfully', async () => {
-    const container = createTestContainer();
-    const mockCancelResult = {
-      success: true,
-      data: { status: 'cancelled' },
-    };
-
-    vi.mocked(executeCrawlCancel).mockResolvedValue(mockCancelResult as never);
-    vi.mocked(formatJson).mockReturnValue('{"success":true}');
-
-    const options: CrawlOptions = {
-      urlOrJobId: 'job-123',
-      cancel: true,
-    };
-
-    await handleCrawlCommand(container, options);
-
-    expect(executeCrawlCancel).toHaveBeenCalledWith(
-      expect.any(Object),
-      'job-123'
-    );
-    expect(formatJson).toHaveBeenCalledWith(
-      { success: true, data: { status: 'cancelled' } },
-      undefined
-    );
-    expect(writeOutput).toHaveBeenCalledWith(
-      '{"success":true}',
-      undefined,
-      false
-    );
-  });
-
-  it('should handle cancel operation failure', async () => {
-    const container = createTestContainer();
-    const mockExit = vi
-      .spyOn(process, 'exit')
-      .mockImplementation(() => undefined as never);
-    const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    vi.mocked(executeCrawlCancel).mockResolvedValue({
-      success: false,
-      error: 'Job not found',
-    } as never);
-
-    const options: CrawlOptions = {
-      urlOrJobId: 'job-123',
-      cancel: true,
-    };
-
-    await handleCrawlCommand(container, options);
-
-    expect(mockError).toHaveBeenCalledWith('Error:', 'Job not found');
-    expect(mockExit).toHaveBeenCalledWith(1);
-
-    mockExit.mockRestore();
-    mockError.mockRestore();
-  });
-
-  it('should handle errors operation successfully', async () => {
-    const container = createTestContainer();
-    const mockErrorsResult = {
-      success: true,
-      data: [{ url: 'https://example.com/404', error: '404 Not Found' }],
-    };
-
-    vi.mocked(executeCrawlErrors).mockResolvedValue(mockErrorsResult as never);
-    vi.mocked(formatJson).mockReturnValue('{"success":true}');
-
-    const options: CrawlOptions = {
-      urlOrJobId: 'job-456',
-      errors: true,
-    };
-
-    await handleCrawlCommand(container, options);
-
-    expect(executeCrawlErrors).toHaveBeenCalledWith(
-      expect.any(Object),
-      'job-456'
-    );
-    expect(formatJson).toHaveBeenCalledWith(
-      { success: true, data: mockErrorsResult.data },
-      undefined
-    );
-    expect(writeOutput).toHaveBeenCalledWith(
-      '{"success":true}',
-      undefined,
-      false
-    );
   });
 
   it('should handle manual embedding trigger', async () => {

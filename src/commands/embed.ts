@@ -197,15 +197,41 @@ export async function handleEmbedCommand(
 
 import { Command } from 'commander';
 import { ensureAuthenticated } from '../utils/auth';
+import { getEmbedJob, removeEmbedJob } from '../utils/embed-queue';
 import { normalizeUrl } from '../utils/url';
 
 /**
+ * Handle embed cancel command
+ */
+async function handleCancelCommand(jobId: string): Promise<void> {
+  const job = getEmbedJob(jobId);
+
+  if (!job) {
+    console.error(`Embed job ${jobId} not found`);
+    process.exit(1);
+  }
+
+  removeEmbedJob(jobId);
+  console.log(`Cancelled embed job ${jobId}`);
+}
+
+/**
  * Create and configure the embed command
+ *
+ * UX Pattern: Uses subcommands for actions (e.g., `embed cancel <id>`)
+ * instead of option flags. This is the preferred pattern for CLI UX:
+ * - Better discoverability
+ * - Clear semantic intent
+ * - Follows standard CLI conventions (resource action target)
  */
 export function createEmbedCommand(): Command {
-  const embedCmd = new Command('embed')
-    .description('Embed content into Qdrant vector database')
-    .argument('<input>', 'URL to scrape and embed, file path, or "-" for stdin')
+  const embedCmd = new Command('embed').description(
+    'Embed content into Qdrant vector database'
+  );
+
+  // Default embed action (when no subcommand is used)
+  embedCmd
+    .argument('[input]', 'URL to scrape and embed, file path, or "-" for stdin')
     .option(
       '--url <url>',
       'Explicit URL for metadata (required for file/stdin)'
@@ -218,8 +244,14 @@ export function createEmbedCommand(): Command {
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as JSON format', false)
-    .action(async (input: string, options, command: Command) => {
-      const container = command._container;
+    .action(async (input: string | undefined, options, command: Command) => {
+      // If no input provided and no subcommand, show help
+      if (!input) {
+        command.help();
+        return;
+      }
+
+      const container = command.parent?._container;
       if (!container) {
         throw new Error('Container not initialized');
       }
@@ -244,6 +276,15 @@ export function createEmbedCommand(): Command {
         output: options.output,
         json: options.json,
       });
+    });
+
+  // Add cancel subcommand
+  embedCmd
+    .command('cancel')
+    .description('Cancel a pending embedding job')
+    .argument('<job-id>', 'Job ID to cancel')
+    .action(async (jobId: string) => {
+      await handleCancelCommand(jobId);
     });
 
   return embedCmd;
