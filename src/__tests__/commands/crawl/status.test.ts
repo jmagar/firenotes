@@ -1,14 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   checkCrawlStatus,
   executeCrawlCancel,
   executeCrawlErrors,
 } from '../../../commands/crawl/status';
+import { resetTeiCache } from '../../../utils/embeddings';
+import { resetQdrantCache } from '../../../utils/qdrant';
 import { createTestContainer } from '../../utils/test-container';
 
 describe('checkCrawlStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    resetTeiCache();
+    resetQdrantCache();
   });
 
   it('should return successful status result', async () => {

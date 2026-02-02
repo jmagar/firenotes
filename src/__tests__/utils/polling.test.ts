@@ -177,18 +177,19 @@ describe('pollWithProgress', () => {
   });
 
   it('should respect poll interval timing', async () => {
+    // Use fake timers to avoid CI jitter
+    vi.useFakeTimers();
+
     const pollInterval = 100;
-    let lastTime = Date.now();
-    const times: number[] = [];
+    let callCount = 0;
 
     const statusFetcher = vi.fn(async () => {
-      const now = Date.now();
-      times.push(now - lastTime);
-      lastTime = now;
-      return { status: times.length >= 3 ? 'completed' : 'processing' };
+      callCount++;
+      return { status: callCount >= 3 ? 'completed' : 'processing' };
     });
 
-    await pollWithProgress({
+    // Start polling (does not await - runs in background)
+    const pollPromise = pollWithProgress({
       jobId: 'test-job',
       statusFetcher,
       pollInterval,
@@ -196,15 +197,23 @@ describe('pollWithProgress', () => {
       formatProgress: (s) => 'Progress',
     });
 
-    // First poll should be immediate (relaxed tolerance for CI jitter)
-    expect(times[0]).toBeLessThan(100);
+    // Wait a microtask for first poll to execute (immediate, no setTimeout)
+    await Promise.resolve();
+    expect(statusFetcher).toHaveBeenCalledTimes(1);
 
-    // Subsequent intervals should be approximately pollInterval ms (with generous tolerance for CI)
-    // Relaxed from ±20ms/50ms to ±100ms to handle CI environment jitter
-    for (let i = 1; i < times.length; i++) {
-      expect(times[i]).toBeGreaterThanOrEqual(pollInterval - 100); // 100ms tolerance
-      expect(times[i]).toBeLessThan(pollInterval + 100); // 100ms tolerance
-    }
+    // Advance by pollInterval for second poll
+    await vi.advanceTimersByTimeAsync(pollInterval);
+    expect(statusFetcher).toHaveBeenCalledTimes(2);
+
+    // Advance by pollInterval for third poll (should complete)
+    await vi.advanceTimersByTimeAsync(pollInterval);
+    expect(statusFetcher).toHaveBeenCalledTimes(3);
+
+    // Wait for polling to complete
+    const result = await pollPromise;
+    expect(result.status).toBe('completed');
+
+    vi.useRealTimers();
   });
 
   it('should reject zero timeout', async () => {

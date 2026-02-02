@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildCrawlOptions,
   mergeExcludePaths,
 } from '../../../commands/crawl/options';
 import type { CrawlOptions } from '../../../types/crawl';
+import { resetTeiCache } from '../../../utils/embeddings';
+import { resetQdrantCache } from '../../../utils/qdrant';
 
 // Mock the settings module
 vi.mock('../../../utils/settings', () => ({
@@ -16,6 +18,11 @@ describe('buildCrawlOptions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(loadSettings).mockReturnValue({});
+  });
+
+  afterEach(() => {
+    resetTeiCache();
+    resetQdrantCache();
   });
 
   it('should build basic crawl options', () => {

@@ -11,6 +11,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { executeMap } from '../../commands/map';
 import type { IContainer, IHttpClient } from '../../container/types';
 import { DEFAULT_USER_AGENT } from '../../utils/config';
+import { resetTeiCache } from '../../utils/embeddings';
+import { resetQdrantCache } from '../../utils/qdrant';
 import type { MockFirecrawlClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
@@ -45,6 +47,8 @@ function createMockMapClient(
 describe('executeMap', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    resetTeiCache();
+    resetQdrantCache();
   });
 
   describe('SDK path (no User-Agent)', () => {

@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchWithRetry, fetchWithTimeout } from '../../utils/http';
 
+/**
+ * Node.js error with code property
+ */
+interface NodeError extends Error {
+  code?: string;
+}
+
 // Mock global fetch
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -188,14 +195,23 @@ describe('HTTP utilities with timeout and retry', () => {
         maxRetries: 3,
       });
 
-      await vi.advanceTimersByTimeAsync(0);
-      await vi.advanceTimersByTimeAsync(2000);
-      await vi.advanceTimersByTimeAsync(3000);
-      await vi.advanceTimersByTimeAsync(5000);
+      // Advance timers and await the promise rejection together
+      const advanceTimers = async () => {
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(2000);
+        await vi.advanceTimersByTimeAsync(3000);
+        await vi.advanceTimersByTimeAsync(5000);
+      };
 
-      const response = await promise;
-      expect(response.status).toBe(503);
+      await Promise.all([
+        expect(promise).rejects.toThrow(
+          'Request failed after 3 retries: HTTP 503'
+        ),
+        advanceTimers(),
+      ]);
+
       expect(mockFetch).toHaveBeenCalledTimes(4); // Initial + 3 retries
+      vi.useRealTimers();
     });
 
     it('should not retry on 400 Bad Request', async () => {
@@ -242,12 +258,21 @@ describe('HTTP utilities with timeout and retry', () => {
         maxRetries: 1,
       });
 
-      await vi.advanceTimersByTimeAsync(0);
-      await vi.advanceTimersByTimeAsync(2000);
+      // Advance timers and await the promise rejection together
+      const advanceTimers = async () => {
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(2000);
+      };
 
-      const response = await promise;
-      expect(response.status).toBe(503);
+      await Promise.all([
+        expect(promise).rejects.toThrow(
+          'Request failed after 1 retries: HTTP 503 Service Unavailable'
+        ),
+        advanceTimers(),
+      ]);
+
       expect(mockFetch).toHaveBeenCalledTimes(2);
+      vi.useRealTimers();
     });
 
     it('should continue retry loop after status-based retry', async () => {
@@ -635,7 +660,7 @@ describe('HTTP utilities with timeout and retry', () => {
   describe('fetchWithRetry - Network Error Handling', () => {
     it('should retry on ECONNRESET error', async () => {
       const error = new Error('Connection reset');
-      (error as any).code = 'ECONNRESET';
+      (error as NodeError).code = 'ECONNRESET';
 
       mockFetch
         .mockRejectedValueOnce(error)
@@ -652,7 +677,7 @@ describe('HTTP utilities with timeout and retry', () => {
 
     it('should retry on ECONNREFUSED error', async () => {
       const error = new Error('Connection refused');
-      (error as any).code = 'ECONNREFUSED';
+      (error as NodeError).code = 'ECONNREFUSED';
 
       mockFetch
         .mockRejectedValueOnce(error)
@@ -669,7 +694,7 @@ describe('HTTP utilities with timeout and retry', () => {
 
     it('should retry on ETIMEDOUT error', async () => {
       const error = new Error('Connection timed out');
-      (error as any).code = 'ETIMEDOUT';
+      (error as NodeError).code = 'ETIMEDOUT';
 
       mockFetch
         .mockRejectedValueOnce(error)
@@ -686,7 +711,7 @@ describe('HTTP utilities with timeout and retry', () => {
 
     it('should retry on ENOTFOUND error', async () => {
       const error = new Error('Host not found');
-      (error as any).code = 'ENOTFOUND';
+      (error as NodeError).code = 'ENOTFOUND';
 
       mockFetch
         .mockRejectedValueOnce(error)
@@ -704,7 +729,7 @@ describe('HTTP utilities with timeout and retry', () => {
     it('should retry on EAI_AGAIN error', async () => {
       vi.useFakeTimers();
       const error = new Error('DNS lookup failed');
-      (error as any).code = 'EAI_AGAIN';
+      (error as NodeError).code = 'EAI_AGAIN';
 
       mockFetch
         .mockRejectedValueOnce(error)
@@ -723,7 +748,7 @@ describe('HTTP utilities with timeout and retry', () => {
     it('should retry on EPIPE error', async () => {
       vi.useFakeTimers();
       const error = new Error('Broken pipe');
-      (error as any).code = 'EPIPE';
+      (error as NodeError).code = 'EPIPE';
 
       mockFetch
         .mockRejectedValueOnce(error)
@@ -760,7 +785,7 @@ describe('HTTP utilities with timeout and retry', () => {
 
     it('should not retry on non-retryable error', async () => {
       const error = new Error('Invalid input');
-      (error as any).code = 'EINVAL';
+      (error as NodeError).code = 'EINVAL';
 
       mockFetch.mockRejectedValueOnce(error);
 
@@ -772,7 +797,7 @@ describe('HTTP utilities with timeout and retry', () => {
 
     it('should exhaust retries on persistent network error', async () => {
       const error = new Error('Connection reset');
-      (error as any).code = 'ECONNRESET';
+      (error as NodeError).code = 'ECONNRESET';
 
       mockFetch
         .mockRejectedValueOnce(error)
@@ -846,7 +871,7 @@ describe('HTTP utilities with timeout and retry', () => {
     it('should handle error with both name and code properties', async () => {
       const error = new Error('Network error');
       error.name = 'AbortError';
-      (error as any).code = 'ECONNRESET';
+      (error as NodeError).code = 'ECONNRESET';
 
       mockFetch
         .mockRejectedValueOnce(error)
@@ -862,21 +887,20 @@ describe('HTTP utilities with timeout and retry', () => {
     });
 
     it('should throw fallback error when lastError is null', async () => {
-      // This is a theoretical edge case where the loop completes without setting lastError
-      // In practice, this shouldn't happen, but we test the fallback
+      // This test verifies that after exhausting all retries on a retryable status,
+      // we throw an error with proper context instead of returning the response
       mockFetch
         .mockResolvedValueOnce({ ok: false, status: 503 })
         .mockResolvedValueOnce({ ok: false, status: 503 })
         .mockResolvedValueOnce({ ok: false, status: 503 })
         .mockResolvedValueOnce({ ok: false, status: 503 });
 
-      const response = await fetchWithRetry('http://test.com', undefined, {
-        maxRetries: 3,
-        baseDelayMs: 10,
-      });
-
-      // Should return the last 503 response, not throw fallback error
-      expect(response.status).toBe(503);
+      await expect(
+        fetchWithRetry('http://test.com', undefined, {
+          maxRetries: 3,
+          baseDelayMs: 10,
+        })
+      ).rejects.toThrow('Request failed after 3 retries: HTTP 503');
     });
 
     it('should preserve all fetch options across retries', async () => {
@@ -1021,7 +1045,7 @@ describe('HTTP utilities with timeout and retry', () => {
   describe('fetchWithTimeout - Error Handling', () => {
     it('should throw network error immediately without retry', async () => {
       const error = new Error('Connection refused');
-      (error as any).code = 'ECONNREFUSED';
+      (error as NodeError).code = 'ECONNREFUSED';
 
       mockFetch.mockRejectedValueOnce(error);
 
@@ -1103,7 +1127,7 @@ describe('HTTP utilities with timeout and retry', () => {
 
     it('should detect retryable errors by code', async () => {
       const error = new Error('Connection error');
-      (error as any).code = 'ECONNRESET';
+      (error as NodeError).code = 'ECONNRESET';
 
       mockFetch
         .mockRejectedValueOnce(error)

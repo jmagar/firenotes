@@ -10,6 +10,8 @@ import type {
   IQdrantService,
   ITeiService,
 } from '../../container/types';
+import { resetTeiCache } from '../../utils/embeddings';
+import { resetQdrantCache } from '../../utils/qdrant';
 import {
   type MockFirecrawlClient,
   setupTest,
@@ -91,6 +93,8 @@ describe('executeEmbed', () => {
   afterEach(() => {
     teardownTest();
     vi.clearAllMocks();
+    resetTeiCache();
+    resetQdrantCache();
   });
 
   it('should scrape URL then embed when input is a URL', async () => {

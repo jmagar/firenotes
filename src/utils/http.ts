@@ -134,20 +134,26 @@ export async function fetchWithRetry(
       clearTimeout(timeoutId);
 
       // Check if we should retry based on status code
-      if (
-        RETRYABLE_STATUS_CODES.includes(response.status) &&
-        attempt < config.maxRetries
-      ) {
+      if (RETRYABLE_STATUS_CODES.includes(response.status)) {
         lastError = new Error(
           `HTTP ${response.status}: ${response.statusText}`
         );
-        const delay = calculateBackoff(
-          attempt,
-          config.baseDelayMs,
-          config.maxDelayMs
+
+        // If we have retries left, delay and continue
+        if (attempt < config.maxRetries) {
+          const delay = calculateBackoff(
+            attempt,
+            config.baseDelayMs,
+            config.maxDelayMs
+          );
+          await sleep(delay);
+          continue;
+        }
+
+        // No retries left - throw error with context
+        throw new Error(
+          `Request failed after ${config.maxRetries} retries: HTTP ${response.status} ${response.statusText}`
         );
-        await sleep(delay);
-        continue;
       }
 
       return response;

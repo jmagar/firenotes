@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   attachEmbedWebhook,
   handleAsyncEmbedding,
@@ -6,6 +6,8 @@ import {
   handleSyncEmbedding,
 } from '../../../commands/crawl/embed';
 import type { CrawlJobData } from '../../../types/crawl';
+import { resetTeiCache } from '../../../utils/embeddings';
+import { resetQdrantCache } from '../../../utils/qdrant';
 import { createTestContainer } from '../../utils/test-container';
 
 // Mock dependencies
@@ -23,6 +25,11 @@ import { recordJob } from '../../../utils/job-history';
 describe('attachEmbedWebhook', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    resetTeiCache();
+    resetQdrantCache();
   });
 
   it('should attach webhook when embedding enabled and not in wait mode', () => {

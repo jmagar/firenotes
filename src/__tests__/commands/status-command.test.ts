@@ -8,7 +8,11 @@ import {
   handleJobStatusCommand,
 } from '../../commands/status';
 import type { IContainer } from '../../container/types';
+import type { CommandWithContainer } from '../../types/test';
+import { resetTeiCache } from '../../utils/embeddings';
 import { writeOutput } from '../../utils/output';
+import { resetQdrantCache } from '../../utils/qdrant';
+import type { MockFirecrawlClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 vi.mock('../../utils/embed-queue', () => ({
@@ -57,11 +61,13 @@ describe('handleJobStatusCommand', () => {
     const { listEmbedJobs } = await import('../../utils/embed-queue');
     vi.mocked(getRecentJobIds).mockReturnValue([]);
     vi.mocked(listEmbedJobs).mockReturnValue([]);
-    container = createTestContainer(mockClient as any);
+    container = createTestContainer(mockClient);
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+    resetTeiCache();
+    resetQdrantCache();
   });
 
   it('should write JSON output when json flag is set', async () => {
@@ -386,17 +392,17 @@ describe('createStatusCommand', () => {
   it('should call getActiveCrawls when invoked', async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
     vi.mocked(getRecentJobIds).mockReturnValue([]);
-    const activeClient = {
+    const activeClient: Partial<MockFirecrawlClient> = {
       getActiveCrawls: vi.fn().mockResolvedValue({ success: true, crawls: [] }),
       getCrawlStatus: vi.fn(),
       getBatchScrapeStatus: vi.fn(),
       getExtractStatus: vi.fn(),
     };
-    const testContainer = createTestContainer(activeClient as any);
+    const testContainer = createTestContainer(activeClient);
 
-    const cmd = createStatusCommand();
+    const cmd = createStatusCommand() as CommandWithContainer;
     cmd.exitOverride();
-    (cmd as any)._container = testContainer;
+    cmd._container = testContainer;
 
     await cmd.parseAsync(['node', 'test', '--json'], {
       from: 'node',

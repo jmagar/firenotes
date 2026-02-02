@@ -14,7 +14,7 @@ export interface CommandWithContainer {
   parseAsync(
     argv: string[],
     options?: { from: 'node' | 'user' }
-  ): Promise<void>;
+  ): Promise<CommandWithContainer>;
   exitOverride(): this;
   name(): string;
 }

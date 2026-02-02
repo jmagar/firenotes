@@ -11,7 +11,9 @@ import {
   handleCrawlCommand,
 } from '../../commands/crawl';
 import { initializeConfig } from '../../utils/config';
+import { resetTeiCache } from '../../utils/embeddings';
 import { writeOutput } from '../../utils/output';
+import { resetQdrantCache } from '../../utils/qdrant';
 import type { MockFirecrawlClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
@@ -127,6 +129,8 @@ describe('executeCrawl', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    resetTeiCache();
+    resetQdrantCache();
   });
 
   describe('Start crawl (async)', () => {

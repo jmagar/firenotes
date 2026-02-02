@@ -9,6 +9,7 @@ import {
   handleListCommand,
 } from '../../commands/list';
 import type { IContainer } from '../../container/types';
+import type { CommandWithContainer } from '../../types/test';
 import { writeOutput } from '../../utils/output';
 import {
   type MockFirecrawlClient,
@@ -32,7 +33,7 @@ describe('executeList', () => {
     setupTest();
 
     mockClient = { scrape: vi.fn(), getActiveCrawls: vi.fn() };
-    container = createTestContainer(mockClient as any);
+    container = createTestContainer(mockClient);
   });
 
   afterEach(() => {
@@ -65,7 +66,7 @@ describe('handleListCommand', () => {
     setupTest();
 
     mockClient = { scrape: vi.fn(), getActiveCrawls: vi.fn() };
-    container = createTestContainer(mockClient as any);
+    container = createTestContainer(mockClient);
   });
 
   afterEach(() => {
@@ -109,17 +110,17 @@ describe('handleListCommand', () => {
 
 describe('createListCommand', () => {
   it('should call getActiveCrawls when invoked', async () => {
-    const mockClient = {
+    const mockClient: Partial<MockFirecrawlClient> = {
       getActiveCrawls: vi.fn().mockResolvedValue({
         success: true,
         crawls: [],
       }),
     };
-    const testContainer = createTestContainer(mockClient as any);
+    const testContainer = createTestContainer(mockClient);
 
-    const cmd = createListCommand();
+    const cmd = createListCommand() as CommandWithContainer;
     cmd.exitOverride();
-    (cmd as any)._container = testContainer;
+    cmd._container = testContainer;
 
     await cmd.parseAsync(['node', 'test'], { from: 'node' });
 

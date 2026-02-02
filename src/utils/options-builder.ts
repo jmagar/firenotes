@@ -11,7 +11,7 @@
  * ```typescript
  * const options = new OptionsBuilder<FirecrawlOptions>()
  *   .add('limit', 10)
- *   .addMapped('maxDiscoveryDepth', 5)
+ *   .addMapped('limit', cliOptions.limit) // Same as add() for type safety
  *   .addNested('scrapeOptions.timeout', 15000)
  *   .build();
  * ```
