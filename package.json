@@ -66,7 +66,7 @@
     "husky": "^9.0.0",
     "lint-staged": "^15.0.0",
     "typescript": "^5.0.0",
-    "vitest": "^4.0.0"
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@mendable/firecrawl-js": "^4.10.0",
