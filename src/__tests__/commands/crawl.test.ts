@@ -582,14 +582,14 @@ describe('executeCrawl', () => {
         urlOrJobId: 'https://example.com',
         wait: true,
         progress: true,
-        pollInterval: 0.001, // Very short interval for testing (1ms)
+        pollInterval: 0.1, // 100ms - minimum valid interval
       });
 
       // Fast-forward timers to resolve the first setTimeout
-      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(100);
 
       // Fast-forward again to resolve the second setTimeout
-      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(100);
 
       const result = await crawlPromise;
 
@@ -623,11 +623,11 @@ describe('executeCrawl', () => {
       const crawlPromise = executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         progress: true,
-        pollInterval: 0.001, // Very short interval for testing (1ms)
+        pollInterval: 0.1, // 100ms - minimum valid interval
       });
 
       // Fast-forward timers to resolve the setTimeout
-      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(100);
 
       const result = await crawlPromise;
 
@@ -1098,14 +1098,61 @@ describe('executeCrawlErrors', () => {
 });
 
 describe('createCrawlCommand', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('should not normalize job id for --cancel', async () => {
-    // These tests verify Commander.js argument parsing, not container usage
-    // Skip for now as they test CLI layer, not business logic
-    // TODO: Update when createCrawlCommand is refactored for DI
+    const mockClient: Partial<MockFirecrawlClient> = {
+      cancelCrawl: vi.fn().mockResolvedValue({ success: true }),
+    };
+    const container = createTestContainer(mockClient);
+
+    const cmd = createCrawlCommand();
+    cmd._container = container;
+
+    const actionSpy = vi.fn(async (positionalUrlOrJobId, options) => {
+      const urlOrJobId = positionalUrlOrJobId || options.url;
+      // Job IDs should not be normalized (no https:// prefix added)
+      expect(urlOrJobId).toBe('abc-123-def');
+      expect(options.cancel).toBe(true);
+    });
+
+    cmd.action(actionSpy);
+
+    await cmd.parseAsync(['node', 'test', 'abc-123-def', '--cancel'], {
+      from: 'node',
+    });
+
+    expect(actionSpy).toHaveBeenCalled();
   });
 
   it('should not normalize job id for --errors', async () => {
-    // Skip - same reason as above
+    const mockClient: Partial<MockFirecrawlClient> = {
+      getCrawlErrors: vi.fn().mockResolvedValue({
+        errors: [],
+        robotsBlocked: [],
+      }),
+    };
+    const container = createTestContainer(mockClient);
+
+    const cmd = createCrawlCommand();
+    cmd._container = container;
+
+    const actionSpy = vi.fn(async (positionalUrlOrJobId, options) => {
+      const urlOrJobId = positionalUrlOrJobId || options.url;
+      // Job IDs should not be normalized (no https:// prefix added)
+      expect(urlOrJobId).toBe('abc-123-def');
+      expect(options.errors).toBe(true);
+    });
+
+    cmd.action(actionSpy);
+
+    await cmd.parseAsync(['node', 'test', 'abc-123-def', '--errors'], {
+      from: 'node',
+    });
+
+    expect(actionSpy).toHaveBeenCalled();
   });
 
   it('should require job id for --cancel', async () => {

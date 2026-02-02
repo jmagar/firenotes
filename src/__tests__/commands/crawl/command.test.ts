@@ -10,6 +10,7 @@ vi.mock('../../../utils/command', () => ({
 
 vi.mock('../../../utils/output', () => ({
   writeOutput: vi.fn(),
+  validateOutputPath: vi.fn((path: string) => path),
 }));
 
 vi.mock('../../../utils/job', () => ({

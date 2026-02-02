@@ -23,15 +23,6 @@ interface TeiInfo {
 let cachedTeiInfo: TeiInfo | null = null;
 
 /**
- * Reset cached TEI info (for testing)
- * @deprecated Use test containers instead - each container has its own cache
- * This function will be removed in Phase 4 after all tests are migrated.
- */
-export function resetTeiCache(): void {
-  cachedTeiInfo = null;
-}
-
-/**
  * Fetch TEI server info and extract vector dimension
  */
 export async function getTeiInfo(teiUrl: string): Promise<TeiInfo> {
@@ -152,4 +143,13 @@ export async function embedChunks(
 
   // Flatten batched results in order
   return results.flat();
+}
+
+/**
+ * Reset cached TEI info (for testing)
+ * NOTE: Only for use in embeddings.test.ts unit tests.
+ * Command tests should use test containers instead.
+ */
+export function resetTeiCache(): void {
+  cachedTeiInfo = null;
 }

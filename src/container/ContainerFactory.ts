@@ -33,21 +33,39 @@ export function createContainer(options: ConfigOptions = {}): IContainer {
   // Load stored credentials from OS keychain/file
   const storedCredentials = loadCredentials();
 
-  // Parse and validate embedder webhook port
-  let embedderWebhookPort: number | undefined = options.embedderWebhookPort;
-  if (!embedderWebhookPort && process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT) {
+  // Parse and validate embedder webhook port from environment variable
+  let embedderWebhookPortFromEnv: number | undefined;
+  if (process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT) {
     const parsed = Number.parseInt(
       process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT,
       10
     );
     if (Number.isFinite(parsed) && parsed > 0 && parsed < 65536) {
-      embedderWebhookPort = parsed;
+      embedderWebhookPortFromEnv = parsed;
     } else {
       console.warn(
         `[Container] Invalid FIRECRAWL_EMBEDDER_WEBHOOK_PORT: ${process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT} (must be 1-65535)`
       );
     }
   }
+
+  // Validate embedder webhook port from options
+  let embedderWebhookPort: number | undefined = options.embedderWebhookPort;
+  if (embedderWebhookPort !== undefined) {
+    if (
+      !Number.isFinite(embedderWebhookPort) ||
+      embedderWebhookPort <= 0 ||
+      embedderWebhookPort >= 65536
+    ) {
+      console.warn(
+        `[Container] Invalid embedderWebhookPort option: ${embedderWebhookPort} (must be 1-65535), clearing invalid value`
+      );
+      embedderWebhookPort = undefined;
+    }
+  }
+
+  // Use validated option if available, otherwise use validated env var
+  embedderWebhookPort = embedderWebhookPort || embedderWebhookPortFromEnv;
 
   // Resolve configuration with priority: options > env > stored > defaults
   const config: ImmutableConfig = {

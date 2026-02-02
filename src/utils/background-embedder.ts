@@ -221,6 +221,15 @@ async function startEmbedderWebhookServer(): Promise<void> {
   const settings = getEmbedderWebhookSettings();
   const server = createServer(async (req, res) => {
     const requestUrl = new URL(req.url || '/', 'http://localhost');
+
+    // Health check endpoint for daemon detection
+    if (req.method === 'GET' && requestUrl.pathname === '/health') {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ status: 'ok', service: 'embedder-daemon' }));
+      return;
+    }
+
     if (req.method !== 'POST' || requestUrl.pathname !== settings.path) {
       res.statusCode = req.method === 'POST' ? 404 : 405;
       res.end();
@@ -352,9 +361,28 @@ export function spawnBackgroundEmbedder(): void {
 
 /**
  * Check if embedder daemon is running
+ *
+ * Attempts to connect to the webhook server to verify daemon is responsive.
  */
-export function isEmbedderRunning(): boolean {
-  // TODO: Implement proper daemon detection (PID file, process check, etc.)
-  // For now, always return false (embedder runs on-demand)
-  return false;
+export async function isEmbedderRunning(): Promise<boolean> {
+  const settings = getEmbedderWebhookSettings();
+
+  try {
+    // Attempt HTTP GET to webhook server (should return 405 Method Not Allowed)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
+
+    const response = await fetch(`http://localhost:${settings.port}/health`, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    // Any response (even 404/405) means daemon is running
+    return response.status !== undefined;
+  } catch (error) {
+    // Connection refused, timeout, or network error means daemon is not running
+    return false;
+  }
 }

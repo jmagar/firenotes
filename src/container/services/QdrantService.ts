@@ -23,7 +23,6 @@ export class QdrantService implements IQdrantService {
 
   constructor(
     private readonly qdrantUrl: string,
-    private readonly defaultCollection: string,
     private readonly httpClient: IHttpClient
   ) {}
 
@@ -207,6 +206,7 @@ export class QdrantService implements IQdrantService {
       result?: {
         points?: Array<{
           id: string;
+          score?: number;
           vector?: number[];
           payload?: Record<string, unknown>;
         }>;
@@ -217,6 +217,7 @@ export class QdrantService implements IQdrantService {
       id: p.id,
       vector: p.vector || [],
       payload: p.payload || {},
+      score: p.score,
     }));
   }
 

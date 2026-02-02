@@ -2,11 +2,17 @@
  * Extract command implementation
  */
 
+import pLimit from 'p-limit';
 import type { IContainer } from '../container/types';
 import type { ExtractOptions, ExtractResult } from '../types/extract';
 import { formatJson, handleCommandError } from '../utils/command';
 import { recordJob } from '../utils/job-history';
 import { writeOutput } from '../utils/output';
+
+/**
+ * Maximum concurrent embedding operations to prevent resource exhaustion
+ */
+const MAX_CONCURRENT_EMBEDS = 10;
 
 /**
  * Convert extracted data to human-readable text for embedding
@@ -181,13 +187,19 @@ export async function handleExtractCommand(
     const pipeline = container.getEmbedPipeline();
     const extractedText = extractionToText(result.data.extracted);
 
-    for (const targetUrl of embedTargets) {
-      await pipeline.autoEmbed(extractedText, {
-        url: targetUrl,
-        sourceCommand: 'extract',
-        contentType: 'extracted',
-      });
-    }
+    // Use p-limit for concurrency control
+    const limit = pLimit(MAX_CONCURRENT_EMBEDS);
+    const embedTasks = embedTargets.map((targetUrl) =>
+      limit(() =>
+        pipeline.autoEmbed(extractedText, {
+          url: targetUrl,
+          sourceCommand: 'extract',
+          contentType: 'extracted',
+        })
+      )
+    );
+
+    await Promise.all(embedTasks);
   }
 
   // Format output using shared utility

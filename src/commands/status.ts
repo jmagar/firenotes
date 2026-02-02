@@ -19,7 +19,7 @@ import {
 } from '../utils/embed-queue';
 import { isJobId } from '../utils/job';
 import { getRecentJobIds, removeJobIds } from '../utils/job-history';
-import { writeOutput } from '../utils/output';
+import { validateOutputPath, writeOutput } from '../utils/output';
 
 type AuthSource = 'env' | 'stored' | 'none';
 
@@ -491,6 +491,11 @@ export async function handleJobStatusCommand(
       }
       renderHumanStatus(data);
       return;
+    }
+
+    // Validate output path before writing to prevent path traversal attacks
+    if (options.output) {
+      validateOutputPath(options.output);
     }
 
     const outputContent = formatJson(

@@ -71,6 +71,7 @@ export interface QdrantPoint {
   id: string;
   vector: number[];
   payload: Record<string, unknown>;
+  score?: number; // Similarity score from query operations
 }
 
 /**

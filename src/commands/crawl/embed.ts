@@ -103,13 +103,18 @@ export async function handleSyncEmbedding(
   }
 
   const pipeline = container.getEmbedPipeline();
+  const jobId = crawlJobData.id || 'unknown';
 
   // Embed each page using the pipeline
-  for (const page of pagesToEmbed) {
+  for (let i = 0; i < pagesToEmbed.length; i++) {
+    const page = pagesToEmbed[i];
     const content = page.markdown || page.html;
     if (content) {
+      // Use deterministic fallback to prevent dedupe collisions from empty URLs
+      const url =
+        page.metadata?.sourceURL || page.metadata?.url || `${jobId}:page-${i}`;
       await pipeline.autoEmbed(content, {
-        url: page.metadata?.sourceURL || page.metadata?.url || '',
+        url,
         title: page.metadata?.title,
         sourceCommand: 'crawl',
         contentType: page.markdown ? 'markdown' : 'html',

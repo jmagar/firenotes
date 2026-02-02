@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { OptionsBuilder } from '../../utils/options-builder';
 
 describe('OptionsBuilder', () => {
+  beforeEach(() => {});
+
   it('should add simple properties', () => {
     const result = new OptionsBuilder<{ limit: number }>()
       .add('limit', 10)
@@ -32,7 +34,7 @@ describe('OptionsBuilder', () => {
 
   it('should handle nested properties', () => {
     const result = new OptionsBuilder<{ scrapeOptions: { timeout: number } }>()
-      .addNested('scrapeTimeout', 'scrapeOptions.timeout', 15000)
+      .addNested('scrapeOptions.timeout', 15000)
       .build();
     expect(result).toEqual({ scrapeOptions: { timeout: 15000 } });
   });
@@ -41,7 +43,7 @@ describe('OptionsBuilder', () => {
     const result = new OptionsBuilder<{
       scrapeOptions?: { timeout?: number };
     }>()
-      .addNested('scrapeTimeout', 'scrapeOptions.timeout', undefined)
+      .addNested('scrapeOptions.timeout', undefined)
       .build();
     expect(result).toEqual({});
   });
@@ -50,7 +52,7 @@ describe('OptionsBuilder', () => {
     const result = new OptionsBuilder<{
       crawl: { scrape: { options: { timeout: number } } };
     }>()
-      .addNested('timeout', 'crawl.scrape.options.timeout', 10000)
+      .addNested('crawl.scrape.options.timeout', 10000)
       .build();
     expect(result).toEqual({
       crawl: { scrape: { options: { timeout: 10000 } } },
@@ -67,7 +69,7 @@ describe('OptionsBuilder', () => {
     const result = new OptionsBuilder<ComplexOptions>()
       .add('limit', 100)
       .addMapped('maxDiscoveryDepth', 3)
-      .addNested('scrapeTimeout', 'scrapeOptions.timeout', 10000)
+      .addNested('scrapeOptions.timeout', 10000)
       .build();
 
     expect(result).toEqual({
@@ -102,8 +104,8 @@ describe('OptionsBuilder', () => {
     };
 
     const result = new OptionsBuilder<NestedOptions>()
-      .addNested('timeout', 'scrapeOptions.timeout', 15000)
-      .addNested('waitTime', 'scrapeOptions.waitTime', 2000)
+      .addNested('scrapeOptions.timeout', 15000)
+      .addNested('scrapeOptions.waitTime', 2000)
       .build();
 
     expect(result).toEqual({
@@ -140,19 +142,19 @@ describe('OptionsBuilder', () => {
 
   it('should reject invalid nested paths', () => {
     expect(() => {
-      new OptionsBuilder().addNested('test', '', 'value').build();
+      new OptionsBuilder().addNested('', 'value').build();
     }).toThrow('Nested path cannot be empty');
 
     expect(() => {
-      new OptionsBuilder().addNested('test', 'a..b', 'value').build();
+      new OptionsBuilder().addNested('a..b', 'value').build();
     }).toThrow('Invalid nested path: "a..b"');
 
     expect(() => {
-      new OptionsBuilder().addNested('test', 'a.', 'value').build();
+      new OptionsBuilder().addNested('a.', 'value').build();
     }).toThrow('Invalid nested path: "a."');
 
     expect(() => {
-      new OptionsBuilder().addNested('test', '.a', 'value').build();
+      new OptionsBuilder().addNested('.a', 'value').build();
     }).toThrow('Invalid nested path: ".a"');
   });
 
@@ -162,7 +164,7 @@ describe('OptionsBuilder', () => {
     };
 
     const result = new OptionsBuilder<DeepOptions>()
-      .addNested('deep', 'a.b.c.d.e.f.g', 'value')
+      .addNested('a.b.c.d.e.f.g', 'value')
       .build();
 
     expect(result.a?.b?.c?.d?.e?.f?.g).toBe('value');

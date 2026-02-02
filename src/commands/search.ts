@@ -7,6 +7,7 @@ import type {
   SearchData,
   SearchRequest,
 } from '@mendable/firecrawl-js';
+import pLimit from 'p-limit';
 import type { IContainer } from '../container/types';
 import type {
   ImageSearchResult,
@@ -17,7 +18,12 @@ import type {
   WebSearchResult,
 } from '../types/search';
 import { formatJson, handleCommandError } from '../utils/command';
-import { writeOutput } from '../utils/output';
+import { validateOutputPath, writeOutput } from '../utils/output';
+
+/**
+ * Maximum concurrent embedding operations to prevent resource exhaustion
+ */
+const MAX_CONCURRENT_EMBEDS = 10;
 
 /** Extended search request that includes additional CLI options not in the SDK type */
 interface ExtendedSearchRequest extends Omit<SearchRequest, 'query'> {
@@ -314,23 +320,40 @@ export async function handleSearchCommand(
     outputContent = formatSearchReadable(result.data, options);
   }
 
+  if (options.output) {
+    try {
+      validateOutputPath(options.output);
+    } catch (error) {
+      console.error(
+        'Error:',
+        error instanceof Error ? error.message : 'Invalid output path'
+      );
+      process.exit(1);
+      return;
+    }
+  }
   writeOutput(outputContent, options.output, !!options.output);
 
   // Auto-embed only when --scrape was used (snippets are too noisy)
   if (options.embed !== false && options.scrape && result.data?.web) {
     const pipeline = container.getEmbedPipeline();
 
-    // Embed each search result
-    for (const item of result.data.web) {
-      if (item.markdown || item.html) {
-        await pipeline.autoEmbed(item.markdown || item.html || '', {
-          url: item.url,
-          title: item.title,
-          sourceCommand: 'search',
-          contentType: item.markdown ? 'markdown' : 'html',
-        });
-      }
-    }
+    // Use p-limit for concurrency control
+    const limit = pLimit(MAX_CONCURRENT_EMBEDS);
+    const embedTasks = result.data.web
+      .filter((item) => item.markdown || item.html)
+      .map((item) =>
+        limit(() =>
+          pipeline.autoEmbed(item.markdown || item.html || '', {
+            url: item.url,
+            title: item.title,
+            sourceCommand: 'search',
+            contentType: item.markdown ? 'markdown' : 'html',
+          })
+        )
+      );
+
+    await Promise.all(embedTasks);
   }
 }
 

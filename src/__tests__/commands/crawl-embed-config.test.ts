@@ -230,7 +230,7 @@ describe('Crawl embedding config initialization', () => {
     });
   });
 
-  describe('Embedding should not run without config', () => {
+  describe('Embedding with default config values', () => {
     it('should have default config values when TEI/Qdrant URLs not explicitly set', async () => {
       const mockCrawlJob = {
         id: 'test-job-id',

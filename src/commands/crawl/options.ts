@@ -67,7 +67,6 @@ export function buildCrawlOptions(
   // Handle scrape timeout (nested + transformation)
   if (options.scrapeTimeout !== undefined) {
     builder.addNested(
-      'scrapeTimeout',
       'scrapeOptions.timeout',
       options.scrapeTimeout * 1000 // Convert seconds to milliseconds
     );

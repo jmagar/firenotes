@@ -4,38 +4,66 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeQuery } from '../../commands/query';
-import type { IContainer } from '../../container/types';
-import { resetConfig } from '../../utils/config';
-import * as embeddings from '../../utils/embeddings';
-import * as qdrant from '../../utils/qdrant';
+import type {
+  IContainer,
+  IQdrantService,
+  ITeiService,
+} from '../../container/types';
+import { setupTest, teardownTest } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
-
-vi.mock('../../utils/embeddings');
-vi.mock('../../utils/qdrant');
 
 describe('executeQuery', () => {
   let container: IContainer;
+  let mockTeiService: ITeiService;
+  let mockQdrantService: IQdrantService;
 
   beforeEach(() => {
-    resetConfig();
+    setupTest();
+
+    // Create mock TEI service
+    mockTeiService = {
+      getTeiInfo: vi.fn().mockResolvedValue({
+        modelId: 'test',
+        dimension: 1024,
+        maxInput: 32768,
+      }),
+      embedBatch: vi.fn().mockResolvedValue([[0.1, 0.2, 0.3]]),
+      embedChunks: vi.fn().mockResolvedValue([[0.1, 0.2, 0.3]]),
+    };
+
+    // Create mock Qdrant service
+    mockQdrantService = {
+      ensureCollection: vi.fn().mockResolvedValue(undefined),
+      deleteByUrl: vi.fn().mockResolvedValue(undefined),
+      upsertPoints: vi.fn().mockResolvedValue(undefined),
+      queryPoints: vi.fn().mockResolvedValue([]),
+      scrollByUrl: vi.fn().mockResolvedValue([]),
+    };
+
     container = createTestContainer(undefined, {
       teiUrl: 'http://localhost:52000',
       qdrantUrl: 'http://localhost:53333',
       qdrantCollection: 'test_col',
     });
+
+    // Override service methods to return our mocks
+    vi.spyOn(container, 'getTeiService').mockReturnValue(mockTeiService);
+    vi.spyOn(container, 'getQdrantService').mockReturnValue(mockQdrantService);
+
     vi.clearAllMocks();
   });
 
   afterEach(() => {
-    resetConfig();
+    teardownTest();
     vi.clearAllMocks();
   });
 
   it('should embed query and search Qdrant', async () => {
-    vi.mocked(embeddings.embedBatch).mockResolvedValue([[0.1, 0.2, 0.3]]);
-    vi.mocked(qdrant.queryPoints).mockResolvedValue([
+    vi.mocked(mockTeiService.embedBatch).mockResolvedValue([[0.1, 0.2, 0.3]]);
+    vi.mocked(mockQdrantService.queryPoints).mockResolvedValue([
       {
         id: 'uuid-1',
+        vector: [0.1, 0.2, 0.3],
         score: 0.92,
         payload: {
           url: 'https://example.com/auth',
@@ -54,15 +82,14 @@ describe('executeQuery', () => {
       query: 'how to authenticate',
     });
 
-    expect(embeddings.embedBatch).toHaveBeenCalledWith(
-      'http://localhost:52000',
-      ['how to authenticate']
-    );
-    expect(qdrant.queryPoints).toHaveBeenCalledWith(
-      'http://localhost:53333',
+    expect(mockTeiService.embedBatch).toHaveBeenCalledWith([
+      'how to authenticate',
+    ]);
+    expect(mockQdrantService.queryPoints).toHaveBeenCalledWith(
       'test_col',
       [0.1, 0.2, 0.3],
-      expect.objectContaining({ limit: 5 })
+      5,
+      undefined
     );
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(1);
@@ -71,8 +98,8 @@ describe('executeQuery', () => {
   });
 
   it('should pass domain filter to Qdrant', async () => {
-    vi.mocked(embeddings.embedBatch).mockResolvedValue([[0.1]]);
-    vi.mocked(qdrant.queryPoints).mockResolvedValue([]);
+    vi.mocked(mockTeiService.embedBatch).mockResolvedValue([[0.1]]);
+    vi.mocked(mockQdrantService.queryPoints).mockResolvedValue([]);
 
     await executeQuery(container, {
       query: 'test',
@@ -80,11 +107,11 @@ describe('executeQuery', () => {
       limit: 10,
     });
 
-    expect(qdrant.queryPoints).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
-      expect.any(Array),
-      expect.objectContaining({ limit: 10, domain: 'example.com' })
+    expect(mockQdrantService.queryPoints).toHaveBeenCalledWith(
+      'test_col',
+      [0.1],
+      10,
+      { domain: 'example.com' }
     );
   });
 
@@ -100,8 +127,8 @@ describe('executeQuery', () => {
   });
 
   it('should handle empty results', async () => {
-    vi.mocked(embeddings.embedBatch).mockResolvedValue([[0.1]]);
-    vi.mocked(qdrant.queryPoints).mockResolvedValue([]);
+    vi.mocked(mockTeiService.embedBatch).mockResolvedValue([[0.1]]);
+    vi.mocked(mockQdrantService.queryPoints).mockResolvedValue([]);
 
     const result = await executeQuery(container, { query: 'nonexistent' });
     expect(result.success).toBe(true);

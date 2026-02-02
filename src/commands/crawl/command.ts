@@ -12,7 +12,7 @@ import type {
 import { formatJson } from '../../utils/command';
 import { isJobId } from '../../utils/job';
 import { recordJob } from '../../utils/job-history';
-import { writeOutput } from '../../utils/output';
+import { validateOutputPath, writeOutput } from '../../utils/output';
 import { normalizeUrl } from '../../utils/url';
 import {
   handleAsyncEmbedding,
@@ -74,6 +74,18 @@ export async function handleCrawlCommand(
       { success: true, data: result.data },
       options.pretty
     );
+    if (options.output) {
+      try {
+        validateOutputPath(options.output);
+      } catch (error) {
+        console.error(
+          'Error:',
+          error instanceof Error ? error.message : 'Invalid output path'
+        );
+        process.exit(1);
+        return;
+      }
+    }
     writeOutput(outputContent, options.output, !!options.output);
     return;
   }
@@ -90,6 +102,18 @@ export async function handleCrawlCommand(
       { success: true, data: result.data },
       options.pretty
     );
+    if (options.output) {
+      try {
+        validateOutputPath(options.output);
+      } catch (error) {
+        console.error(
+          'Error:',
+          error instanceof Error ? error.message : 'Invalid output path'
+        );
+        process.exit(1);
+        return;
+      }
+    }
     writeOutput(outputContent, options.output, !!options.output);
     return;
   }
@@ -122,6 +146,18 @@ export async function handleCrawlCommand(
               { success: true, data: statusResult.data },
               options.pretty
             );
+      if (options.output) {
+        try {
+          validateOutputPath(options.output);
+        } catch (error) {
+          console.error(
+            'Error:',
+            error instanceof Error ? error.message : 'Invalid output path'
+          );
+          process.exit(1);
+          return;
+        }
+      }
       writeOutput(outputContent, options.output, !!options.output);
       return;
     }
@@ -167,6 +203,18 @@ export async function handleCrawlCommand(
     outputContent = formatJson(crawlResult.data, options.pretty);
   }
 
+  if (options.output) {
+    try {
+      validateOutputPath(options.output);
+    } catch (error) {
+      console.error(
+        'Error:',
+        error instanceof Error ? error.message : 'Invalid output path'
+      );
+      process.exit(1);
+      return;
+    }
+  }
   writeOutput(outputContent, options.output, !!options.output);
 }
 

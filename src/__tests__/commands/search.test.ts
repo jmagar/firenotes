@@ -16,6 +16,7 @@ const mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
 // Mock the output module to prevent console output in tests
 vi.mock('../../utils/output', () => ({
   writeOutput: vi.fn(),
+  validateOutputPath: vi.fn((path: string) => path),
 }));
 
 describe('executeSearch', () => {

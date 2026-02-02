@@ -5,15 +5,17 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeEmbed } from '../../commands/embed';
-import type { IContainer } from '../../container/types';
-import { resetConfig } from '../../utils/config';
-import * as embeddings from '../../utils/embeddings';
-import * as qdrant from '../../utils/qdrant';
-import { setupTest, teardownTest } from '../utils/mock-client';
+import type {
+  IContainer,
+  IQdrantService,
+  ITeiService,
+} from '../../container/types';
+import {
+  type MockFirecrawlClient,
+  setupTest,
+  teardownTest,
+} from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
-
-vi.mock('../../utils/embeddings');
-vi.mock('../../utils/qdrant');
 
 vi.mock('fs', async () => {
   const actual = await vi.importActual('fs');
@@ -37,8 +39,10 @@ function mockReadFile(content: string): void {
 }
 
 describe('executeEmbed', () => {
-  let mockClient: { scrape: ReturnType<typeof vi.fn> };
+  let mockClient: Partial<MockFirecrawlClient>;
   let container: IContainer;
+  let mockTeiService: ITeiService;
+  let mockQdrantService: IQdrantService;
 
   beforeEach(() => {
     setupTest();
@@ -47,7 +51,27 @@ describe('executeEmbed', () => {
       scrape: vi.fn(),
     };
 
-    container = createTestContainer(mockClient as any, {
+    // Create mock TEI service
+    mockTeiService = {
+      getTeiInfo: vi.fn().mockResolvedValue({
+        modelId: 'test',
+        dimension: 1024,
+        maxInput: 32768,
+      }),
+      embedBatch: vi.fn().mockResolvedValue([[0.1, 0.2]]),
+      embedChunks: vi.fn().mockResolvedValue([[0.1, 0.2]]),
+    };
+
+    // Create mock Qdrant service
+    mockQdrantService = {
+      ensureCollection: vi.fn().mockResolvedValue(undefined),
+      deleteByUrl: vi.fn().mockResolvedValue(undefined),
+      upsertPoints: vi.fn().mockResolvedValue(undefined),
+      queryPoints: vi.fn().mockResolvedValue([]),
+      scrollByUrl: vi.fn().mockResolvedValue([]),
+    };
+
+    container = createTestContainer(mockClient, {
       apiKey: 'test-api-key',
       apiUrl: 'https://api.firecrawl.dev',
       teiUrl: 'http://localhost:52000',
@@ -55,15 +79,9 @@ describe('executeEmbed', () => {
       qdrantCollection: 'test_col',
     });
 
-    vi.mocked(embeddings.getTeiInfo).mockResolvedValue({
-      modelId: 'test',
-      dimension: 1024,
-      maxInput: 32768,
-    });
-    vi.mocked(embeddings.embedChunks).mockResolvedValue([[0.1, 0.2]]);
-    vi.mocked(qdrant.ensureCollection).mockResolvedValue();
-    vi.mocked(qdrant.deleteByUrl).mockResolvedValue();
-    vi.mocked(qdrant.upsertPoints).mockResolvedValue();
+    // Override service methods to return our mocks
+    vi.spyOn(container, 'getTeiService').mockReturnValue(mockTeiService);
+    vi.spyOn(container, 'getQdrantService').mockReturnValue(mockQdrantService);
 
     // Reset fs mocks to defaults
     vi.mocked(existsSync).mockReturnValue(false);
@@ -76,7 +94,7 @@ describe('executeEmbed', () => {
   });
 
   it('should scrape URL then embed when input is a URL', async () => {
-    mockClient.scrape.mockResolvedValue({
+    mockClient.scrape!.mockResolvedValue({
       markdown: '# Test Page\n\nContent here.',
       metadata: { title: 'Test Page' },
     });
@@ -93,7 +111,7 @@ describe('executeEmbed', () => {
     expect(result.data?.url).toBe('https://example.com');
     expect(result.data?.chunksEmbedded).toBeGreaterThan(0);
 
-    const points = vi.mocked(qdrant.upsertPoints).mock.calls[0][2];
+    const points = vi.mocked(mockQdrantService.upsertPoints).mock.calls[0][1];
     const payload = points[0].payload as Record<string, unknown>;
     expect(payload.title).toBe('Test Page');
   });
@@ -113,7 +131,7 @@ describe('executeEmbed', () => {
   });
 
   it('should fail if TEI_URL not configured', async () => {
-    const badContainer = createTestContainer(mockClient as any, {
+    const badContainer = createTestContainer(mockClient, {
       apiKey: 'test-api-key',
       teiUrl: undefined,
       qdrantUrl: undefined,
@@ -139,12 +157,18 @@ describe('executeEmbed', () => {
   });
 
   it('should use default collection when none specified', async () => {
-    const defaultContainer = createTestContainer(mockClient as any, {
+    const defaultContainer = createTestContainer(mockClient, {
       apiKey: 'test-api-key',
       teiUrl: 'http://localhost:52000',
       qdrantUrl: 'http://localhost:53333',
       qdrantCollection: undefined,
     });
+
+    // Mock services for the new container
+    vi.spyOn(defaultContainer, 'getTeiService').mockReturnValue(mockTeiService);
+    vi.spyOn(defaultContainer, 'getQdrantService').mockReturnValue(
+      mockQdrantService
+    );
 
     vi.mocked(existsSync).mockReturnValue(true);
     mockReadFile('Some content to embed.');
@@ -211,7 +235,7 @@ describe('executeEmbed', () => {
   });
 
   it('should handle scrape errors gracefully', async () => {
-    mockClient.scrape.mockRejectedValue(new Error('Network timeout'));
+    mockClient.scrape!.mockRejectedValue(new Error('Network timeout'));
 
     const result = await executeEmbed(container, {
       input: 'https://example.com',
@@ -222,7 +246,7 @@ describe('executeEmbed', () => {
   });
 
   it('should delete old vectors before upserting new ones', async () => {
-    mockClient.scrape.mockResolvedValue({
+    mockClient.scrape!.mockResolvedValue({
       markdown: '# Content\n\nSome text.',
     });
 
@@ -231,9 +255,9 @@ describe('executeEmbed', () => {
     });
 
     // deleteByUrl should be called before upsertPoints
-    const deleteOrder = vi.mocked(qdrant.deleteByUrl).mock
+    const deleteOrder = vi.mocked(mockQdrantService.deleteByUrl).mock
       .invocationCallOrder[0];
-    const upsertOrder = vi.mocked(qdrant.upsertPoints).mock
+    const upsertOrder = vi.mocked(mockQdrantService.upsertPoints).mock
       .invocationCallOrder[0];
     expect(deleteOrder).toBeLessThan(upsertOrder);
   });

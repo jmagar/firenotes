@@ -5,8 +5,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBatchCommand, executeBatch } from '../../commands/batch';
 import type { IContainer } from '../../container/types';
+import type { CommandWithContainer } from '../../types/test';
 import { writeOutput } from '../../utils/output';
-import { setupTest, teardownTest } from '../utils/mock-client';
+import {
+  type MockFirecrawlClient,
+  setupTest,
+  teardownTest,
+} from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 vi.mock('../../utils/output', () => ({
@@ -14,13 +19,7 @@ vi.mock('../../utils/output', () => ({
 }));
 
 describe('executeBatch', () => {
-  let mockClient: {
-    startBatchScrape: ReturnType<typeof vi.fn>;
-    batchScrape: ReturnType<typeof vi.fn>;
-    getBatchScrapeStatus: ReturnType<typeof vi.fn>;
-    getBatchScrapeErrors: ReturnType<typeof vi.fn>;
-    cancelBatchScrape: ReturnType<typeof vi.fn>;
-  };
+  let mockClient: Partial<MockFirecrawlClient>;
   let container: IContainer;
 
   beforeEach(() => {
@@ -34,7 +33,7 @@ describe('executeBatch', () => {
       cancelBatchScrape: vi.fn(),
     };
 
-    container = createTestContainer(mockClient as any);
+    container = createTestContainer(mockClient);
   });
 
   afterEach(() => {
@@ -178,18 +177,18 @@ describe('createBatchCommand', () => {
   });
 
   it('should write output when executing', async () => {
-    const mockClient = {
+    const testMockClient: Partial<MockFirecrawlClient> = {
       startBatchScrape: vi.fn().mockResolvedValue({ id: 'batch-1', url: 'u' }),
       batchScrape: vi.fn(),
       getBatchScrapeStatus: vi.fn(),
       getBatchScrapeErrors: vi.fn(),
       cancelBatchScrape: vi.fn(),
     };
-    const testContainer = createTestContainer(mockClient as any);
+    const testContainer = createTestContainer(testMockClient);
 
-    const cmd = createBatchCommand();
+    const cmd = createBatchCommand() as unknown as CommandWithContainer;
     cmd.exitOverride();
-    (cmd as any)._container = testContainer;
+    cmd._container = testContainer;
 
     await cmd.parseAsync(['node', 'test', 'https://a.com'], { from: 'node' });
 

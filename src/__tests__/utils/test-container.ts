@@ -35,47 +35,55 @@ export function createTestContainer(
     ...mockClient,
   };
 
-  // Create mock HTTP client that uses global fetch
+  // Create mock HTTP client that uses injected mock fetch
+  // Do NOT delegate to global.fetch to prevent test contamination
+  const mockFetch = vi.fn();
   const mockHttpClient = {
     fetchWithTimeout: vi.fn(
       async (url: string, init?: RequestInit, _timeoutMs?: number) => {
-        // Delegate to global fetch mock if available
-        if (global.fetch) {
-          return await global.fetch(url, init);
+        // Use injected mock instead of global fetch
+        if (mockFetch.getMockImplementation()) {
+          return await mockFetch(url, init);
         }
-        throw new Error('No fetch mock available');
+        throw new Error(
+          'No fetch mock configured - use mockFetch.mockResolvedValue() in your test'
+        );
       }
     ),
     fetchWithRetry: vi.fn(async (url: string, init?: RequestInit) => {
-      // Delegate to global fetch mock if available
-      if (global.fetch) {
-        return await global.fetch(url, init);
+      // Use injected mock instead of global fetch
+      if (mockFetch.getMockImplementation()) {
+        return await mockFetch(url, init);
       }
-      throw new Error('No fetch mock available');
+      throw new Error(
+        'No fetch mock configured - use mockFetch.mockResolvedValue() in your test'
+      );
     }),
+    mockFetch, // Expose for test configuration
   };
 
+  // Freeze config to mirror ImmutableConfig behavior
+  const config = Object.freeze({
+    apiKey: options && 'apiKey' in options ? options.apiKey : 'test-api-key',
+    apiUrl:
+      options && 'apiUrl' in options
+        ? options.apiUrl
+        : 'https://api.firecrawl.dev',
+    teiUrl:
+      options && 'teiUrl' in options ? options.teiUrl : 'http://localhost:8080',
+    qdrantUrl:
+      options && 'qdrantUrl' in options
+        ? options.qdrantUrl
+        : 'http://localhost:6333',
+    qdrantCollection:
+      options && 'qdrantCollection' in options
+        ? options.qdrantCollection
+        : 'test_collection',
+    userAgent: options?.userAgent,
+  });
+
   return {
-    config: {
-      apiKey: options && 'apiKey' in options ? options.apiKey : 'test-api-key',
-      apiUrl:
-        options && 'apiUrl' in options
-          ? options.apiUrl
-          : 'https://api.firecrawl.dev',
-      teiUrl:
-        options && 'teiUrl' in options
-          ? options.teiUrl
-          : 'http://localhost:8080',
-      qdrantUrl:
-        options && 'qdrantUrl' in options
-          ? options.qdrantUrl
-          : 'http://localhost:6333',
-      qdrantCollection:
-        options && 'qdrantCollection' in options
-          ? options.qdrantCollection
-          : 'test_collection',
-      userAgent: options?.userAgent,
-    },
+    config,
     getFirecrawlClient: vi.fn().mockReturnValue(fullMockClient),
     getEmbedPipeline: vi.fn().mockReturnValue({
       autoEmbed: mockAutoEmbed,

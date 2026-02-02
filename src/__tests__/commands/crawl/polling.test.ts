@@ -212,4 +212,60 @@ describe('pollCrawlProgress', () => {
       })
     ).rejects.toThrow('Timeout after 60 seconds');
   });
+
+  it('should throw error for invalid pollInterval (< 100ms)', async () => {
+    const mockClient = {
+      getCrawlStatus: vi.fn(),
+    };
+
+    const container = createTestContainer(mockClient);
+
+    await expect(
+      pollCrawlProgress(container, 'job-123', {
+        pollInterval: 50,
+      })
+    ).rejects.toThrow('Invalid pollInterval: 50. Must be >= 100ms');
+  });
+
+  it('should throw error for zero pollInterval', async () => {
+    const mockClient = {
+      getCrawlStatus: vi.fn(),
+    };
+
+    const container = createTestContainer(mockClient);
+
+    await expect(
+      pollCrawlProgress(container, 'job-123', {
+        pollInterval: 0,
+      })
+    ).rejects.toThrow('Invalid pollInterval: 0. Must be >= 100ms');
+  });
+
+  it('should throw error for negative pollInterval', async () => {
+    const mockClient = {
+      getCrawlStatus: vi.fn(),
+    };
+
+    const container = createTestContainer(mockClient);
+
+    await expect(
+      pollCrawlProgress(container, 'job-123', {
+        pollInterval: -1000,
+      })
+    ).rejects.toThrow('Invalid pollInterval: -1000. Must be >= 100ms');
+  });
+
+  it('should throw error for non-finite pollInterval', async () => {
+    const mockClient = {
+      getCrawlStatus: vi.fn(),
+    };
+
+    const container = createTestContainer(mockClient);
+
+    await expect(
+      pollCrawlProgress(container, 'job-123', {
+        pollInterval: Number.NaN,
+      })
+    ).rejects.toThrow('Invalid pollInterval: NaN. Must be >= 100ms');
+  });
 });

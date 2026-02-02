@@ -31,6 +31,13 @@ export async function pollCrawlProgress(
     timeout?: number;
   }
 ): Promise<CrawlJobData> {
+  // Validate pollInterval to prevent zero/negative values causing tight loop
+  if (!Number.isFinite(options.pollInterval) || options.pollInterval < 100) {
+    throw new Error(
+      `Invalid pollInterval: ${options.pollInterval}. Must be >= 100ms to prevent tight loop.`
+    );
+  }
+
   const app = container.getFirecrawlClient();
 
   try {

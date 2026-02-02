@@ -9,10 +9,7 @@ import type { IContainer } from '../container/types';
 import type { EmbedOptions, EmbedResult } from '../types/embed';
 import { chunkText } from '../utils/chunker';
 import { formatJson, handleCommandError } from '../utils/command';
-import { getConfig } from '../utils/config';
-import { embedChunks, getTeiInfo } from '../utils/embeddings';
 import { writeOutput } from '../utils/output';
-import { deleteByUrl, ensureCollection, upsertPoints } from '../utils/qdrant';
 import { isUrl } from '../utils/url';
 
 /**
@@ -96,11 +93,15 @@ export async function executeEmbed(
       };
     }
 
+    // Get services from container
+    const teiService = container.getTeiService();
+    const qdrantService = container.getQdrantService();
+
     // Get TEI dimension
-    const teiInfo = await getTeiInfo(teiUrl);
+    const teiInfo = await teiService.getTeiInfo();
 
     // Ensure collection exists
-    await ensureCollection(qdrantUrl, collection, teiInfo.dimension);
+    await qdrantService.ensureCollection(collection, teiInfo.dimension);
 
     // Chunk content
     const chunks = options.noChunk
@@ -116,10 +117,10 @@ export async function executeEmbed(
 
     // Generate embeddings
     const texts = chunks.map((c) => c.text);
-    const vectors = await embedChunks(teiUrl, texts);
+    const vectors = await teiService.embedChunks(texts);
 
     // Delete old vectors then upsert new ones
-    await deleteByUrl(qdrantUrl, collection, url);
+    await qdrantService.deleteByUrl(collection, url);
 
     const now = new Date().toISOString();
     let domain: string;
@@ -146,7 +147,7 @@ export async function executeEmbed(
       },
     }));
 
-    await upsertPoints(qdrantUrl, collection, points);
+    await qdrantService.upsertPoints(collection, points);
 
     return {
       success: true,

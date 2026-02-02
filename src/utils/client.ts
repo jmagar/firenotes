@@ -5,12 +5,7 @@
 
 import type { FirecrawlClientOptions } from '@mendable/firecrawl-js';
 import Firecrawl from '@mendable/firecrawl-js';
-import {
-  type GlobalConfig,
-  getConfig,
-  updateConfig,
-  validateConfig,
-} from './config';
+import { type GlobalConfig, getConfig, updateConfig } from './config';
 
 let clientInstance: Firecrawl | null = null;
 
@@ -61,7 +56,13 @@ export function getClient(
 
     // Normalize apiKey for validation (convert null to undefined)
     const normalizedApiKey = apiKey === null ? undefined : apiKey;
-    validateConfig(normalizedApiKey);
+
+    // Validate API key
+    if (!normalizedApiKey) {
+      throw new Error(
+        'API key is required. Set FIRECRAWL_API_KEY environment variable, use --api-key flag, or run "firecrawl config" to set the API key.'
+      );
+    }
 
     const clientOptions: FirecrawlClientOptions = {
       apiKey: normalizedApiKey || undefined,
@@ -77,7 +78,13 @@ export function getClient(
   // Return singleton instance or create one
   if (!clientInstance) {
     const config = getConfig();
-    validateConfig(config.apiKey);
+
+    // Validate API key
+    if (!config.apiKey) {
+      throw new Error(
+        'API key is required. Set FIRECRAWL_API_KEY environment variable, use --api-key flag, or run "firecrawl config" to set the API key.'
+      );
+    }
 
     const clientOptions: FirecrawlClientOptions = {
       apiKey: config.apiKey || undefined,
@@ -112,10 +119,8 @@ export function initializeClient(config?: Partial<GlobalConfig>): Firecrawl {
 }
 
 /**
- * Reset the client instance (useful for testing)
- *
- * @deprecated Use test containers instead: `createTestContainer()`
- * This function will be removed in Phase 4 after all tests are migrated.
+ * Reset the client instance (for testing)
+ * Forces recreation on next getClient() call
  */
 export function resetClient(): void {
   clientInstance = null;

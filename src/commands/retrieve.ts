@@ -6,8 +6,7 @@
 import type { IContainer } from '../container/types';
 import type { RetrieveOptions, RetrieveResult } from '../types/retrieve';
 import { formatJson, handleCommandError } from '../utils/command';
-import { writeOutput } from '../utils/output';
-import { scrollByUrl } from '../utils/qdrant';
+import { validateOutputPath, writeOutput } from '../utils/output';
 
 /**
  * Execute retrieve command
@@ -34,7 +33,9 @@ export async function executeRetrieve(
       };
     }
 
-    const points = await scrollByUrl(qdrantUrl, collection, options.url);
+    // Get Qdrant service from container
+    const qdrantService = container.getQdrantService();
+    const points = await qdrantService.scrollByUrl(collection, options.url);
 
     if (points.length === 0) {
       return {
@@ -121,6 +122,11 @@ export async function handleRetrieveCommand(
   } else {
     // Default: raw document content
     outputContent = result.data.content;
+  }
+
+  // Validate output path before writing to prevent path traversal attacks
+  if (options.output) {
+    validateOutputPath(options.output);
   }
 
   writeOutput(outputContent, options.output, !!options.output);

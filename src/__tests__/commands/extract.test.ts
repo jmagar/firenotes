@@ -29,7 +29,7 @@ describe('executeExtract', () => {
         apiUrl: 'https://api.firecrawl.dev',
         teiUrl: 'http://localhost:53001',
         qdrantUrl: 'http://localhost:53002',
-        collectionName: 'firecrawl',
+        qdrantCollection: 'firecrawl',
       },
       getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
       getEmbedPipeline: vi.fn().mockReturnValue({
@@ -140,7 +140,7 @@ describe('executeExtract status mode', () => {
         apiUrl: 'https://api.firecrawl.dev',
         teiUrl: 'http://localhost:53001',
         qdrantUrl: 'http://localhost:53002',
-        collectionName: 'firecrawl',
+        qdrantCollection: 'firecrawl',
       },
       getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
       getEmbedPipeline: vi.fn(),
@@ -198,7 +198,7 @@ describe('handleExtractCommand', () => {
         apiUrl: 'https://api.firecrawl.dev',
         teiUrl: 'http://localhost:53001',
         qdrantUrl: 'http://localhost:53002',
-        collectionName: 'firecrawl',
+        qdrantCollection: 'firecrawl',
       },
       getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
       getEmbedPipeline: vi.fn().mockReturnValue({

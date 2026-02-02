@@ -126,7 +126,6 @@ export class Container implements IContainer {
     const { QdrantService } = require('./services/QdrantService');
     this.qdrantService = new QdrantService(
       this.config.qdrantUrl,
-      this.config.qdrantCollection || 'firecrawl_collection',
       this.getHttpClient()
     ) as IQdrantService;
     return this.qdrantService;

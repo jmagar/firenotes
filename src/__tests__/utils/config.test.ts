@@ -3,13 +3,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getClient, resetClient } from '../../utils/client';
-import {
-  getConfig,
-  initializeConfig,
-  resetConfig,
-  updateConfig,
-} from '../../utils/config';
+import { getClient } from '../../utils/client';
+import { getConfig, initializeConfig, updateConfig } from '../../utils/config';
 import * as credentials from '../../utils/credentials';
 
 // Mock credentials module
@@ -22,9 +17,7 @@ describe('Config Fallback Priority', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    // Reset everything before each test
-    resetClient();
-    resetConfig();
+    // Reset test state
     vi.clearAllMocks();
 
     // Clear env vars

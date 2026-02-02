@@ -3,8 +3,6 @@
  */
 
 import type { Mock } from 'vitest';
-import { resetClient } from '../../utils/client';
-import { resetConfig } from '../../utils/config';
 
 /**
  * Mock Firecrawl client methods
@@ -32,17 +30,21 @@ export interface MockFirecrawlClient {
 }
 
 /**
- * Setup test environment - reset client and config
+ * Setup test environment
+ * NOTE: Tests should use test containers (createTestContainer()) for isolation
+ * instead of global state resets. This function is deprecated.
+ * @deprecated Use test containers instead
  */
 export function setupTest(): void {
-  resetClient();
-  resetConfig();
+  // No-op: Tests should use test containers
 }
 
 /**
  * Teardown test environment
+ * NOTE: Tests should use test containers (createTestContainer()) for isolation
+ * instead of global state resets. This function is deprecated.
+ * @deprecated Use test containers instead
  */
 export function teardownTest(): void {
-  resetClient();
-  resetConfig();
+  // No-op: Tests should use test containers
 }

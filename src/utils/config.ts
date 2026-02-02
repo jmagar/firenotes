@@ -103,39 +103,8 @@ export function updateConfig(config: Partial<GlobalConfig>): void {
 }
 
 /**
- * Get API key from global config or provided value
- * Priority: provided key > global config > env var > stored credentials
- * @deprecated Use DI container instead: `container.config.apiKey`
- * This function will be removed in Phase 4 after all commands are migrated.
- */
-export function getApiKey(providedKey?: string): string | undefined {
-  if (providedKey) return providedKey;
-  if (globalConfig.apiKey) return globalConfig.apiKey;
-  if (process.env.FIRECRAWL_API_KEY) return process.env.FIRECRAWL_API_KEY;
-
-  // Fallback to stored credentials if not already loaded
-  const storedCredentials = loadCredentials();
-  return storedCredentials?.apiKey;
-}
-
-/**
- * Validate that required configuration is present
- * @deprecated Validation is now automatic in container.getFirecrawlClient()
- * This function will be removed in Phase 4 after all commands are migrated.
- */
-export function validateConfig(apiKey?: string): void {
-  const key = getApiKey(apiKey);
-  if (!key) {
-    throw new Error(
-      'API key is required. Set FIRECRAWL_API_KEY environment variable, use --api-key flag, or run "firecrawl config" to set the API key.'
-    );
-  }
-}
-
-/**
- * Reset global configuration (useful for testing)
- * @deprecated Use test containers instead: `createTestContainer()`
- * This function will be removed in Phase 4 after all tests are migrated.
+ * Reset global configuration to empty state (for testing)
+ * Forces reinitialization on next initializeConfig() call
  */
 export function resetConfig(): void {
   globalConfig = {};

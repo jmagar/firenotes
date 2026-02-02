@@ -4,34 +4,47 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeRetrieve } from '../../commands/retrieve';
-import type { IContainer } from '../../container/types';
-import { resetConfig } from '../../utils/config';
-import * as qdrant from '../../utils/qdrant';
+import type { IContainer, IQdrantService } from '../../container/types';
+import { setupTest, teardownTest } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
-
-vi.mock('../../utils/qdrant');
 
 describe('executeRetrieve', () => {
   let container: IContainer;
+  let mockQdrantService: IQdrantService;
 
   beforeEach(() => {
-    resetConfig();
+    setupTest();
+
+    // Create mock Qdrant service
+    mockQdrantService = {
+      ensureCollection: vi.fn().mockResolvedValue(undefined),
+      deleteByUrl: vi.fn().mockResolvedValue(undefined),
+      upsertPoints: vi.fn().mockResolvedValue(undefined),
+      queryPoints: vi.fn().mockResolvedValue([]),
+      scrollByUrl: vi.fn().mockResolvedValue([]),
+    };
+
     container = createTestContainer(undefined, {
       qdrantUrl: 'http://localhost:53333',
       qdrantCollection: 'test_col',
     });
+
+    // Override service method to return our mock
+    vi.spyOn(container, 'getQdrantService').mockReturnValue(mockQdrantService);
+
     vi.clearAllMocks();
   });
 
   afterEach(() => {
-    resetConfig();
+    teardownTest();
     vi.clearAllMocks();
   });
 
   it('should retrieve and reassemble document from Qdrant', async () => {
-    vi.mocked(qdrant.scrollByUrl).mockResolvedValue([
+    vi.mocked(mockQdrantService.scrollByUrl).mockResolvedValue([
       {
         id: '1',
+        vector: [],
         payload: {
           chunk_index: 0,
           chunk_text: 'Intro.',
@@ -40,6 +53,7 @@ describe('executeRetrieve', () => {
       },
       {
         id: '2',
+        vector: [],
         payload: {
           chunk_index: 1,
           chunk_text: 'Content.',
@@ -52,8 +66,7 @@ describe('executeRetrieve', () => {
       url: 'https://example.com',
     });
 
-    expect(qdrant.scrollByUrl).toHaveBeenCalledWith(
-      'http://localhost:53333',
+    expect(mockQdrantService.scrollByUrl).toHaveBeenCalledWith(
       'test_col',
       'https://example.com'
     );
@@ -64,7 +77,7 @@ describe('executeRetrieve', () => {
   });
 
   it('should return error when no chunks found', async () => {
-    vi.mocked(qdrant.scrollByUrl).mockResolvedValue([]);
+    vi.mocked(mockQdrantService.scrollByUrl).mockResolvedValue([]);
 
     const result = await executeRetrieve(container, {
       url: 'https://notfound.com',

@@ -79,10 +79,26 @@ function handleShutdown(signal: string): void {
   isShuttingDown = true;
   console.error(`\n${signal} received. Shutting down gracefully...`);
 
-  // Give ongoing operations a moment to complete, then exit
+  // Dispose container resources (HTTP connections, etc.) then exit
+  const exitCode = signal === 'SIGINT' ? 130 : 143;
+  baseContainer
+    .dispose()
+    .catch((error) => {
+      // Log but don't block shutdown on dispose errors
+      console.error(
+        'Warning: Error during cleanup:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    })
+    .finally(() => {
+      process.exit(exitCode);
+    });
+
+  // Force exit after timeout if dispose hangs
   setTimeout(() => {
-    process.exit(signal === 'SIGINT' ? 130 : 143);
-  }, 100);
+    console.error('Warning: Cleanup timeout, forcing exit...');
+    process.exit(exitCode);
+  }, 5000);
 }
 
 process.on('SIGINT', () => handleShutdown('SIGINT'));

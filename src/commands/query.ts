@@ -10,9 +10,7 @@ import type {
   QueryResultItem,
 } from '../types/query';
 import { formatJson, handleCommandError } from '../utils/command';
-import { embedBatch } from '../utils/embeddings';
-import { writeOutput } from '../utils/output';
-import { queryPoints } from '../utils/qdrant';
+import { validateOutputPath, writeOutput } from '../utils/output';
 
 /**
  * Execute query command
@@ -39,14 +37,23 @@ export async function executeQuery(
       };
     }
 
+    // Get services from container
+    const teiService = container.getTeiService();
+    const qdrantService = container.getQdrantService();
+
     // Embed the query text
-    const [queryVector] = await embedBatch(teiUrl, [options.query]);
+    const [queryVector] = await teiService.embedBatch([options.query]);
+
+    // Build filter for Qdrant query
+    const filter = options.domain ? { domain: options.domain } : undefined;
 
     // Search Qdrant
-    const results = await queryPoints(qdrantUrl, collection, queryVector, {
-      limit: options.limit || 5,
-      domain: options.domain,
-    });
+    const results = await qdrantService.queryPoints(
+      collection,
+      queryVector,
+      options.limit || 5,
+      filter
+    );
 
     const getString = (value: unknown): string =>
       typeof value === 'string' ? value : '';
@@ -55,7 +62,7 @@ export async function executeQuery(
 
     // Map to result items
     const items: QueryResultItem[] = results.map((r) => ({
-      score: r.score,
+      score: r.score ?? 0,
       url: getString(r.payload.url),
       title: getString(r.payload.title),
       chunkHeader:
@@ -185,6 +192,11 @@ export async function handleQueryCommand(
   }
 
   if (!result.data) return;
+
+  // Validate output path before processing to prevent path traversal attacks
+  if (options.output) {
+    validateOutputPath(options.output);
+  }
 
   let outputContent: string;
   if (options.json) {
