@@ -25,7 +25,7 @@ export async function executeDelete(
     const config = container.config;
     const qdrantUrl = config.qdrantUrl;
     const collection =
-      options.collection || config.qdrantCollection || 'firecrawl_collection';
+      options.collection || config.qdrantCollection || 'firecrawl';
 
     if (!qdrantUrl) {
       return {

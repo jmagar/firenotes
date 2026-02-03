@@ -76,7 +76,7 @@ export async function executeScrape(
       };
     }
 
-    const collection = qdrantCollection || 'firecrawl_collection';
+    const collection = qdrantCollection || 'firecrawl';
 
     const qdrantService = container.getQdrantService();
     const count = await qdrantService.countByDomain(collection, domain);

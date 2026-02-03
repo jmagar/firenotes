@@ -236,7 +236,7 @@ describe('Config Fallback Priority', () => {
       expect(config.qdrantCollection).toBe('test_collection');
     });
 
-    it('should default qdrantCollection to firecrawl_collection', () => {
+    it('should default qdrantCollection to firecrawl', () => {
       process.env.TEI_URL = 'http://localhost:52000';
       process.env.QDRANT_URL = 'http://localhost:53333';
       delete process.env.QDRANT_COLLECTION;
@@ -244,7 +244,7 @@ describe('Config Fallback Priority', () => {
       initializeConfig({});
 
       const config = getConfig();
-      expect(config.qdrantCollection).toBe('firecrawl_collection');
+      expect(config.qdrantCollection).toBe('firecrawl');
     });
 
     it('should have undefined teiUrl and qdrantUrl when not set', () => {

@@ -65,9 +65,7 @@ export function initializeConfig(config: Partial<GlobalConfig> = {}): void {
       process.env.FIRECRAWL_USER_AGENT ||
       DEFAULT_USER_AGENT,
     qdrantCollection:
-      config.qdrantCollection ||
-      process.env.QDRANT_COLLECTION ||
-      'firecrawl_collection',
+      config.qdrantCollection || process.env.QDRANT_COLLECTION || 'firecrawl',
     embedderWebhookUrl:
       config.embedderWebhookUrl || process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL,
     embedderWebhookSecret:

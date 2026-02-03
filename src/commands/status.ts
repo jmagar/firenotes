@@ -322,7 +322,8 @@ async function executeJobStatus(
       retries: job.retries,
       lastError: job.lastError,
       updatedAt: job.updatedAt,
-    }));
+    }))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const pendingEmbeds = embedQueue.jobs
     .filter((job) => job.status === 'pending')
     .map((job) => ({
@@ -331,14 +332,16 @@ async function executeJobStatus(
       retries: job.retries,
       maxRetries: job.maxRetries,
       updatedAt: job.updatedAt,
-    }));
+    }))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const completedEmbeds = embedQueue.jobs
     .filter((job) => job.status === 'completed')
     .map((job) => ({
       jobId: job.jobId,
       url: job.url,
       updatedAt: job.updatedAt,
-    }));
+    }))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   return {
     activeCrawls,
@@ -377,7 +380,11 @@ function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
     const activeUrlById = new Map(
       data.activeCrawls.crawls.map((crawl) => [crawl.id, crawl.url])
     );
-    for (const crawl of data.crawls) {
+    // Sort by ID descending (ULIDs are lexicographically sortable by timestamp)
+    const sortedCrawls = [...data.crawls].sort((a, b) =>
+      (b.id ?? '').localeCompare(a.id ?? '')
+    );
+    for (const crawl of sortedCrawls) {
       const crawlError = (crawl as { error?: string }).error;
       const crawlData = (
         crawl as {
@@ -412,7 +419,11 @@ function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
   if (data.batches.length === 0) {
     console.log('  No recent batch job IDs found.');
   } else {
-    for (const batch of data.batches) {
+    // Sort by ID descending (ULIDs are lexicographically sortable by timestamp)
+    const sortedBatches = [...data.batches].sort((a, b) =>
+      (b.id ?? '').localeCompare(a.id ?? '')
+    );
+    for (const batch of sortedBatches) {
       const batchError = (batch as { error?: string }).error;
       if (batchError) {
         console.log(`  ${batch.id}: error (${batchError})`);
@@ -431,7 +442,11 @@ function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
   if (data.extracts.length === 0) {
     console.log('  No recent extract job IDs found.');
   } else {
-    for (const extract of data.extracts) {
+    // Sort by ID descending (ULIDs are lexicographically sortable by timestamp)
+    const sortedExtracts = [...data.extracts].sort((a, b) =>
+      (b.id ?? '').localeCompare(a.id ?? '')
+    );
+    for (const extract of sortedExtracts) {
       const extractError = (extract as { error?: string }).error;
       if (extractError) {
         console.log(`  ${extract.id}: error (${extractError})`);

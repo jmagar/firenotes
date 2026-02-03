@@ -35,7 +35,7 @@ export async function executeEmbed(
     const teiUrl = config.teiUrl;
     const qdrantUrl = config.qdrantUrl;
     const collection =
-      options.collection || config.qdrantCollection || 'firecrawl_collection';
+      options.collection || config.qdrantCollection || 'firecrawl';
 
     if (!teiUrl || !qdrantUrl) {
       return {

@@ -37,7 +37,7 @@ export class EmbedPipeline implements IEmbedPipeline {
   constructor(
     private readonly teiService: ITeiService,
     private readonly qdrantService: IQdrantService,
-    private readonly collectionName: string = 'firecrawl_collection'
+    private readonly collectionName: string = 'firecrawl'
   ) {}
 
   /**

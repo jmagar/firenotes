@@ -88,7 +88,7 @@ async function autoEmbedInternal(
     return;
   }
 
-  const collection = qdrantCollection || 'firecrawl_collection';
+  const collection = qdrantCollection || 'firecrawl';
 
   // No-op for empty content
   const trimmed = content.trim();

@@ -196,7 +196,7 @@ describe('executeEmbed', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(result.data?.collection).toBe('firecrawl_collection');
+    expect(result.data?.collection).toBe('firecrawl');
   });
 
   it('should use custom collection from options', async () => {

@@ -26,7 +26,7 @@ export async function executeInfo(
     const config = container.config;
     const qdrantUrl = config.qdrantUrl;
     const collection =
-      options.collection || config.qdrantCollection || 'firecrawl_collection';
+      options.collection || config.qdrantCollection || 'firecrawl';
 
     if (!qdrantUrl) {
       return {
@@ -167,11 +167,7 @@ export function createInfoCommand(): Command {
     .description('Show detailed information for a specific URL')
     .argument('<url>', 'URL to get information for')
     .option('-f, --full', 'Show full chunk text (default: 100 char preview)')
-    .option(
-      '-c, --collection <name>',
-      'Qdrant collection name',
-      'firecrawl_collection'
-    )
+    .option('-c, --collection <name>', 'Qdrant collection name', 'firecrawl')
     .option('-o, --output <file>', 'Write output to file')
     .option('--json', 'Output as JSON')
     .action(async (url: string, options, command: Command) => {

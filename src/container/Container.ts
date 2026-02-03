@@ -146,7 +146,7 @@ export class Container implements IContainer {
     this.embedPipeline = new EmbedPipeline(
       this.getTeiService(),
       this.getQdrantService(),
-      this.config.qdrantCollection || 'firecrawl_collection'
+      this.config.qdrantCollection || 'firecrawl'
     ) as IEmbedPipeline;
     return this.embedPipeline;
   }

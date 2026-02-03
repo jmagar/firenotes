@@ -27,7 +27,7 @@ export async function executeQuery(
     const config = container.config;
     const { teiUrl, qdrantUrl } = config;
     const collection =
-      options.collection || config.qdrantCollection || 'firecrawl_collection';
+      options.collection || config.qdrantCollection || 'firecrawl';
 
     if (!teiUrl || !qdrantUrl) {
       return {

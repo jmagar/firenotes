@@ -47,7 +47,7 @@ export function logEmbedderConfig(config: Partial<ImmutableConfig>): void {
     `[Embedder]   QDRANT_URL: ${config.qdrantUrl || '(not configured)'}`
   );
   console.error(
-    `[Embedder]   QDRANT_COLLECTION: ${config.qdrantCollection || 'firecrawl_collection'}`
+    `[Embedder]   QDRANT_COLLECTION: ${config.qdrantCollection || 'firecrawl'}`
   );
 }
 
