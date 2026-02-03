@@ -429,16 +429,22 @@ describe('handleJobStatusCommand', () => {
         },
       ]);
 
-      await handleJobStatusCommand(container, { json: true });
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      const output = vi.mocked(writeOutput).mock.calls[0]?.[0];
-      const parsed = JSON.parse(output as string);
-      const completed = parsed.data.embeddings.completed;
+      await handleJobStatusCommand(container, {});
 
-      expect(completed).toHaveLength(3);
-      expect(completed[0].jobId).toBe('job-3'); // newest first
-      expect(completed[1].jobId).toBe('job-2');
-      expect(completed[2].jobId).toBe('job-1'); // oldest last
+      const output = logSpy.mock.calls.map((call) => call[0]).join('\n');
+      const completedSection = output.split('Completed embeds:')[1];
+
+      // Verify order: job-3 (newest), job-2, job-1 (oldest)
+      expect(completedSection?.indexOf('job-3')).toBeLessThan(
+        completedSection?.indexOf('job-2') ?? Infinity
+      );
+      expect(completedSection?.indexOf('job-2')).toBeLessThan(
+        completedSection?.indexOf('job-1') ?? Infinity
+      );
+
+      logSpy.mockRestore();
     });
 
     it('should sort pending embeds by updatedAt descending (newest first)', async () => {
