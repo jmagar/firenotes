@@ -75,6 +75,20 @@ export interface QdrantPoint {
 }
 
 /**
+ * Qdrant collection information
+ */
+export interface CollectionInfo {
+  status: string;
+  vectorsCount: number;
+  pointsCount: number;
+  segmentsCount: number;
+  config: {
+    dimension: number;
+    distance: string;
+  };
+}
+
+/**
  * HTTP Client Interface
  * Provides retry and timeout capabilities for HTTP requests
  */
@@ -191,6 +205,41 @@ export interface IQdrantService {
    * @param domain Domain to count points for
    */
   countByDomain(collection: string, domain: string): Promise<number>;
+
+  /**
+   * Get collection information (vector count, config)
+   * @param collection Collection name
+   */
+  getCollectionInfo(collection: string): Promise<CollectionInfo>;
+
+  /**
+   * Scroll all points with optional filter, paginating through results
+   * @param collection Collection name
+   * @param filter Optional payload filter
+   */
+  scrollAll(
+    collection: string,
+    filter?: Record<string, unknown>
+  ): Promise<QdrantPoint[]>;
+
+  /**
+   * Count total points in collection
+   * @param collection Collection name
+   */
+  countPoints(collection: string): Promise<number>;
+
+  /**
+   * Count points matching a URL filter
+   * @param collection Collection name
+   * @param url URL to count
+   */
+  countByUrl(collection: string, url: string): Promise<number>;
+
+  /**
+   * Delete all points in collection
+   * @param collection Collection name
+   */
+  deleteAll(collection: string): Promise<void>;
 }
 
 /**
