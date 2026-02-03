@@ -513,3 +513,58 @@ describe('isEmbedderRunning', () => {
     expect(result).toBe(false);
   });
 });
+
+describe('startup config logging', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('logEmbedderConfig logs TEI_URL and QDRANT_URL values', async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const { logEmbedderConfig } = await import(
+      '../../utils/background-embedder'
+    );
+
+    logEmbedderConfig({
+      teiUrl: 'http://tei:8080',
+      qdrantUrl: 'http://qdrant:6333',
+      qdrantCollection: 'test_collection',
+    });
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('TEI_URL: http://tei:8080')
+    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('QDRANT_URL: http://qdrant:6333')
+    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('QDRANT_COLLECTION: test_collection')
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('logEmbedderConfig shows (not configured) for missing values', async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const { logEmbedderConfig } = await import(
+      '../../utils/background-embedder'
+    );
+
+    logEmbedderConfig({});
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('TEI_URL: (not configured)')
+    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('QDRANT_URL: (not configured)')
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+});

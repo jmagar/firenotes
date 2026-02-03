@@ -11,7 +11,7 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import type { Document } from '@mendable/firecrawl-js';
 import { createDaemonContainer } from '../container/DaemonContainerFactory';
-import type { IContainer } from '../container/types';
+import type { IContainer, ImmutableConfig } from '../container/types';
 import {
   cleanupOldJobs,
   type EmbedJob,
@@ -36,6 +36,20 @@ import { batchEmbed, createEmbedItems } from './embedpipeline';
 const POLL_INTERVAL_MS = 10000; // 10 seconds (retry base)
 const BACKOFF_MULTIPLIER = 2;
 const MAX_BACKOFF_MS = 60000; // 1 minute
+
+/**
+ * Log embedder configuration for debugging
+ */
+export function logEmbedderConfig(config: Partial<ImmutableConfig>): void {
+  console.error('[Embedder] Config:');
+  console.error(`[Embedder]   TEI_URL: ${config.teiUrl || '(not configured)'}`);
+  console.error(
+    `[Embedder]   QDRANT_URL: ${config.qdrantUrl || '(not configured)'}`
+  );
+  console.error(
+    `[Embedder]   QDRANT_COLLECTION: ${config.qdrantCollection || 'firecrawl_collection'}`
+  );
+}
 
 /**
  * Calculate backoff delay with exponential backoff
@@ -387,6 +401,7 @@ export async function startEmbedderDaemon(
   container: IContainer
 ): Promise<() => Promise<void>> {
   console.error('[Embedder] Starting background embedder daemon');
+  logEmbedderConfig(container.config);
 
   // Clean up old jobs on startup
   const cleaned = cleanupOldJobs(24);
