@@ -72,8 +72,21 @@ async function autoEmbedInternal(
   const cfg = config || getConfig();
   const { teiUrl, qdrantUrl, qdrantCollection } = cfg;
 
-  // No-op if not configured
-  if (!teiUrl || !qdrantUrl) return;
+  // Handle missing config
+  if (!teiUrl || !qdrantUrl) {
+    const missing = [];
+    if (!teiUrl) missing.push('TEI_URL');
+    if (!qdrantUrl) missing.push('QDRANT_URL');
+
+    // If config was explicitly passed, this is a bug - throw error
+    // If using fallback getConfig(), this is optional embedding - skip silently
+    if (config) {
+      throw new Error(
+        `Embedding not configured: missing ${missing.join(', ')}`
+      );
+    }
+    return;
+  }
 
   const collection = qdrantCollection || 'firecrawl_collection';
 
@@ -165,7 +178,7 @@ export async function autoEmbed(
  */
 export async function batchEmbed(
   items: EmbedItem[],
-  options: { concurrency?: number } = {}
+  options: { concurrency?: number; config?: ImmutableConfig } = {}
 ): Promise<BatchEmbedResult> {
   const result: BatchEmbedResult = {
     succeeded: 0,
@@ -176,13 +189,14 @@ export async function batchEmbed(
   if (items.length === 0) return result;
 
   const concurrency = options.concurrency ?? MAX_CONCURRENT_EMBEDS;
+  const config = options.config;
   const limit = pLimit(concurrency);
   const MAX_ERRORS = 10; // Limit stored errors to avoid memory issues
 
   const promises = items.map((item) =>
     limit(async () => {
       try {
-        await autoEmbedInternal(item.content, item.metadata);
+        await autoEmbedInternal(item.content, item.metadata, config);
         result.succeeded++;
       } catch (error) {
         result.failed++;
@@ -228,15 +242,20 @@ export function createEmbedItems<
     metadata?: { sourceURL?: string; url?: string; title?: string };
   },
 >(pages: T[], sourceCommand: string): EmbedItem[] {
-  return pages
-    .filter((page) => page.markdown || page.html)
-    .map((page) => ({
-      content: page.markdown || page.html || '',
-      metadata: {
-        url: page.url || page.metadata?.sourceURL || page.metadata?.url || '',
-        title: page.title || page.metadata?.title,
-        sourceCommand,
-        contentType: page.markdown ? 'markdown' : 'html',
-      },
-    }));
+  const validPages = pages.filter((page) => page.markdown || page.html);
+  const skippedCount = pages.length - validPages.length;
+
+  if (skippedCount > 0) {
+    console.warn(`Skipped ${skippedCount} pages without content for embedding`);
+  }
+
+  return validPages.map((page) => ({
+    content: page.markdown || page.html || '',
+    metadata: {
+      url: page.url || page.metadata?.sourceURL || page.metadata?.url || '',
+      title: page.title || page.metadata?.title,
+      sourceCommand,
+      contentType: page.markdown ? 'markdown' : 'html',
+    },
+  }));
 }

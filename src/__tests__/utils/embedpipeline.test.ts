@@ -380,4 +380,34 @@ describe('createEmbedItems', () => {
     const items = createEmbedItems([], 'crawl');
     expect(items).toHaveLength(0);
   });
+
+  it('logs warning when pages are filtered due to missing content', () => {
+    const consoleWarnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => {});
+
+    const pages = [
+      { markdown: 'valid', url: 'https://a.com' },
+      { url: 'https://empty1.com' },
+      { url: 'https://empty2.com' },
+    ];
+    createEmbedItems(pages, 'crawl');
+
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Skipped 2 pages without content')
+    );
+    consoleWarnSpy.mockRestore();
+  });
+
+  it('does not log when no pages are filtered', () => {
+    const consoleWarnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => {});
+
+    const pages = [{ markdown: 'valid', url: 'https://a.com' }];
+    createEmbedItems(pages, 'crawl');
+
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+    consoleWarnSpy.mockRestore();
+  });
 });
