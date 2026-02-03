@@ -123,9 +123,9 @@ export async function upsertPoints(
   );
 
   if (!response.ok) {
-    const body = await getErrorBody(response);
+    const errorBody = await getErrorBody(response);
     throw new Error(
-      `Qdrant upsert failed: ${response.status}${body ? ` - ${body}` : ''}`
+      `Qdrant upsert failed: ${response.status}${errorBody ? ` - ${errorBody}` : ''}`
     );
   }
 }
@@ -153,9 +153,9 @@ export async function deleteByUrl(
   );
 
   if (!response.ok) {
-    const body = await getErrorBody(response);
+    const errorBody = await getErrorBody(response);
     throw new Error(
-      `Qdrant delete failed: ${response.status}${body ? ` - ${body}` : ''}`
+      `Qdrant delete failed: ${response.status}${errorBody ? ` - ${errorBody}` : ''}`
     );
   }
 }
@@ -203,9 +203,9 @@ export async function queryPoints(
   );
 
   if (!response.ok) {
-    const body = await getErrorBody(response);
+    const errorBody = await getErrorBody(response);
     throw new Error(
-      `Qdrant query failed: ${response.status}${body ? ` - ${body}` : ''}`
+      `Qdrant query failed: ${response.status}${errorBody ? ` - ${errorBody}` : ''}`
     );
   }
 
@@ -269,9 +269,9 @@ export async function scrollByUrl(
     );
 
     if (!response.ok) {
-      const body = await getErrorBody(response);
+      const errorBody = await getErrorBody(response);
       throw new Error(
-        `Qdrant scroll failed: ${response.status}${body ? ` - ${body}` : ''}`
+        `Qdrant scroll failed: ${response.status}${errorBody ? ` - ${errorBody}` : ''}`
       );
     }
 
