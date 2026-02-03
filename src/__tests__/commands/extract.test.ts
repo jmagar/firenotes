@@ -182,8 +182,7 @@ describe('createExtractCommand', () => {
       });
 
       const { createExtractCommand } = await import('../../commands/extract');
-      const cmd = createExtractCommand();
-      cmd._container = mockContainer;
+      const cmd = createExtractCommand(mockContainer);
 
       await cmd.parseAsync(['node', 'test', 'status', 'ext-123'], {
         from: 'node',
@@ -213,18 +212,23 @@ describe('createExtractCommand', () => {
       mockClient.getExtractStatus.mockRejectedValue(new Error('Job not found'));
 
       const { createExtractCommand } = await import('../../commands/extract');
-      const cmd = createExtractCommand();
-      cmd._container = mockContainer;
+      const cmd = createExtractCommand(mockContainer);
 
       const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
         throw new Error('process.exit');
       });
 
-      await expect(
-        cmd.parseAsync(['node', 'test', 'status', 'ext-123'], { from: 'node' })
-      ).rejects.toThrow();
+      try {
+        await expect(
+          cmd.parseAsync(['node', 'test', 'status', 'ext-123'], {
+            from: 'node',
+          })
+        ).rejects.toThrow();
 
-      expect(exitSpy).toHaveBeenCalledWith(1);
+        expect(exitSpy).toHaveBeenCalledWith(1);
+      } finally {
+        exitSpy.mockRestore();
+      }
     });
   });
 });
@@ -264,6 +268,8 @@ describe('handleExtractCommand', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    resetTeiCache();
+    resetQdrantCache();
   });
 
   it('should auto-embed once per source URL when available', async () => {

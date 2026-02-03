@@ -15,6 +15,13 @@ import { parseFormats } from '../utils/options';
 import { writeOutput } from '../utils/output';
 import { normalizeUrl } from '../utils/url';
 
+// Extend Commander's Command type to include our custom _container property
+declare module 'commander' {
+  interface Command {
+    _container?: IContainer;
+  }
+}
+
 function buildBatchScrapeOptions(options: BatchOptions) {
   const scrapeOptions: Record<string, unknown> = {};
 

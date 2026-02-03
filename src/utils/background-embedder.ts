@@ -52,7 +52,6 @@ function getBackoffDelay(retries: number): number {
  * Process a single embedding job
  */
 async function processEmbedJob(
-  container: IContainer,
   job: EmbedJob,
   crawlStatus?: { status?: string; data?: Document[] }
 ): Promise<void> {
@@ -158,7 +157,7 @@ async function processEmbedJob(
 /**
  * Process all pending jobs in the queue
  */
-export async function processEmbedQueue(container: IContainer): Promise<void> {
+export async function processEmbedQueue(_container: IContainer): Promise<void> {
   const pendingJobs = getPendingJobs();
 
   if (pendingJobs.length === 0) {
@@ -169,7 +168,7 @@ export async function processEmbedQueue(container: IContainer): Promise<void> {
 
   // Process jobs sequentially to avoid overwhelming TEI/Qdrant
   for (const job of pendingJobs) {
-    await processEmbedJob(container, job);
+    await processEmbedJob(job);
   }
 }
 
@@ -177,11 +176,12 @@ export async function processEmbedQueue(container: IContainer): Promise<void> {
  * Process stale pending jobs once, returning count processed.
  */
 export async function processStaleJobsOnce(
-  container: IContainer,
+  _container: IContainer,
   maxAgeMs: number
 ): Promise<number> {
-  // First, recover any stuck processing jobs
-  const stuckJobs = getStuckProcessingJobs(maxAgeMs);
+  // First, recover any stuck processing jobs (use shorter threshold for faster recovery)
+  const stuckMaxAgeMs = 5 * 60_000; // 5 minutes
+  const stuckJobs = getStuckProcessingJobs(stuckMaxAgeMs);
   if (stuckJobs.length > 0) {
     console.error(
       `[Embedder] Recovering ${stuckJobs.length} stuck processing jobs`
@@ -200,7 +200,7 @@ export async function processStaleJobsOnce(
 
   console.error(`[Embedder] Processing ${staleJobs.length} stale jobs`);
   for (const job of staleJobs) {
-    await processEmbedJob(container, job);
+    await processEmbedJob(job);
   }
 
   return staleJobs.length;
@@ -218,10 +218,7 @@ async function readJsonBody(req: NodeJS.ReadableStream): Promise<unknown> {
   return JSON.parse(raw);
 }
 
-async function handleWebhookPayload(
-  container: IContainer,
-  payload: unknown
-): Promise<void> {
+async function handleWebhookPayload(payload: unknown): Promise<void> {
   const info = extractEmbedderWebhookJobInfo(payload);
   if (!info) {
     console.error('[Embedder] Webhook payload missing job ID');
@@ -254,15 +251,17 @@ async function handleWebhookPayload(
     return;
   }
 
-  await processEmbedJob(container, job, {
+  await processEmbedJob(job, {
     status: 'completed',
     data: info.pages,
   });
 }
 
-async function startEmbedderWebhookServer(
-  container: IContainer
-): Promise<{ intervalMs: number; staleMs: number }> {
+async function startEmbedderWebhookServer(container: IContainer): Promise<{
+  intervalMs: number;
+  staleMs: number;
+  server: ReturnType<typeof createServer>;
+}> {
   const settings = getEmbedderWebhookSettings(container.config);
 
   // Calculate polling intervals
@@ -347,7 +346,7 @@ async function startEmbedderWebhookServer(
 
     try {
       const payload = await readJsonBody(req);
-      void handleWebhookPayload(container, payload);
+      void handleWebhookPayload(payload);
       res.statusCode = 202;
       res.end();
     } catch (error) {
@@ -375,17 +374,18 @@ async function startEmbedderWebhookServer(
     );
   }
 
-  return { intervalMs, staleMs };
+  return { intervalMs, staleMs, server };
 }
 
 /**
  * Start background embedder daemon
  *
  * Runs webhook server and processes jobs on completion events.
+ * Returns async cleanup function to stop server and interval.
  */
 export async function startEmbedderDaemon(
   container: IContainer
-): Promise<void> {
+): Promise<() => Promise<void>> {
   console.error('[Embedder] Starting background embedder daemon');
 
   // Clean up old jobs on startup
@@ -394,7 +394,8 @@ export async function startEmbedderDaemon(
     console.error(`[Embedder] Cleaned up ${cleaned} old jobs`);
   }
 
-  const { intervalMs, staleMs } = await startEmbedderWebhookServer(container);
+  const { intervalMs, staleMs, server } =
+    await startEmbedderWebhookServer(container);
 
   console.error(
     `[Embedder] Checking for stale jobs every ${Math.round(intervalMs / 1000)}s (stale after ${Math.round(staleMs / 1000)}s)`
@@ -404,11 +405,22 @@ export async function startEmbedderDaemon(
     console.error('[Embedder] Failed to process stale jobs:', error);
   });
 
-  setInterval(() => {
+  const intervalId = setInterval(() => {
     void processStaleJobsOnce(container, staleMs).catch((error) => {
       console.error('[Embedder] Failed to process stale jobs:', error);
     });
   }, intervalMs);
+
+  // Return async cleanup function
+  return async () => {
+    clearInterval(intervalId);
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  };
 }
 
 /**

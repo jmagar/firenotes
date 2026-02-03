@@ -31,6 +31,7 @@ vi.mock('../../container/DaemonContainerFactory', () => ({
 
 describe('webhook server status endpoint', () => {
   let queueDir: string;
+  let cleanup: (() => Promise<void>) | undefined;
 
   beforeEach(() => {
     queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
@@ -40,7 +41,11 @@ describe('webhook server status endpoint', () => {
     vi.resetModules();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    if (cleanup) {
+      await cleanup();
+      cleanup = undefined;
+    }
     rmSync(queueDir, { recursive: true, force: true });
     delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
     delete process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT;
@@ -110,31 +115,26 @@ describe('webhook server status endpoint', () => {
       '../../utils/background-embedder'
     );
 
-    // Start daemon in background (don't await, it runs forever)
-    const daemonPromise = startEmbedderDaemon(mockContainer);
+    // Start daemon in background and store cleanup function
+    cleanup = await startEmbedderDaemon(mockContainer);
 
     // Wait a bit for server to start
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    try {
-      // Make request to status endpoint
-      const response = await fetch('http://localhost:53999/status');
-      const body = await response.json();
+    // Make request to status endpoint
+    const response = await fetch('http://localhost:53999/status');
+    const body = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(body).toMatchObject({
-        webhookConfigured: true,
-        pollingIntervalMs: expect.any(Number),
-        staleThresholdMs: expect.any(Number),
-        pendingJobs: 2,
-        processingJobs: 1,
-      });
-      expect(body.pollingIntervalMs).toBeGreaterThan(0);
-      expect(body.staleThresholdMs).toBeGreaterThan(0);
-    } finally {
-      // Cleanup: we can't easily stop the server, but the test process will clean up
-      void daemonPromise;
-    }
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      webhookConfigured: true,
+      pollingIntervalMs: expect.any(Number),
+      staleThresholdMs: expect.any(Number),
+      pendingJobs: 2,
+      processingJobs: 1,
+    });
+    expect(body.pollingIntervalMs).toBeGreaterThan(0);
+    expect(body.staleThresholdMs).toBeGreaterThan(0);
   });
 
   it('should return webhookConfigured: false when URL not set', async () => {
@@ -155,30 +155,27 @@ describe('webhook server status endpoint', () => {
       dispose: vi.fn(),
     };
 
+    // Update port for this test BEFORE importing to avoid module cache issues
+    process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = '53998';
+    vi.resetModules();
+
     const { startEmbedderDaemon } = await import(
       '../../utils/background-embedder'
     );
 
-    // Update port for this test
-    process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = '53998';
-
-    // Start daemon in background
-    const daemonPromise = startEmbedderDaemon(mockContainer);
+    // Start daemon in background and store cleanup function
+    cleanup = await startEmbedderDaemon(mockContainer);
 
     // Wait for server to start
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    try {
-      // Make request to status endpoint
-      const response = await fetch('http://localhost:53998/status');
-      const body = await response.json();
+    // Make request to status endpoint
+    const response = await fetch('http://localhost:53998/status');
+    const body = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(body.webhookConfigured).toBe(false);
-      expect(body.pendingJobs).toBe(0);
-      expect(body.processingJobs).toBe(0);
-    } finally {
-      void daemonPromise;
-    }
+    expect(response.status).toBe(200);
+    expect(body.webhookConfigured).toBe(false);
+    expect(body.pendingJobs).toBe(0);
+    expect(body.processingJobs).toBe(0);
   });
 });

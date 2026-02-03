@@ -14,6 +14,28 @@ If you are using in any AI agent like Claude Code, you can install the skill wit
 npx skills add firecrawl/cli
 ```
 
+## Self-Hosted Setup
+
+This project includes a self-hosted Firecrawl stack with Docker Compose:
+
+```bash
+# Start all services (Firecrawl, Patchright, TEI, Qdrant)
+docker compose up -d
+
+# Check service status
+docker compose ps
+```
+
+**Services:**
+- **Firecrawl API**: http://localhost:53002
+- **Patchright** (browser scraping): Internal on port 53006
+- **TEI** (embeddings): http://localhost:53010
+- **Qdrant** (vector DB): http://localhost:53333
+
+**Important:** The project includes a patched `patchright-app.py` file that fixes a bug in the upstream `loorisr/patchright-scrape-api` image. This file is automatically mounted into the container via `docker-compose.yaml`. The fix changes `page.timeout()` to `page.wait_for_timeout()` to prevent 500 errors when using the `--wait-for` flag.
+
+See `CLAUDE.md` for detailed infrastructure documentation.
+
 ## Quick Start
 
 Just run a command - the CLI will prompt you to authenticate if needed:

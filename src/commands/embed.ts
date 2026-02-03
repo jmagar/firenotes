@@ -203,16 +203,21 @@ import { normalizeUrl } from '../utils/url';
 /**
  * Handle embed cancel command
  */
-async function handleCancelCommand(jobId: string): Promise<void> {
+async function handleCancelCommand(
+  jobId: string
+): Promise<{ success: boolean; error?: string }> {
   const job = getEmbedJob(jobId);
 
   if (!job) {
-    console.error(`Embed job ${jobId} not found`);
-    process.exit(1);
+    return {
+      success: false,
+      error: `Embed job ${jobId} not found`,
+    };
   }
 
   removeEmbedJob(jobId);
   console.log(`Cancelled embed job ${jobId}`);
+  return { success: true };
 }
 
 /**
@@ -251,7 +256,7 @@ export function createEmbedCommand(): Command {
         return;
       }
 
-      const container = command.parent?._container;
+      const container = command._container;
       if (!container) {
         throw new Error('Container not initialized');
       }
@@ -284,7 +289,11 @@ export function createEmbedCommand(): Command {
     .description('Cancel a pending embedding job')
     .argument('<job-id>', 'Job ID to cancel')
     .action(async (jobId: string) => {
-      await handleCancelCommand(jobId);
+      const result = await handleCancelCommand(jobId);
+      if (!result.success) {
+        console.error(result.error);
+        process.exit(1);
+      }
     });
 
   return embedCmd;

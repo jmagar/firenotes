@@ -6,6 +6,7 @@ import pLimit from 'p-limit';
 import type { IContainer } from '../container/types';
 import type { ExtractOptions, ExtractResult } from '../types/extract';
 import { formatJson, handleCommandError } from '../utils/command';
+import { normalizeJobId } from '../utils/job';
 import { recordJob } from '../utils/job-history';
 import { writeOutput } from '../utils/output';
 
@@ -240,7 +241,7 @@ async function handleExtractStatusCommand(
  * - Clear semantic intent
  * - Follows standard CLI conventions (resource action target)
  */
-export function createExtractCommand(): Command {
+export function createExtractCommand(container?: IContainer): Command {
   const extractCmd = new Command('extract')
     .description('Extract structured data from URLs using Firecrawl')
     .argument('[urls...]', 'URL(s) to extract from')
@@ -275,6 +276,13 @@ export function createExtractCommand(): Command {
           u.includes('\n') ? u.split('\n').filter(Boolean) : [u]
         )
         .map(normalizeUrl);
+
+      // Validate at least one URL provided
+      if (urls.length === 0) {
+        console.error('Error: At least one URL is required.');
+        process.exit(1);
+      }
+
       await handleExtractCommand(container, {
         urls,
         prompt: options.prompt,
@@ -305,11 +313,19 @@ export function createExtractCommand(): Command {
         throw new Error('Container not initialized');
       }
 
-      await handleExtractStatusCommand(container, jobId, {
+      // Normalize job ID to support both raw IDs and URLs
+      const normalizedJobId = normalizeJobId(jobId);
+
+      await handleExtractStatusCommand(container, normalizedJobId, {
         output: options.output,
         pretty: options.pretty,
       });
     });
+
+  // Store container if provided (mainly for testing)
+  if (container) {
+    extractCmd._container = container;
+  }
 
   return extractCmd;
 }

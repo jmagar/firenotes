@@ -40,6 +40,8 @@ services:
     container_name: firecrawl-playwright
     environment:
       PORT: "${PLAYWRIGHT_PORT:-53006}"
+    volumes:
+      - ./patchright-app.py:/app/app.py:ro
     tmpfs:
       - /tmp/.cache:noexec,nosuid,size=1g
 
@@ -101,7 +103,7 @@ services:
       - "${QDRANT_REST_PORT:-53333}:6333"
       - "${QDRANT_RPC_PORT:-53334}:6334"
     volumes:
-      - /home/jmagar/appdata/qdrant:/qdrant/storage
+      - ${QDRANT_DATA_DIR:-./data/qdrant}:/qdrant/storage
 
 networks:
   jakenet:

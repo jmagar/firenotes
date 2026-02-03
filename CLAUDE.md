@@ -54,18 +54,22 @@ src/
 
 This project uses a **self-hosted Firecrawl stack**, NOT the cloud API.
 
+**Important Files:**
+- `patchright-app.py` - Patched version of the patchright container's app.py with the `page.timeout()` bug fixed
+- `docker-compose.yaml` - Mounts patchright-app.py into the container at `/app/app.py`
+
 ### Docker Services
 
 | Container | Image | Port | Purpose |
 |-----------|-------|------|---------|
-| `firecrawl` | mendableai/firecrawl | 53002 | Main Firecrawl API |
-| `playwright` | loorisr/patchright-scrape-api | 53006 (internal) | Browser scraping backend |
+| `firecrawl` | ghcr.io/firecrawl/firecrawl | 53002 | Main Firecrawl API |
+| `firecrawl-playwright` | loorisr/patchright-scrape-api | 53006 (internal) | Browser scraping backend |
 | `tei` | ghcr.io/huggingface/tei | 53010 | Text embeddings |
-| `qdrant` | qdrant/qdrant | 53333 | Vector database |
+| `firecrawl-qdrant` | qdrant/qdrant | 53333 | Vector database |
 
 ### Scraping Architecture
 
-```
+```text
 CLI → Firecrawl API (53002) → Patchright container (53006) → Chrome
                             ↘ Fetch engine (fallback)
 ```
@@ -87,7 +91,7 @@ QDRANT_URL=http://localhost:53333
 ### Debugging Scrape Failures
 
 1. Check Firecrawl logs: `docker logs firecrawl --tail 100`
-2. Check Patchright logs: `docker logs playwright --tail 100`
+2. Check Patchright logs: `docker logs firecrawl-playwright --tail 100`
 3. Common issues:
    - Patchright `page.timeout()` bug - should be `page.wait_for_timeout()`
    - Client-side rendered sites may need `--wait-for` flag
@@ -160,15 +164,20 @@ pnpm type-check     # TypeScript check
 
 ## Known Issues
 
-### Patchright `wait_after_load` Bug
+### Patchright `wait_after_load` Bug (FIXED)
 
-The patchright container (`/app/app.py`) has a bug where `page.timeout()` should be `page.wait_for_timeout()`. This causes 500 errors when using `--wait-for` flag:
+The upstream `loorisr/patchright-scrape-api` image has a bug where `page.timeout()` should be `page.wait_for_timeout()`.
 
+**Our Fix**: We mount a patched `patchright-app.py` from the project root into the container via docker-compose volume. The fix changes line 374 from:
+```python
+await page.timeout(request_model.wait_after_load)
 ```
-Error: 'Page' object has no attribute 'timeout'
+to:
+```python
+await page.wait_for_timeout(request_model.wait_after_load)
 ```
 
-**Workaround**: Don't use `--wait-for` flag, or fix the container's app.py.
+This fix persists across container restarts.
 
 ### Client-Side Rendered Sites
 

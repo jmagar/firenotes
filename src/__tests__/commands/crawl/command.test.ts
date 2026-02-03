@@ -1,6 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleCrawlCommand } from '../../../commands/crawl/command';
 import type { CrawlOptions } from '../../../types/crawl';
+import { resetTeiCache } from '../../../utils/embeddings';
+import { resetQdrantCache } from '../../../utils/qdrant';
 import { createTestContainer } from '../../utils/test-container';
 
 // Mock dependencies
@@ -50,6 +52,11 @@ import { writeOutput } from '../../../utils/output';
 describe('handleCrawlCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    resetTeiCache();
+    resetQdrantCache();
   });
 
   it('should exit when URL or job ID is missing', async () => {

@@ -420,6 +420,7 @@ export function createSearchCommand(): Command {
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as compact JSON', false)
+    .option('--pretty', 'Output as formatted JSON (implies --json)', false)
     .action(async (query, options, command: Command) => {
       const container = command._container;
       if (!container) {

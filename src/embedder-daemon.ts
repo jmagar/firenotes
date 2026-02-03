@@ -16,19 +16,26 @@ loadDotenv({ path: envPath });
 // Create daemon container
 const container = createDaemonContainer();
 
-// Start daemon
-startEmbedderDaemon(container).catch((error) => {
-  console.error('[Embedder] Fatal error:', error);
-  process.exit(1);
-});
+// Start daemon and store cleanup function
+let cleanup: (() => void) | undefined;
+startEmbedderDaemon(container)
+  .then((cleanupFn) => {
+    cleanup = cleanupFn;
+  })
+  .catch((error) => {
+    console.error('[Embedder] Fatal error:', error);
+    process.exit(1);
+  });
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
   console.error('[Embedder] Received SIGTERM, shutting down gracefully');
+  cleanup?.();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   console.error('[Embedder] Received SIGINT, shutting down gracefully');
+  cleanup?.();
   process.exit(0);
 });

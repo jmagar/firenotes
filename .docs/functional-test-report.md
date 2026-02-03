@@ -51,7 +51,7 @@
 **Features Verified**:
 - Shows authentication status (✓ Authenticated)
 - Displays API URL: `https://api.firecrawl.dev`
-- Shows config path: `/home/jmagar/.config/firecrawl-cli`
+- Shows config path: `~/.config/firecrawl-cli`
 - Lists default exclude paths (language variants)
 **Output Format**: Clean table with commands
 **Response Time**: ~200ms

@@ -246,15 +246,16 @@ describe('batchEmbed', () => {
     vi.mocked(qdrant.deleteByUrl).mockResolvedValue();
     vi.mocked(qdrant.upsertPoints).mockResolvedValue();
 
-    // First call succeeds, second fails
-    let callCount = 0;
-    vi.mocked(embeddings.embedChunks).mockImplementation(() => {
-      callCount++;
-      if (callCount === 2) {
-        return Promise.reject(new Error('Failed embedding'));
+    // Fail embedding for Content 2, succeed for Content 1
+    vi.mocked(embeddings.embedChunks).mockImplementation(
+      async (_teiUrl: string, texts: string[]) => {
+        // Check if this batch contains Content 2
+        if (texts.some((text) => text.includes('Content 2'))) {
+          throw new Error('Failed embedding');
+        }
+        return [[0.1, 0.2]];
       }
-      return Promise.resolve([[0.1, 0.2]]);
-    });
+    );
 
     const result = await batchEmbed([
       {

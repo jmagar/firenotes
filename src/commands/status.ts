@@ -471,11 +471,6 @@ export async function handleJobStatusCommand(
       return;
     }
 
-    // Validate output path before writing to prevent path traversal attacks
-    if (options.output) {
-      validateOutputPath(options.output);
-    }
-
     const outputContent = formatJson(
       {
         success: true,
