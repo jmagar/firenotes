@@ -79,7 +79,11 @@ export function createLoginCommand(): Command {
       '-k, --api-key <key>',
       'Provide API key directly (skips interactive flow)'
     )
-    .option('--api-url <url>', 'API URL (default: https://api.firecrawl.dev)')
+    .option(
+      '--api-url <url>',
+      'API URL (default: https://api.firecrawl.dev)',
+      'https://api.firecrawl.dev'
+    )
     .action(async (options) => {
       await handleLoginCommand({
         apiKey: options.apiKey,

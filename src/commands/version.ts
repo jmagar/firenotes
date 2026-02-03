@@ -30,7 +30,11 @@ import { Command } from 'commander';
 export function createVersionCommand(): Command {
   const versionCmd = new Command('version')
     .description('Display version information')
-    .option('--auth-status', 'Also show authentication status', false)
+    .option(
+      '--auth-status',
+      'Also show authentication status (default: false)',
+      false
+    )
     .action((options) => {
       handleVersionCommand({ authStatus: options.authStatus });
     });

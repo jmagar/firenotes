@@ -147,7 +147,11 @@ export function createConfigCommand(): Command {
       '-k, --api-key <key>',
       'Provide API key directly (skips interactive flow)'
     )
-    .option('--api-url <url>', 'API URL (default: https://api.firecrawl.dev)')
+    .option(
+      '--api-url <url>',
+      'API URL (default: https://api.firecrawl.dev)',
+      'https://api.firecrawl.dev'
+    )
     .action(async (options) => {
       await configure({
         apiKey: options.apiKey,
