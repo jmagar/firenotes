@@ -14,17 +14,6 @@ import type { MockFirecrawlClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 // Mock embedpipeline and capture config state
-type EmbedPage = {
-  markdown?: string;
-  html?: string;
-  url?: string;
-  title?: string;
-  metadata?: {
-    sourceURL?: string;
-    url?: string;
-    title?: string;
-  };
-};
 
 type CrawlMockClient = MockFirecrawlClient &
   Required<

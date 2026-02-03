@@ -45,7 +45,7 @@ import {
 } from './container/ContainerFactory';
 import type { IContainer } from './container/types';
 import { ensureAuthenticated, printBanner } from './utils/auth';
-import { initializeConfig, updateConfig } from './utils/config';
+import { initializeConfig } from './utils/config';
 import { isUrl, normalizeUrl } from './utils/url';
 
 /**

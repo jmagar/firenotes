@@ -15,7 +15,7 @@ import { listEmbedJobs, updateEmbedJob } from '../utils/embed-queue';
 import { withTimeout } from '../utils/http';
 import { isJobId } from '../utils/job';
 import { getRecentJobIds, removeJobIds } from '../utils/job-history';
-import { validateOutputPath, writeOutput } from '../utils/output';
+import { writeOutput } from '../utils/output';
 
 type AuthSource = 'env' | 'stored' | 'none';
 
@@ -139,7 +139,21 @@ function shouldPruneError(error: string | undefined): boolean {
   );
 }
 
-function summarizeEmbedQueue(): { summary: EmbedQueueSummary; jobs: any[] } {
+function summarizeEmbedQueue(): {
+  summary: EmbedQueueSummary;
+  jobs: Array<{
+    id: string;
+    jobId: string;
+    url: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    retries: number;
+    maxRetries: number;
+    createdAt: string;
+    updatedAt: string;
+    lastError?: string;
+    apiKey?: string;
+  }>;
+} {
   const jobs = listEmbedJobs();
   const summary: EmbedQueueSummary = {
     pending: 0,

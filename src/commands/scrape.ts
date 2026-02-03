@@ -205,14 +205,16 @@ export async function handleScrapeCommand(
     options.embed !== false && result.success && result.data
       ? (async () => {
           const pipeline = container.getEmbedPipeline();
-          const data = result.data!; // Already checked above
-          const content = data.markdown || data.html || data.rawHtml || '';
-          await pipeline.autoEmbed(content, {
-            url: options.url,
-            title: data.metadata?.title,
-            sourceCommand: 'scrape',
-            contentType: options.formats?.[0] || 'markdown',
-          });
+          const data = result.data;
+          if (data) {
+            const content = data.markdown || data.html || data.rawHtml || '';
+            await pipeline.autoEmbed(content, {
+              url: options.url,
+              title: data.metadata?.title,
+              sourceCommand: 'scrape',
+              contentType: options.formats?.[0] || 'markdown',
+            });
+          }
         })()
       : Promise.resolve();
 

@@ -11,7 +11,7 @@ describe('pollWithProgress', () => {
       statusFetcher,
       pollInterval: 1000,
       isComplete: (s) => s.status === 'completed',
-      formatProgress: (s) => 'Progress',
+      formatProgress: (_s) => 'Progress',
     });
 
     const elapsed = Date.now() - startTime;
@@ -54,7 +54,7 @@ describe('pollWithProgress', () => {
         pollInterval: 50,
         timeout: 200,
         isComplete: (s) => s.status === 'completed',
-        formatProgress: (s) => 'Progress',
+        formatProgress: (_s) => 'Progress',
       })
     ).rejects.toThrow('Timeout after 0.2 seconds');
 
@@ -73,7 +73,7 @@ describe('pollWithProgress', () => {
       statusFetcher,
       pollInterval: 100,
       isComplete: (s) => s.status === 'completed',
-      formatProgress: (s) => 'Progress',
+      formatProgress: (_s) => 'Progress',
     });
 
     expect(result.status).toBe('completed');
@@ -131,7 +131,7 @@ describe('pollWithProgress', () => {
       statusFetcher,
       pollInterval: 50,
       isComplete: (s) => s.status === 'completed',
-      formatProgress: (s) => 'Progress',
+      formatProgress: (_s) => 'Progress',
     });
 
     expect(statusFetcher).toHaveBeenCalledWith('custom-job-123');
@@ -171,7 +171,7 @@ describe('pollWithProgress', () => {
         statusFetcher,
         pollInterval: 50,
         isComplete: (s: { status: string }) => s.status === 'completed',
-        formatProgress: (s: { status: string }) => 'Progress',
+        formatProgress: (_s: { status: string }) => 'Progress',
       })
     ).rejects.toThrow('Failed to fetch status: Network error');
   });
@@ -194,7 +194,7 @@ describe('pollWithProgress', () => {
       statusFetcher,
       pollInterval,
       isComplete: (s) => s.status === 'completed',
-      formatProgress: (s) => 'Progress',
+      formatProgress: (_s) => 'Progress',
     });
 
     // Wait a microtask for first poll to execute (immediate, no setTimeout)
@@ -226,7 +226,7 @@ describe('pollWithProgress', () => {
         pollInterval: 50,
         timeout: 0,
         isComplete: (s) => s.status === 'completed',
-        formatProgress: (s) => 'Progress',
+        formatProgress: (_s) => 'Progress',
       })
     ).rejects.toThrow('Timeout must be a positive number');
   });
@@ -241,7 +241,7 @@ describe('pollWithProgress', () => {
         pollInterval: 50,
         timeout: -1000,
         isComplete: (s) => s.status === 'completed',
-        formatProgress: (s) => 'Progress',
+        formatProgress: (_s) => 'Progress',
       })
     ).rejects.toThrow('Timeout must be a positive number');
   });

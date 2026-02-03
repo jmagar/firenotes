@@ -56,9 +56,11 @@ export async function executeStats(
       if (!domainMap.has(domain)) {
         domainMap.set(domain, { vectors: 0, urls: new Set() });
       }
-      const entry = domainMap.get(domain)!;
-      entry.vectors++;
-      if (url) entry.urls.add(url);
+      const entry = domainMap.get(domain);
+      if (entry) {
+        entry.vectors++;
+        if (url) entry.urls.add(url);
+      }
     }
 
     const byDomain: DomainStats[] = Array.from(domainMap.entries())

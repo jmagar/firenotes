@@ -482,7 +482,7 @@ export async function isEmbedderRunning(
 
     // Any response (even 404/405) means daemon is running
     return response.status !== undefined;
-  } catch (error) {
+  } catch (_error) {
     // Connection refused, timeout, or network error means daemon is not running
     return false;
   }

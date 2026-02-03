@@ -155,11 +155,11 @@ function formatTable(entries: HistoryEntry[]): string {
     const date = entry.date ? entry.date.split('T')[0] : 'unknown';
     const domain =
       entry.domain.length > 24
-        ? entry.domain.slice(0, 22) + '..'
+        ? `${entry.domain.slice(0, 22)}..`
         : entry.domain.padEnd(25);
     const url =
       entry.url.length > 44
-        ? entry.url.slice(0, 42) + '..'
+        ? `${entry.url.slice(0, 42)}..`
         : entry.url.padEnd(45);
     const source = entry.sourceCommand.padEnd(8);
     const chunks = String(entry.chunks).padStart(6);

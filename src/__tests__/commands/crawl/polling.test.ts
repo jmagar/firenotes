@@ -86,7 +86,7 @@ describe('pollCrawlProgress', () => {
     expect(capturedStatusFetcher).toBeDefined();
 
     // Call the statusFetcher to verify it works
-    await capturedStatusFetcher!('job-123');
+    await capturedStatusFetcher?.('job-123');
     expect(mockClient.getCrawlStatus).toHaveBeenCalledWith('job-123');
   });
 
@@ -114,19 +114,19 @@ describe('pollCrawlProgress', () => {
 
     // Test various completion scenarios
     expect(
-      capturedIsComplete!({ status: 'completed', total: 10, completed: 10 })
+      capturedIsComplete?.({ status: 'completed', total: 10, completed: 10 })
     ).toBe(true);
     expect(
-      capturedIsComplete!({ status: 'failed', total: 10, completed: 5 })
+      capturedIsComplete?.({ status: 'failed', total: 10, completed: 5 })
     ).toBe(true);
     expect(
-      capturedIsComplete!({ status: 'cancelled', total: 10, completed: 3 })
+      capturedIsComplete?.({ status: 'cancelled', total: 10, completed: 3 })
     ).toBe(true);
     expect(
-      capturedIsComplete!({ status: 'processing', total: 10, completed: 10 })
+      capturedIsComplete?.({ status: 'processing', total: 10, completed: 10 })
     ).toBe(true);
     expect(
-      capturedIsComplete!({ status: 'processing', total: 10, completed: 5 })
+      capturedIsComplete?.({ status: 'processing', total: 10, completed: 5 })
     ).toBe(false);
   });
 
@@ -152,7 +152,7 @@ describe('pollCrawlProgress', () => {
 
     expect(capturedFormatProgress).toBeDefined();
 
-    const progressText = capturedFormatProgress!({
+    const progressText = capturedFormatProgress?.({
       status: 'processing',
       total: 100,
       completed: 50,

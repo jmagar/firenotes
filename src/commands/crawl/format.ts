@@ -49,7 +49,7 @@ export function formatCrawlStatus(data: CrawlStatusResult['data']): string {
           // Test the locale by attempting to use it
           new Intl.DateTimeFormat(candidateLocale);
           locale = candidateLocale;
-        } catch (error) {
+        } catch (_error) {
           // Fall back to 'en-US' if locale is invalid
           // No need to log - silent fallback is acceptable for locale formatting
         }
@@ -67,7 +67,7 @@ export function formatCrawlStatus(data: CrawlStatusResult['data']): string {
           minute: '2-digit',
         })}`
       );
-    } catch (error) {
+    } catch (_error) {
       // Fall back to ISO string if locale formatting fails
       lines.push(`Expires: ${expiresDate.toISOString()}`);
     }

@@ -19,7 +19,7 @@ export interface ListOptions {
  */
 export async function executeList(
   container: IContainer,
-  options: ListOptions
+  _options: ListOptions
 ): Promise<CrawlActiveResult> {
   try {
     const app = container.getFirecrawlClient();

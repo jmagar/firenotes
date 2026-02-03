@@ -129,11 +129,11 @@ function formatTable(sources: SourceInfo[]): string {
   for (const source of sources) {
     const domain =
       source.domain.length > 24
-        ? source.domain.slice(0, 22) + '..'
+        ? `${source.domain.slice(0, 22)}..`
         : source.domain.padEnd(25);
     const url =
       source.url.length > 49
-        ? source.url.slice(0, 47) + '..'
+        ? `${source.url.slice(0, 47)}..`
         : source.url.padEnd(50);
     const chunks = String(source.totalChunks).padStart(6);
     const cmd = source.sourceCommand.padEnd(8);

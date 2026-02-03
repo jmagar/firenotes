@@ -9,7 +9,6 @@
 import type { Mock } from 'vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { executeMap } from '../../commands/map';
-import type { IContainer, IHttpClient } from '../../container/types';
 import { DEFAULT_USER_AGENT } from '../../utils/config';
 import { resetTeiCache } from '../../utils/embeddings';
 import { resetQdrantCache } from '../../utils/qdrant';

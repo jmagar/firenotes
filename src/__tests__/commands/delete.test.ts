@@ -33,16 +33,16 @@ describe('delete command', () => {
         qdrantUrl: 'http://localhost:53333',
         qdrantCollection: 'test_collection',
       },
-      getQdrantService: () => mockQdrantService as any,
-    } as IContainer;
+      getQdrantService: () => mockQdrantService,
+    } as unknown as IContainer;
   });
 
   describe('validation', () => {
     it('should fail when QDRANT_URL is not configured', async () => {
       const container = {
         config: {},
-        getQdrantService: () => mockQdrantService as any,
-      } as IContainer;
+        getQdrantService: () => mockQdrantService,
+      } as unknown as IContainer;
 
       const options: DeleteOptions = {
         url: 'https://example.com',

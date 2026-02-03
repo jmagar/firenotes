@@ -111,7 +111,7 @@ describe('executeEmbed', () => {
   });
 
   it('should scrape URL then embed when input is a URL', async () => {
-    mockClient.scrape!.mockResolvedValue({
+    mockClient.scrape?.mockResolvedValue({
       markdown: '# Test Page\n\nContent here.',
       metadata: { title: 'Test Page' },
     });
@@ -252,7 +252,7 @@ describe('executeEmbed', () => {
   });
 
   it('should handle scrape errors gracefully', async () => {
-    mockClient.scrape!.mockRejectedValue(new Error('Network timeout'));
+    mockClient.scrape?.mockRejectedValue(new Error('Network timeout'));
 
     const result = await executeEmbed(container, {
       input: 'https://example.com',
@@ -263,7 +263,7 @@ describe('executeEmbed', () => {
   });
 
   it('should delete old vectors before upserting new ones', async () => {
-    mockClient.scrape!.mockResolvedValue({
+    mockClient.scrape?.mockResolvedValue({
       markdown: '# Content\n\nSome text.',
     });
 

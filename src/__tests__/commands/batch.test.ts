@@ -42,7 +42,7 @@ describe('executeBatch', () => {
   });
 
   it('should start batch scrape when wait is false', async () => {
-    mockClient.startBatchScrape!.mockResolvedValue({
+    mockClient.startBatchScrape?.mockResolvedValue({
       id: 'batch-1',
       url: 'https://api.firecrawl.dev/v2/batch/scrape/batch-1',
     });
@@ -61,7 +61,7 @@ describe('executeBatch', () => {
   });
 
   it('should wait batch scrape when wait is true', async () => {
-    mockClient.batchScrape!.mockResolvedValue({
+    mockClient.batchScrape?.mockResolvedValue({
       id: 'batch-1',
       status: 'completed',
       completed: 2,
@@ -153,7 +153,7 @@ describe('batch status subcommand', () => {
   });
 
   it('should call SDK getBatchScrapeStatus with job-id', async () => {
-    mockClient.getBatchScrapeStatus!.mockResolvedValue({
+    mockClient.getBatchScrapeStatus?.mockResolvedValue({
       id: 'batch-1',
       status: 'scraping',
       completed: 1,
@@ -204,7 +204,7 @@ describe('batch cancel subcommand', () => {
   });
 
   it('should call SDK cancelBatchScrape', async () => {
-    mockClient.cancelBatchScrape!.mockResolvedValue(true);
+    mockClient.cancelBatchScrape?.mockResolvedValue(true);
 
     const cmd = createBatchCommand() as unknown as CommandWithContainer;
     cmd.exitOverride();
@@ -219,7 +219,7 @@ describe('batch cancel subcommand', () => {
   });
 
   it('should handle cancel failure', async () => {
-    mockClient.cancelBatchScrape!.mockResolvedValue(false);
+    mockClient.cancelBatchScrape?.mockResolvedValue(false);
 
     const cmd = createBatchCommand() as unknown as CommandWithContainer;
     cmd.exitOverride();
@@ -261,7 +261,7 @@ describe('batch errors subcommand', () => {
   });
 
   it('should call SDK getBatchScrapeErrors', async () => {
-    mockClient.getBatchScrapeErrors!.mockResolvedValue({
+    mockClient.getBatchScrapeErrors?.mockResolvedValue({
       errors: [
         {
           id: 'err-1',

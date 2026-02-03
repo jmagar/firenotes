@@ -1100,9 +1100,9 @@ describe('createCrawlCommand', () => {
       const statusCmd = cmd.commands.find((c) => c.name() === 'status');
       expect(statusCmd).toBeDefined();
 
-      statusCmd!.exitOverride();
+      statusCmd?.exitOverride();
       await expect(
-        statusCmd!.parseAsync(['node', 'test'], { from: 'node' })
+        statusCmd?.parseAsync(['node', 'test'], { from: 'node' })
       ).rejects.toThrow();
     });
 

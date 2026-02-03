@@ -99,7 +99,7 @@ export async function executeInfo(
  * @param full Whether to show full chunk text
  * @returns Formatted string output
  */
-function formatHuman(info: UrlInfo, full: boolean): string {
+function formatHuman(info: UrlInfo, _full: boolean): string {
   const data = info;
   const lines: string[] = [];
 

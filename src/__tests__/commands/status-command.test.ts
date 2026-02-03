@@ -347,8 +347,8 @@ describe('handleJobStatusCommand', () => {
       return [];
     });
 
-    let resolveActive: (value: { success: boolean; crawls: [] }) => void;
-    let resolveCrawl: (value: {
+    let resolveActive!: (value: { success: boolean; crawls: [] }) => void;
+    let resolveCrawl!: (value: {
       id: string;
       status: string;
       total: number;
@@ -381,8 +381,8 @@ describe('handleJobStatusCommand', () => {
     expect(mockClient.getActiveCrawls).toHaveBeenCalledTimes(1);
     expect(mockClient.getCrawlStatus).toHaveBeenCalledTimes(1);
 
-    resolveActive!({ success: true, crawls: [] });
-    resolveCrawl!({
+    resolveActive?.({ success: true, crawls: [] });
+    resolveCrawl?.({
       id: '019c161c-8a80-7051-a438-2ec8707e1bc4',
       status: 'completed',
       total: 1,

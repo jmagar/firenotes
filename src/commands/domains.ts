@@ -57,11 +57,13 @@ export async function executeDomains(
         domainMap.set(domain, { urls: new Set(), vectors: 0, lastUpdated: '' });
       }
 
-      const entry = domainMap.get(domain)!;
-      if (url) entry.urls.add(url);
-      entry.vectors++;
-      if (scrapedAt > entry.lastUpdated) {
-        entry.lastUpdated = scrapedAt;
+      const entry = domainMap.get(domain);
+      if (entry) {
+        if (url) entry.urls.add(url);
+        entry.vectors++;
+        if (scrapedAt > entry.lastUpdated) {
+          entry.lastUpdated = scrapedAt;
+        }
       }
     }
 
@@ -123,7 +125,7 @@ function formatTable(domains: DomainInfo[]): string {
   for (const domain of domains) {
     const name =
       domain.domain.length > 34
-        ? domain.domain.slice(0, 32) + '..'
+        ? `${domain.domain.slice(0, 32)}..`
         : domain.domain.padEnd(35);
     const urls = String(domain.urlCount).padStart(6);
     const vectors = String(domain.vectorCount).padStart(8);
