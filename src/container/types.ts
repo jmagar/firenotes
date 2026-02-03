@@ -65,13 +65,22 @@ export interface TeiInfo {
 }
 
 /**
- * Qdrant point structure
+ * Qdrant point structure (with vector)
  */
 export interface QdrantPoint {
   id: string;
   vector: number[];
   payload: Record<string, unknown>;
   score?: number; // Similarity score from query operations
+}
+
+/**
+ * Qdrant scroll point structure (without vector)
+ * Used for scroll operations that don't need vector data
+ */
+export interface QdrantScrollPoint {
+  id: string;
+  payload: Record<string, unknown>;
 }
 
 /**
@@ -192,7 +201,7 @@ export interface IQdrantService {
     collection: string,
     vector: number[],
     limit?: number,
-    filter?: Record<string, unknown>
+    filter?: Record<string, string | number | boolean>
   ): Promise<QdrantPoint[]>;
 
   /**
@@ -229,8 +238,8 @@ export interface IQdrantService {
    */
   scrollAll(
     collection: string,
-    filter?: Record<string, unknown>
-  ): Promise<QdrantPoint[]>;
+    filter?: Record<string, string | number | boolean>
+  ): Promise<QdrantScrollPoint[]>;
 
   /**
    * Count total points in collection

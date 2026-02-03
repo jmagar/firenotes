@@ -318,6 +318,13 @@ async function executeJobStatus(
       maxRetries: job.maxRetries,
       updatedAt: job.updatedAt,
     }));
+  const completedEmbeds = embedQueue.jobs
+    .filter((job) => job.status === 'completed')
+    .map((job) => ({
+      jobId: job.jobId,
+      url: job.url,
+      updatedAt: job.updatedAt,
+    }));
 
   return {
     activeCrawls,
@@ -334,6 +341,7 @@ async function executeJobStatus(
       job: embedJob ?? undefined,
       failed: failedEmbeds,
       pending: pendingEmbeds,
+      completed: completedEmbeds,
     },
   };
 }
@@ -451,32 +459,43 @@ function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
     }
   }
 
+  const activeUrlById = new Map(
+    data.activeCrawls.crawls.map((crawl) => [crawl.id, crawl.url])
+  );
+  const crawlUrlById = new Map(activeUrlById);
+  for (const crawl of data.crawls) {
+    const maybeData = (
+      crawl as {
+        data?: Array<{ metadata?: { sourceURL?: string; url?: string } }>;
+      }
+    ).data;
+    const sourceUrl = Array.isArray(maybeData)
+      ? (maybeData[0]?.metadata?.sourceURL ?? maybeData[0]?.metadata?.url)
+      : undefined;
+    if (sourceUrl && crawl.id) {
+      crawlUrlById.set(crawl.id, sourceUrl);
+    }
+  }
+
   console.log('  Pending embeds:');
   if (data.embeddings.pending.length === 0) {
     console.log('    No pending embedding jobs.');
   } else {
-    const activeUrlById = new Map(
-      data.activeCrawls.crawls.map((crawl) => [crawl.id, crawl.url])
-    );
-    const crawlUrlById = new Map(activeUrlById);
-    for (const crawl of data.crawls) {
-      const maybeData = (
-        crawl as {
-          data?: Array<{ metadata?: { sourceURL?: string; url?: string } }>;
-        }
-      ).data;
-      const sourceUrl = Array.isArray(maybeData)
-        ? (maybeData[0]?.metadata?.sourceURL ?? maybeData[0]?.metadata?.url)
-        : undefined;
-      if (sourceUrl && crawl.id) {
-        crawlUrlById.set(crawl.id, sourceUrl);
-      }
-    }
     for (const job of data.embeddings.pending) {
       const displayUrl = crawlUrlById.get(job.jobId) ?? job.url;
       console.log(
         `    ${job.jobId} (${job.retries}/${job.maxRetries}) ${displayUrl}`
       );
+    }
+  }
+
+  console.log('  Completed embeds:');
+  if (data.embeddings.completed.length === 0) {
+    console.log('    No completed embedding jobs.');
+  } else {
+    for (const job of data.embeddings.completed) {
+      const displayUrl = crawlUrlById.get(job.jobId) ?? job.url;
+      console.log(`    ${job.jobId} ${displayUrl}`);
     }
   }
   console.log('');
@@ -494,10 +513,15 @@ export async function handleJobStatusCommand(
       return;
     }
 
+    const { embeddings, ...rest } = data;
+    const { completed: _completed, ...embeddingsWithoutCompleted } = embeddings;
     const outputContent = formatJson(
       {
         success: true,
-        data,
+        data: {
+          ...rest,
+          embeddings: embeddingsWithoutCompleted,
+        },
       },
       options.pretty ?? false
     );

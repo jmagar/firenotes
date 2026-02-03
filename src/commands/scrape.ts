@@ -65,8 +65,18 @@ export async function executeScrape(
       };
     }
 
+    // Parse domain from URL with error handling
+    let domain: string;
+    try {
+      domain = new URL(options.url).hostname;
+    } catch {
+      return {
+        success: false,
+        error: `Invalid URL: ${options.url}`,
+      };
+    }
+
     const collection = qdrantCollection || 'firecrawl_collection';
-    const domain = new URL(options.url).hostname;
 
     const qdrantService = container.getQdrantService();
     const count = await qdrantService.countByDomain(collection, domain);
@@ -167,7 +177,13 @@ export async function handleScrapeCommand(
       process.exit(1);
     }
 
-    const domain = new URL(options.url).hostname;
+    // Parse domain - executeScrape already validated URL, but handle edge case
+    let domain: string;
+    try {
+      domain = new URL(options.url).hostname;
+    } catch {
+      domain = options.url; // Fallback to raw URL for display
+    }
     console.log(`Removed ${result.removed} documents for domain ${domain}`);
     return;
   }

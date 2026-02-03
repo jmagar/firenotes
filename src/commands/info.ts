@@ -8,18 +8,19 @@ import type { IContainer } from '../container/types';
 import type { InfoOptions, InfoResult, UrlInfo } from '../types/info';
 import { formatJson, handleCommandError } from '../utils/command';
 import { validateOutputPath, writeOutput } from '../utils/output';
+import { normalizeUrl } from '../utils/url';
 
 /**
  * Execute info command
  * Retrieves all chunks for a URL and returns detailed metadata
  *
- * @param options Info options with URL and filters
  * @param container DI container with services
+ * @param options Info options with URL and filters
  * @returns InfoResult with URL details or error
  */
 export async function executeInfo(
-  options: InfoOptions,
-  container: IContainer
+  container: IContainer,
+  options: InfoOptions
 ): Promise<InfoResult> {
   try {
     const config = container.config;
@@ -42,7 +43,7 @@ export async function executeInfo(
     if (points.length === 0) {
       return {
         success: false,
-        error: `No data found for URL: ${options.url}`,
+        error: `URL not found in vector database: ${options.url}`,
       };
     }
 
@@ -52,7 +53,7 @@ export async function executeInfo(
 
     // Map chunks with preview/full text
     const chunks = points.map((point) => {
-      const text = String(point.payload.text || '');
+      const text = String(point.payload.chunk_text || '');
       const textPreview =
         options.full || text.length <= 100 ? text : `${text.slice(0, 100)}...`;
 
@@ -72,7 +73,7 @@ export async function executeInfo(
       url: String(payload.url || ''),
       domain: String(payload.domain || ''),
       title: String(payload.title || ''),
-      totalChunks: points.length,
+      totalChunks: Number(payload.total_chunks || points.length),
       sourceCommand: String(payload.source_command || ''),
       contentType: String(payload.content_type || ''),
       scrapedAt: String(payload.scraped_at || ''),
@@ -94,15 +95,12 @@ export async function executeInfo(
 /**
  * Format info result for human-readable output
  *
- * @param result Info result to format
+ * @param info URL info data to format
+ * @param full Whether to show full chunk text
  * @returns Formatted string output
  */
-function formatHuman(result: InfoResult): string {
-  if (!result.success || !result.data) {
-    return `Error: ${result.error || 'Unknown error'}`;
-  }
-
-  const data = result.data;
+function formatHuman(info: UrlInfo, full: boolean): string {
+  const data = info;
   const lines: string[] = [];
 
   lines.push('\n=== URL Information ===\n');
@@ -129,14 +127,14 @@ function formatHuman(result: InfoResult): string {
  * Handle info command execution
  * Wrapper for Commander.js integration
  *
- * @param options Info options from CLI
  * @param container DI container with services
+ * @param options Info options from CLI
  */
 async function handleInfoCommand(
-  options: InfoOptions,
-  container: IContainer
+  container: IContainer,
+  options: InfoOptions
 ): Promise<void> {
-  const result = await executeInfo(options, container);
+  const result = await executeInfo(container, options);
 
   if (!handleCommandError(result)) {
     return;
@@ -153,7 +151,7 @@ async function handleInfoCommand(
   if (options.json) {
     outputContent = formatJson({ success: true, data: result.data });
   } else {
-    outputContent = formatHuman(result);
+    outputContent = formatHuman(result.data, !!options.full);
   }
 
   writeOutput(outputContent, options.output, !!options.output);
@@ -162,13 +160,12 @@ async function handleInfoCommand(
 /**
  * Create info command for Commander.js
  *
- * @param container DI container with services
  * @returns Commander Command instance
  */
-export function createInfoCommand(container: IContainer): Command {
-  return new Command('info')
+export function createInfoCommand(): Command {
+  const infoCmd = new Command('info')
     .description('Show detailed information for a specific URL')
-    .requiredOption('-u, --url <url>', 'URL to get information for')
+    .argument('<url>', 'URL to get information for')
     .option('-f, --full', 'Show full chunk text (default: 100 char preview)')
     .option(
       '-c, --collection <name>',
@@ -177,5 +174,20 @@ export function createInfoCommand(container: IContainer): Command {
     )
     .option('-o, --output <file>', 'Write output to file')
     .option('--json', 'Output as JSON')
-    .action((options: InfoOptions) => handleInfoCommand(options, container));
+    .action(async (url: string, options, command: Command) => {
+      const container = command._container;
+      if (!container) {
+        throw new Error('Container not initialized');
+      }
+
+      await handleInfoCommand(container, {
+        url: normalizeUrl(url),
+        full: options.full,
+        collection: options.collection,
+        output: options.output,
+        json: options.json,
+      });
+    });
+
+  return infoCmd;
 }

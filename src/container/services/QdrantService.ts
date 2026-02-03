@@ -9,6 +9,7 @@ import type {
   IQdrantService,
   QdrantDistance,
   QdrantPoint,
+  QdrantScrollPoint,
 } from '../types';
 
 const QDRANT_DISTANCE_VALUES: QdrantDistance[] = [
@@ -188,7 +189,7 @@ export class QdrantService implements IQdrantService {
     collection: string,
     vector: number[],
     limit: number = 10,
-    filter?: Record<string, unknown>
+    filter?: Record<string, string | number | boolean>
   ): Promise<QdrantPoint[]> {
     const body: Record<string, unknown> = {
       query: vector,
@@ -425,13 +426,13 @@ export class QdrantService implements IQdrantService {
    *
    * @param collection Collection name
    * @param filter Optional payload filter
-   * @returns Array of all matching points
+   * @returns Array of all matching points (without vectors)
    */
   async scrollAll(
     collection: string,
-    filter?: Record<string, unknown>
-  ): Promise<QdrantPoint[]> {
-    const allPoints: QdrantPoint[] = [];
+    filter?: Record<string, string | number | boolean>
+  ): Promise<QdrantScrollPoint[]> {
+    const allPoints: QdrantScrollPoint[] = [];
     let offset: string | number | null = null;
     let isFirstPage = true;
 
@@ -475,7 +476,6 @@ export class QdrantService implements IQdrantService {
         result?: {
           points?: Array<{
             id: string;
-            vector?: number[];
             payload?: Record<string, unknown>;
           }>;
           next_page_offset?: string | number | null;
@@ -487,7 +487,6 @@ export class QdrantService implements IQdrantService {
       for (const p of points) {
         allPoints.push({
           id: p.id,
-          vector: p.vector || [],
           payload: p.payload || {},
         });
       }
@@ -497,5 +496,85 @@ export class QdrantService implements IQdrantService {
 
     return allPoints;
   }
-}
 
+  /**
+   * Count total points in collection
+   *
+   * @param collection Collection name
+   * @returns Total point count
+   */
+  async countPoints(collection: string): Promise<number> {
+    const response = await this.httpClient.fetchWithRetry(
+      `${this.qdrantUrl}/collections/${collection}/points/count`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exact: true }),
+      },
+      { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Qdrant count failed: ${response.status}`);
+    }
+
+    const data = (await response.json()) as { result?: { count?: number } };
+    return data.result?.count ?? 0;
+  }
+
+  /**
+   * Count points matching a URL filter
+   *
+   * @param collection Collection name
+   * @param url URL to count
+   * @returns Point count for URL
+   */
+  async countByUrl(collection: string, url: string): Promise<number> {
+    const response = await this.httpClient.fetchWithRetry(
+      `${this.qdrantUrl}/collections/${collection}/points/count`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filter: {
+            must: [{ key: 'url', match: { value: url } }],
+          },
+          exact: true,
+        }),
+      },
+      { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Qdrant count failed: ${response.status}`);
+    }
+
+    const data = (await response.json()) as { result?: { count?: number } };
+    return data.result?.count ?? 0;
+  }
+
+  /**
+   * Delete all points in collection
+   *
+   * @param collection Collection name
+   */
+  async deleteAll(collection: string): Promise<void> {
+    const response = await this.httpClient.fetchWithRetry(
+      `${this.qdrantUrl}/collections/${collection}/points/delete`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filter: {
+            must: [{ key: 'id', match: { any: [] } }],
+          },
+        }),
+      },
+      { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Qdrant delete failed: ${response.status}`);
+    }
+  }
+}

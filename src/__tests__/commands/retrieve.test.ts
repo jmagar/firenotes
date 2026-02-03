@@ -24,6 +24,17 @@ describe('executeRetrieve', () => {
       upsertPoints: vi.fn().mockResolvedValue(undefined),
       queryPoints: vi.fn().mockResolvedValue([]),
       scrollByUrl: vi.fn().mockResolvedValue([]),
+      getCollectionInfo: vi.fn().mockResolvedValue({
+        status: 'green',
+        vectorsCount: 0,
+        pointsCount: 0,
+        segmentsCount: 1,
+        config: { dimension: 1024, distance: 'Cosine' },
+      }),
+      scrollAll: vi.fn().mockResolvedValue([]),
+      countPoints: vi.fn().mockResolvedValue(0),
+      countByUrl: vi.fn().mockResolvedValue(0),
+      deleteAll: vi.fn().mockResolvedValue(undefined),
     };
 
     container = createTestContainer(undefined, {

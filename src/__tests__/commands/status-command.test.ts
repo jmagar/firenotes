@@ -203,6 +203,7 @@ describe('handleJobStatusCommand', () => {
         updatedAt: '2026-02-01T00:01:00.000Z',
       },
     ]);
+    expect(parsed.data.embeddings.completed).toBeUndefined();
   });
 
   it('should list pending embed jobs in human output', async () => {
@@ -258,6 +259,36 @@ describe('handleJobStatusCommand', () => {
     const output = logSpy.mock.calls.map((call) => call[0]).join('\n');
     expect(output).toContain('Failed embeds:');
     expect(output).toContain('job-1: Boom');
+
+    logSpy.mockRestore();
+  });
+
+  it('should list completed embed jobs in human output', async () => {
+    const { listEmbedJobs } = await import('../../utils/embed-queue');
+    vi.mocked(listEmbedJobs).mockReturnValue([
+      {
+        id: 'job-1',
+        jobId: 'job-1',
+        url: 'http://localhost:53002/v2/crawl/job-1',
+        status: 'completed',
+        retries: 0,
+        maxRetries: 3,
+        createdAt: '2026-02-01T00:00:00.000Z',
+        updatedAt: '2026-02-01T00:01:00.000Z',
+      },
+    ]);
+    mockClient.getActiveCrawls.mockResolvedValue({
+      success: true,
+      crawls: [{ id: 'job-1', teamId: 'team', url: 'https://example.com' }],
+    });
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleJobStatusCommand(container, {});
+
+    const output = logSpy.mock.calls.map((call) => call[0]).join('\n');
+    expect(output).toContain('Completed embeds:');
+    expect(output).toContain('job-1 https://example.com');
 
     logSpy.mockRestore();
   });

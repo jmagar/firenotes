@@ -58,7 +58,7 @@ describe('executeInfo', () => {
           scraped_at: '2026-02-03T12:00:00Z',
           chunk_index: 0,
           chunk_header: 'Introduction',
-          text: 'This is the first chunk of content',
+          chunk_text: 'This is the first chunk of content',
         },
       },
       {
@@ -73,20 +73,18 @@ describe('executeInfo', () => {
           scraped_at: '2026-02-03T12:00:00Z',
           chunk_index: 1,
           chunk_header: 'Main Content',
-          text: 'This is the second chunk with more details about the topic',
+          chunk_text:
+            'This is the second chunk with more details about the topic',
         },
       },
     ];
 
     vi.mocked(mockQdrantService.scrollByUrl).mockResolvedValue(mockPoints);
 
-    const result = await executeInfo(
-      {
-        url: testUrl,
-        collection: 'test_col',
-      },
-      container
-    );
+    const result = await executeInfo(container, {
+      url: testUrl,
+      collection: 'test_col',
+    });
 
     expect(result.success).toBe(true);
     expect(result.data).toBeDefined();
@@ -112,16 +110,13 @@ describe('executeInfo', () => {
     const testUrl = 'https://example.com/notfound';
     vi.mocked(mockQdrantService.scrollByUrl).mockResolvedValue([]);
 
-    const result = await executeInfo(
-      {
-        url: testUrl,
-        collection: 'test_col',
-      },
-      container
-    );
+    const result = await executeInfo(container, {
+      url: testUrl,
+      collection: 'test_col',
+    });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('No data found');
+    expect(result.error).toContain('URL not found in vector database');
     expect(mockQdrantService.scrollByUrl).toHaveBeenCalledWith(
       'test_col',
       testUrl
@@ -144,21 +139,18 @@ describe('executeInfo', () => {
           scraped_at: '2026-02-03T12:00:00Z',
           chunk_index: 0,
           chunk_header: null,
-          text: longText,
+          chunk_text: longText,
         },
       },
     ];
 
     vi.mocked(mockQdrantService.scrollByUrl).mockResolvedValue(mockPoints);
 
-    const result = await executeInfo(
-      {
-        url: testUrl,
-        collection: 'test_col',
-        full: false,
-      },
-      container
-    );
+    const result = await executeInfo(container, {
+      url: testUrl,
+      collection: 'test_col',
+      full: false,
+    });
 
     expect(result.success).toBe(true);
     expect(result.data?.chunks[0].textPreview.length).toBeLessThanOrEqual(103); // 100 + "..."
