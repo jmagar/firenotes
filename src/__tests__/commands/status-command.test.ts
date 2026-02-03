@@ -93,10 +93,12 @@ describe('handleJobStatusCommand', () => {
     await handleJobStatusCommand(container, { json: true });
 
     expect(mockClient.getCrawlStatus).toHaveBeenCalledWith(
-      '019c161c-8a80-7051-a438-2ec8707e1bc4'
+      '019c161c-8a80-7051-a438-2ec8707e1bc4',
+      { autoPaginate: false }
     );
     expect(mockClient.getBatchScrapeStatus).toHaveBeenCalledWith(
-      '019c161c-8a80-7051-a438-2ec8707e1bc5'
+      '019c161c-8a80-7051-a438-2ec8707e1bc5',
+      { autoPaginate: false }
     );
     expect(mockClient.getExtractStatus).toHaveBeenCalledWith(
       '019c161c-8a80-7051-a438-2ec8707e1bc6'

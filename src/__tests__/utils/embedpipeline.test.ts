@@ -346,6 +346,26 @@ describe('createEmbedItems', () => {
     expect(items[0].metadata.url).toBe('https://fallback.com');
   });
 
+  it('extracts url from metadata.url as final fallback', () => {
+    const pages = [
+      { markdown: 'content', metadata: { url: 'https://final-fallback.com' } },
+    ];
+    const items = createEmbedItems(pages, 'crawl');
+    expect(items[0].metadata.url).toBe('https://final-fallback.com');
+  });
+
+  it('extracts title from metadata.title when page.title is missing', () => {
+    const pages = [
+      {
+        markdown: 'content',
+        url: 'https://example.com',
+        metadata: { title: 'Metadata Title' },
+      },
+    ];
+    const items = createEmbedItems(pages, 'crawl');
+    expect(items[0].metadata.title).toBe('Metadata Title');
+  });
+
   it('filters out pages without markdown or html', () => {
     const pages = [
       { markdown: 'valid', url: 'https://a.com' },
