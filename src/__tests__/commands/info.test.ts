@@ -156,4 +156,142 @@ describe('executeInfo', () => {
     expect(result.data?.chunks[0].textPreview.length).toBeLessThanOrEqual(103); // 100 + "..."
     expect(result.data?.chunks[0].textPreview).toContain('...');
   });
+
+  it('should fail when QDRANT_URL not configured', async () => {
+    const badContainer = createTestContainer(undefined, {
+      qdrantUrl: undefined,
+    });
+
+    const result = await executeInfo(badContainer, {
+      url: 'https://example.com',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('QDRANT_URL');
+  });
+
+  it('should return full text when full option is true', async () => {
+    const longText = 'a'.repeat(200); // Text longer than 100 char preview
+
+    vi.mocked(mockQdrantService.scrollByUrl).mockResolvedValue([
+      {
+        id: 'p1',
+        vector: [],
+        payload: {
+          url: 'https://example.com/docs',
+          domain: 'example.com',
+          title: 'Documentation',
+          total_chunks: 1,
+          source_command: 'crawl',
+          content_type: 'markdown',
+          scraped_at: '2025-01-15T10:00:00Z',
+          chunk_index: 0,
+          chunk_header: 'Test',
+          chunk_text: longText,
+        },
+      },
+    ]);
+
+    const result = await executeInfo(container, {
+      url: 'https://example.com/docs',
+      full: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data?.chunks[0].textPreview).toBe(longText);
+    expect(result.data?.chunks[0].textPreview).not.toContain('...');
+  });
+
+  it('should sort chunks by index', async () => {
+    vi.mocked(mockQdrantService.scrollByUrl).mockResolvedValue([
+      {
+        id: 'p3',
+        vector: [],
+        payload: {
+          url: 'https://example.com/docs',
+          domain: 'example.com',
+          title: 'Documentation',
+          total_chunks: 3,
+          source_command: 'crawl',
+          content_type: 'markdown',
+          scraped_at: '2025-01-15T10:00:00Z',
+          chunk_index: 2,
+          chunk_header: 'Third',
+          chunk_text: 'Third chunk',
+        },
+      },
+      {
+        id: 'p1',
+        vector: [],
+        payload: {
+          url: 'https://example.com/docs',
+          domain: 'example.com',
+          title: 'Documentation',
+          total_chunks: 3,
+          source_command: 'crawl',
+          content_type: 'markdown',
+          scraped_at: '2025-01-15T10:00:00Z',
+          chunk_index: 0,
+          chunk_header: 'First',
+          chunk_text: 'First chunk',
+        },
+      },
+      {
+        id: 'p2',
+        vector: [],
+        payload: {
+          url: 'https://example.com/docs',
+          domain: 'example.com',
+          title: 'Documentation',
+          total_chunks: 3,
+          source_command: 'crawl',
+          content_type: 'markdown',
+          scraped_at: '2025-01-15T10:00:00Z',
+          chunk_index: 1,
+          chunk_header: 'Second',
+          chunk_text: 'Second chunk',
+        },
+      },
+    ]);
+
+    const result = await executeInfo(container, {
+      url: 'https://example.com/docs',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data?.chunks[0].index).toBe(0);
+    expect(result.data?.chunks[1].index).toBe(1);
+    expect(result.data?.chunks[2].index).toBe(2);
+    expect(result.data?.chunks[0].header).toBe('First');
+    expect(result.data?.chunks[1].header).toBe('Second');
+    expect(result.data?.chunks[2].header).toBe('Third');
+  });
+
+  it('should handle null chunk headers', async () => {
+    vi.mocked(mockQdrantService.scrollByUrl).mockResolvedValue([
+      {
+        id: 'p1',
+        vector: [],
+        payload: {
+          url: 'https://example.com/docs',
+          domain: 'example.com',
+          title: 'Documentation',
+          total_chunks: 1,
+          source_command: 'crawl',
+          content_type: 'markdown',
+          scraped_at: '2025-01-15T10:00:00Z',
+          chunk_index: 0,
+          chunk_header: null,
+          chunk_text: 'Some text without header',
+        },
+      },
+    ]);
+
+    const result = await executeInfo(container, {
+      url: 'https://example.com/docs',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data?.chunks[0].header).toBeNull();
+  });
 });
