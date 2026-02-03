@@ -97,6 +97,9 @@ export async function executeHistory(
     // Sort by date descending (newest first)
     entries.sort((a, b) => b.date.localeCompare(a.date));
 
+    // Store total count before limit
+    const totalEntries = entries.length;
+
     // Apply limit if specified
     if (options.limit && options.limit > 0) {
       entries = entries.slice(0, options.limit);
@@ -114,7 +117,7 @@ export async function executeHistory(
       success: true,
       data: {
         entries,
-        totalEntries: entries.length,
+        totalEntries,
         dateRange,
       },
     };
