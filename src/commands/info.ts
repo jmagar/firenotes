@@ -177,7 +177,7 @@ export function createInfoCommand(): Command {
       'firecrawl'
     )
     .option('-o, --output <file>', 'Write output to file (default: stdout)')
-    .option('--json', 'Output as JSON (default: false)', false)
+    .option('--json', 'Output as JSON', false)
     .action(async (url: string, options, command: Command) => {
       const container = command._container;
       if (!container) {

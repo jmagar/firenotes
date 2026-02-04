@@ -255,7 +255,7 @@ export function createEmbedCommand(): Command {
       'Firecrawl API key (overrides global --api-key)'
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON format (default: false)', false)
+    .option('--json', 'Output as JSON format', false)
     .action(async (input: string | undefined, options, command: Command) => {
       // If no input provided and no subcommand, show help
       if (!input) {

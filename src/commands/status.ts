@@ -379,24 +379,75 @@ async function executeJobStatus(
   };
 }
 
+function getStatusIcon(status: string, error?: string): string {
+  if (error) return '✗';
+  switch (status) {
+    case 'completed':
+      return '✓';
+    case 'scraping':
+    case 'processing':
+      return '⏳';
+    case 'failed':
+      return '✗';
+    default:
+      return '•';
+  }
+}
+
+function getStatusColor(status: string, error?: string): string {
+  const isTTY = process.stdout.isTTY;
+  if (!isTTY) return '';
+
+  if (error) return '\x1b[31m'; // red
+  switch (status) {
+    case 'completed':
+      return '\x1b[32m'; // green
+    case 'scraping':
+    case 'processing':
+      return '\x1b[33m'; // yellow
+    case 'failed':
+      return '\x1b[31m'; // red
+    default:
+      return '\x1b[36m'; // cyan
+  }
+}
+
+function formatProgress(completed: number, total: number): string {
+  const isTTY = process.stdout.isTTY;
+  if (!isTTY) return `${completed}/${total}`;
+
+  const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const barWidth = 20;
+  const filled = Math.round((completed / total) * barWidth);
+  const bar = '█'.repeat(filled) + '░'.repeat(barWidth - filled);
+  return `${bar} ${percentage}% (${completed}/${total})`;
+}
+
 function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
+  const reset = '\x1b[0m';
+  const dim = '\x1b[2m';
+  const bold = '\x1b[1m';
+  const isTTY = process.stdout.isTTY;
+
+  const color = (code: string, text: string) =>
+    isTTY ? `${code}${text}${reset}` : text;
+
   console.log('');
-  console.log('Crawls');
+  console.log(color(bold, 'Crawls'));
   if (data.activeCrawls.crawls.length === 0) {
-    console.log('  No active crawls.');
+    console.log(color(dim, '  No active crawls.'));
   } else {
     for (const crawl of data.activeCrawls.crawls) {
-      console.log(`  ${crawl.id} ${crawl.url}`);
+      console.log(`  ${color('\x1b[33m', '⏳')} ${crawl.id} ${crawl.url}`);
     }
   }
 
   if (data.crawls.length > 0) {
     console.log('');
-    console.log('Crawl Status');
+    console.log(color(bold, 'Crawl Status'));
     const activeUrlById = new Map(
       data.activeCrawls.crawls.map((crawl) => [crawl.id, crawl.url])
     );
-    // Already sorted in executeJobStatus()
     for (const crawl of data.crawls) {
       const crawlError = (crawl as { error?: string }).error;
       const crawlData = (
@@ -408,90 +459,126 @@ function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
         ? (crawlData[0]?.metadata?.sourceURL ?? crawlData[0]?.metadata?.url)
         : undefined;
       const displayUrl = sourceUrl ?? activeUrlById.get(crawl.id);
+      const icon = getStatusIcon(crawl.status ?? 'unknown', crawlError);
+      const statusColor = getStatusColor(crawl.status ?? 'unknown', crawlError);
+
       if (crawlError) {
-        const suffix = displayUrl ? ` ${displayUrl}` : '';
-        console.log(`  ${crawl.id}: error (${crawlError})${suffix}`);
-      } else if ('completed' in crawl && 'total' in crawl) {
+        const suffix = displayUrl ? ` ${color(dim, displayUrl)}` : '';
         console.log(
-          `  ${crawl.id}: ${crawl.status} (${crawl.completed}/${crawl.total})${displayUrl ? ` ${displayUrl}` : ''}`
+          `  ${color(statusColor, icon)} ${crawl.id} ${color(statusColor, 'error')} ${color(dim, `(${crawlError})`)}${suffix}`
+        );
+      } else if ('completed' in crawl && 'total' in crawl) {
+        const progress = formatProgress(
+          crawl.completed as number,
+          crawl.total as number
+        );
+        console.log(
+          `  ${color(statusColor, icon)} ${crawl.id} ${color(statusColor, crawl.status)} ${progress}${displayUrl ? ` ${color(dim, displayUrl)}` : ''}`
         );
       } else {
         console.log(
-          `  ${crawl.id}: ${crawl.status}${displayUrl ? ` ${displayUrl}` : ''}`
+          `  ${color(statusColor, icon)} ${crawl.id} ${color(statusColor, crawl.status ?? 'unknown')}${displayUrl ? ` ${color(dim, displayUrl)}` : ''}`
         );
       }
     }
   } else if (data.resolvedIds.crawls.length === 0) {
     console.log('');
-    console.log('Crawl Status');
-    console.log('  No recent crawl job IDs found.');
+    console.log(color(bold, 'Crawl Status'));
+    console.log(color(dim, '  No recent crawl job IDs found.'));
   }
 
   console.log('');
-  console.log('Batch Status');
+  console.log(color(bold, 'Batch Status'));
   if (data.batches.length === 0) {
-    console.log('  No recent batch job IDs found.');
+    console.log(color(dim, '  No recent batch job IDs found.'));
   } else {
-    // Already sorted in executeJobStatus()
     for (const batch of data.batches) {
       const batchError = (batch as { error?: string }).error;
+      const icon = getStatusIcon(batch.status ?? 'unknown', batchError);
+      const statusColor = getStatusColor(batch.status ?? 'unknown', batchError);
+
       if (batchError) {
-        console.log(`  ${batch.id}: error (${batchError})`);
-      } else if ('completed' in batch && 'total' in batch) {
         console.log(
-          `  ${batch.id}: ${batch.status} (${batch.completed}/${batch.total})`
+          `  ${color(statusColor, icon)} ${batch.id} ${color(statusColor, 'error')} ${color(dim, `(${batchError})`)}`
+        );
+      } else if ('completed' in batch && 'total' in batch) {
+        const progress = formatProgress(
+          batch.completed as number,
+          batch.total as number
+        );
+        console.log(
+          `  ${color(statusColor, icon)} ${batch.id} ${color(statusColor, batch.status)} ${progress}`
         );
       } else {
-        console.log(`  ${batch.id}: ${batch.status}`);
+        console.log(
+          `  ${color(statusColor, icon)} ${batch.id} ${color(statusColor, batch.status ?? 'unknown')}`
+        );
       }
     }
   }
 
   console.log('');
-  console.log('Extract Status');
+  console.log(color(bold, 'Extract Status'));
   if (data.extracts.length === 0) {
-    console.log('  No recent extract job IDs found.');
+    console.log(color(dim, '  No recent extract job IDs found.'));
   } else {
-    // Already sorted in executeJobStatus()
     for (const extract of data.extracts) {
       const extractError = (extract as { error?: string }).error;
+      const icon = getStatusIcon(extract.status ?? 'unknown', extractError);
+      const statusColor = getStatusColor(
+        extract.status ?? 'unknown',
+        extractError
+      );
+
       if (extractError) {
-        console.log(`  ${extract.id}: error (${extractError})`);
+        console.log(
+          `  ${color(statusColor, icon)} ${extract.id} ${color(statusColor, 'error')} ${color(dim, `(${extractError})`)}`
+        );
       } else {
-        console.log(`  ${extract.id}: ${extract.status ?? 'unknown'}`);
+        console.log(
+          `  ${color(statusColor, icon)} ${extract.id} ${color(statusColor, extract.status ?? 'unknown')}`
+        );
       }
     }
   }
 
   console.log('');
-  console.log('Embeddings');
+  console.log(color(bold, 'Embeddings'));
   const summary = data.embeddings.summary;
   const total =
     summary.pending + summary.processing + summary.completed + summary.failed;
   if (total === 0) {
-    console.log('  No embedding jobs found.');
+    console.log(color(dim, '  No embedding jobs found.'));
   } else {
-    console.log(
-      `  pending ${summary.pending} | processing ${summary.processing} | completed ${summary.completed} | failed ${summary.failed}`
-    );
+    const stats = [
+      `${color('\x1b[33m', '⏳')} pending ${summary.pending}`,
+      `${color('\x1b[36m', '⏳')} processing ${summary.processing}`,
+      `${color('\x1b[32m', '✓')} completed ${summary.completed}`,
+      `${color('\x1b[31m', '✗')} failed ${summary.failed}`,
+    ];
+    console.log(`  ${stats.join(' | ')}`);
   }
 
   if (data.embeddings.job) {
     const job = data.embeddings.job;
+    const statusColor = getStatusColor(job.status);
+    const icon = getStatusIcon(job.status);
     console.log(
-      `  job ${job.jobId}: ${job.status} (retries ${job.retries}/${job.maxRetries})`
+      `  ${color(statusColor, icon)} job ${job.jobId} ${color(statusColor, job.status)} ${color(dim, `(retries ${job.retries}/${job.maxRetries})`)}`
     );
     if (job.lastError) {
-      console.log(`  last error: ${job.lastError}`);
+      console.log(`  ${color('\x1b[31m', `last error: ${job.lastError}`)}`);
     }
   }
 
-  console.log('  Failed embeds:');
+  console.log(`  ${color(dim, 'Failed embeds:')}`);
   if (data.embeddings.failed.length === 0) {
-    console.log('    No failed embedding jobs.');
+    console.log(color(dim, '    No failed embedding jobs.'));
   } else {
     for (const job of data.embeddings.failed) {
-      console.log(`    ${job.jobId}: ${job.lastError ?? 'Unknown error'}`);
+      console.log(
+        `    ${color('\x1b[31m', '✗')} ${job.jobId} ${color('\x1b[31m', job.lastError ?? 'Unknown error')}`
+      );
     }
   }
 
@@ -513,25 +600,27 @@ function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
     }
   }
 
-  console.log('  Pending embeds:');
+  console.log(`  ${color(dim, 'Pending embeds:')}`);
   if (data.embeddings.pending.length === 0) {
-    console.log('    No pending embedding jobs.');
+    console.log(color(dim, '    No pending embedding jobs.'));
   } else {
     for (const job of data.embeddings.pending) {
       const displayUrl = crawlUrlById.get(job.jobId) ?? job.url;
       console.log(
-        `    ${job.jobId} (${job.retries}/${job.maxRetries}) ${displayUrl}`
+        `    ${color('\x1b[33m', '⏳')} ${job.jobId} ${color(dim, `(${job.retries}/${job.maxRetries})`)} ${color(dim, displayUrl)}`
       );
     }
   }
 
-  console.log('  Completed embeds:');
+  console.log(`  ${color(dim, 'Completed embeds:')}`);
   if (data.embeddings.completed.length === 0) {
-    console.log('    No completed embedding jobs.');
+    console.log(color(dim, '    No completed embedding jobs.'));
   } else {
     for (const job of data.embeddings.completed) {
       const displayUrl = crawlUrlById.get(job.jobId) ?? job.url;
-      console.log(`    ${job.jobId} ${displayUrl}`);
+      console.log(
+        `    ${color('\x1b[32m', '✓')} ${job.jobId} ${color(dim, displayUrl)}`
+      );
     }
   }
   console.log('');
@@ -588,8 +677,8 @@ export function createStatusCommand(): Command {
       '--embed [job-id]',
       'Show embedding queue status (optionally for job ID)'
     )
-    .option('--json', 'Output JSON (compact) (default: false)', false)
-    .option('--pretty', 'Pretty print JSON output (default: false)', false)
+    .option('--json', 'Output JSON (compact)', false)
+    .option('--pretty', 'Pretty print JSON output', false)
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .action(async (options, command: Command) => {
       const container = command._container;

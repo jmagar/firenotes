@@ -441,7 +441,7 @@ export function createSearchCommand(): Command {
       'Firecrawl API key (overrides global --api-key)'
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as compact JSON (default: false)', false)
+    .option('--json', 'Output as compact JSON', false)
     .option(
       '--pretty',
       'Output as formatted JSON (implies --json) (default: false)',

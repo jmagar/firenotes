@@ -188,7 +188,7 @@ export function createDeleteCommand(): Command {
       'Qdrant collection name (default: firecrawl)'
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON (default: false)', false)
+    .option('--json', 'Output as JSON', false)
     .action(async (options, command: Command) => {
       const container = command._container;
       if (!container) {

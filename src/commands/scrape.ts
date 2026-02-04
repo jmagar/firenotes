@@ -261,28 +261,19 @@ export function createScrapeCommand(): Command {
       '-f, --format <formats>',
       'Output format(s). Multiple formats can be specified with commas (e.g., "markdown,links,images"). Available: markdown, html, rawHtml, links, images, screenshot, summary, changeTracking, json, attributes, branding. Single format outputs raw content; multiple formats output JSON.'
     )
-    .option(
-      '--only-main-content',
-      'Include only main content (default: true)',
-      true
-    )
+    .option('--only-main-content', 'Include only main content', true)
     .option('--no-only-main-content', 'Include full page content')
     .option(
       '--wait-for <ms>',
       'Wait time before scraping in milliseconds',
       parseInt
     )
-    .option(
-      '--timeout <seconds>',
-      'Request timeout in seconds (default: 15)',
-      parseFloat,
-      15
-    )
-    .option('--screenshot', 'Take a screenshot (default: false)', false)
+    .option('--timeout <seconds>', 'Request timeout in seconds', parseFloat, 15)
+    .option('--screenshot', 'Take a screenshot', false)
     .option('--include-tags <tags>', 'Comma-separated list of tags to include')
     .option(
       '--exclude-tags <tags>',
-      'Comma-separated list of tags to exclude (default: nav,footer)',
+      'Comma-separated list of tags to exclude',
       'nav,footer'
     )
     .option(
@@ -290,17 +281,17 @@ export function createScrapeCommand(): Command {
       'Firecrawl API key (overrides global --api-key)'
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON format (default: false)', false)
-    .option('--pretty', 'Pretty print JSON output (default: false)', false)
+    .option('--json', 'Output as JSON format', false)
+    .option('--pretty', 'Pretty print JSON output', false)
     .option(
       '--timing',
-      'Show request timing and other useful information (default: false)',
+      'Show request timing and other useful information',
       false
     )
     .option('--no-embed', 'Skip auto-embedding of scraped content')
     .option(
       '--remove',
-      'Remove all documents for this domain from Qdrant (default: false)',
+      'Remove all documents for this domain from Qdrant',
       false
     )
     .action(

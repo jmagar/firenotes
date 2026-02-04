@@ -233,13 +233,13 @@ export function createQueryCommand(): Command {
       'Show full chunk text instead of truncated (default: false)',
       false
     )
-    .option('--group', 'Group results by URL (default: false)', false)
+    .option('--group', 'Group results by URL', false)
     .option(
       '--collection <name>',
       'Qdrant collection name (default: firecrawl)'
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON format (default: false)', false)
+    .option('--json', 'Output as JSON format', false)
     .action(async (query: string, options, command: Command) => {
       const container = command._container;
       if (!container) {

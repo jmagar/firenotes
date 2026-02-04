@@ -263,7 +263,7 @@ export function createMapCommand(): Command {
       '--sitemap <mode>',
       'Sitemap handling: only, include, skip (default: include)'
     )
-    .option('--include-subdomains', 'Include subdomains (default: true)', true)
+    .option('--include-subdomains', 'Include subdomains', true)
     .option('--no-include-subdomains', 'Exclude subdomains')
     .option(
       '--ignore-query-parameters',
@@ -277,8 +277,8 @@ export function createMapCommand(): Command {
       'Firecrawl API key (overrides global --api-key)'
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON format (default: false)', false)
-    .option('--pretty', 'Pretty print JSON output (default: false)', false)
+    .option('--json', 'Output as JSON format', false)
+    .option('--pretty', 'Pretty print JSON output', false)
     .action(async (positionalUrl, options, command: Command) => {
       const container = command._container;
       if (!container) {

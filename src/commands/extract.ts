@@ -273,8 +273,8 @@ export function createExtractCommand(container?: IContainer): Command {
       'Firecrawl API key (overrides global --api-key)'
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON format (default: false)', false)
-    .option('--pretty', 'Pretty print JSON output (default: false)', false)
+    .option('--json', 'Output as JSON format', false)
+    .option('--pretty', 'Pretty print JSON output', false)
     .option('--no-embed', 'Disable auto-embedding of extracted content')
     .action(async (rawUrls: string[], options, command: Command) => {
       const container = command._container;

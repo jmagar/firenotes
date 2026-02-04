@@ -332,7 +332,7 @@ export function createCrawlCommand(): Command {
     )
     .option(
       '--scrape-timeout <seconds>',
-      'Per-page scrape timeout in seconds (default: 15)',
+      'Per-page scrape timeout in seconds',
       parseFloat,
       15
     )
@@ -340,7 +340,7 @@ export function createCrawlCommand(): Command {
     .option('--limit <number>', 'Maximum number of pages to crawl', parseInt)
     .option(
       '--max-depth <number>',
-      'Maximum crawl depth (default: 3)',
+      'Maximum crawl depth',
       (value: string) => parseInt(value, 10),
       3
     )
@@ -352,10 +352,14 @@ export function createCrawlCommand(): Command {
       '--include-paths <paths>',
       'Comma-separated list of paths to include'
     )
-    .option('--sitemap <mode>', 'Sitemap handling: skip, include', 'include')
+    .option(
+      '--sitemap <mode>',
+      'Sitemap handling: skip, include (default: include)',
+      'include'
+    )
     .option(
       '--ignore-query-parameters',
-      'Ignore query parameters when crawling (default: true)',
+      'Ignore query parameters when crawling',
       true
     )
     .option(
@@ -364,17 +368,17 @@ export function createCrawlCommand(): Command {
     )
     .option('--crawl-entire-domain', 'Crawl entire domain', false)
     .option('--allow-external-links', 'Allow external links', false)
-    .option('--allow-subdomains', 'Allow subdomains (default: true)', true)
+    .option('--allow-subdomains', 'Allow subdomains', true)
     .option('--no-allow-subdomains', 'Disallow subdomains')
     .option(
       '--only-main-content',
-      'Include only main content when scraping pages (default: true)',
+      'Include only main content when scraping pages',
       true
     )
     .option('--no-only-main-content', 'Include full page content')
     .option(
       '--exclude-tags <tags>',
-      'Comma-separated list of tags to exclude from scraped content (default: nav,footer)',
+      'Comma-separated list of tags to exclude from scraped content',
       'nav,footer'
     )
     .option(
