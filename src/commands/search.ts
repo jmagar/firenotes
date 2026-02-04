@@ -382,7 +382,8 @@ export function createSearchCommand(): Command {
     .option(
       '--limit <number>',
       'Maximum number of results (default: 5, max: 100)',
-      parseInt
+      parseInt,
+      5
     )
     .option(
       '--sources <sources>',
@@ -407,7 +408,8 @@ export function createSearchCommand(): Command {
     .option(
       '--timeout <ms>',
       'Timeout in milliseconds (default: 60000)',
-      parseInt
+      parseInt,
+      60000
     )
     .option(
       '--ignore-invalid-urls',
@@ -430,7 +432,7 @@ export function createSearchCommand(): Command {
     )
     .option(
       '--only-main-content',
-      'Include only main content when scraping',
+      'Include only main content when scraping (default: true)',
       true
     )
     .option('--no-embed', 'Skip auto-embedding of search results')
@@ -439,8 +441,12 @@ export function createSearchCommand(): Command {
       'Firecrawl API key (overrides global --api-key)'
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as compact JSON', false)
-    .option('--pretty', 'Output as formatted JSON (implies --json)', false)
+    .option('--json', 'Output as compact JSON (default: false)', false)
+    .option(
+      '--pretty',
+      'Output as formatted JSON (implies --json) (default: false)',
+      false
+    )
     .action(async (query, options, command: Command) => {
       const container = command._container;
       if (!container) {

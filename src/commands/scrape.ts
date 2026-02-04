@@ -278,7 +278,7 @@ export function createScrapeCommand(): Command {
       parseFloat,
       15
     )
-    .option('--screenshot', 'Take a screenshot', false)
+    .option('--screenshot', 'Take a screenshot (default: false)', false)
     .option('--include-tags <tags>', 'Comma-separated list of tags to include')
     .option(
       '--exclude-tags <tags>',
@@ -290,17 +290,17 @@ export function createScrapeCommand(): Command {
       'Firecrawl API key (overrides global --api-key)'
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON format', false)
-    .option('--pretty', 'Pretty print JSON output', false)
+    .option('--json', 'Output as JSON format (default: false)', false)
+    .option('--pretty', 'Pretty print JSON output (default: false)', false)
     .option(
       '--timing',
-      'Show request timing and other useful information',
+      'Show request timing and other useful information (default: false)',
       false
     )
     .option('--no-embed', 'Skip auto-embedding of scraped content')
     .option(
       '--remove',
-      'Remove all documents for this domain from Qdrant',
+      'Remove all documents for this domain from Qdrant (default: false)',
       false
     )
     .action(

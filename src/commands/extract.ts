@@ -248,21 +248,33 @@ export function createExtractCommand(container?: IContainer): Command {
     .option('--prompt <prompt>', 'Extraction prompt describing what to extract')
     .option('--schema <json>', 'JSON schema for structured extraction')
     .option('--system-prompt <prompt>', 'System prompt for extraction context')
-    .option('--allow-external-links', 'Allow following external links', false)
     .option(
-      '--enable-web-search',
-      'Enable web search for additional context',
+      '--allow-external-links',
+      'Allow following external links (default: false)',
       false
     )
-    .option('--include-subdomains', 'Include subdomains when extracting', false)
-    .option('--show-sources', 'Include source URLs in result', false)
+    .option(
+      '--enable-web-search',
+      'Enable web search for additional context (default: false)',
+      false
+    )
+    .option(
+      '--include-subdomains',
+      'Include subdomains when extracting (default: false)',
+      false
+    )
+    .option(
+      '--show-sources',
+      'Include source URLs in result (default: false)',
+      false
+    )
     .option(
       '-k, --api-key <key>',
       'Firecrawl API key (overrides global --api-key)'
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON format', false)
-    .option('--pretty', 'Pretty print JSON output', false)
+    .option('--json', 'Output as JSON format (default: false)', false)
+    .option('--pretty', 'Pretty print JSON output (default: false)', false)
     .option('--no-embed', 'Disable auto-embedding of extracted content')
     .action(async (rawUrls: string[], options, command: Command) => {
       const container = command._container;
