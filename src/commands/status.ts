@@ -16,6 +16,16 @@ import { withTimeout } from '../utils/http';
 import { isJobId } from '../utils/job';
 import { getRecentJobIds, removeJobIds } from '../utils/job-history';
 import { writeOutput } from '../utils/output';
+import {
+  colorize,
+  colors,
+  fmt,
+  formatProgress,
+  getStatusColor,
+  getStatusIcon,
+  icons,
+  isTTY,
+} from '../utils/theme';
 
 type AuthSource = 'env' | 'stored' | 'none';
 
@@ -379,72 +389,22 @@ async function executeJobStatus(
   };
 }
 
-function getStatusIcon(status: string, error?: string): string {
-  if (error) return '✗';
-  switch (status) {
-    case 'completed':
-      return '✓';
-    case 'scraping':
-    case 'processing':
-      return '⏳';
-    case 'failed':
-      return '✗';
-    default:
-      return '•';
-  }
-}
-
-function getStatusColor(status: string, error?: string): string {
-  const isTTY = process.stdout.isTTY;
-  if (!isTTY) return '';
-
-  if (error) return '\x1b[31m'; // red
-  switch (status) {
-    case 'completed':
-      return '\x1b[32m'; // green
-    case 'scraping':
-    case 'processing':
-      return '\x1b[33m'; // yellow
-    case 'failed':
-      return '\x1b[31m'; // red
-    default:
-      return '\x1b[36m'; // cyan
-  }
-}
-
-function formatProgress(completed: number, total: number): string {
-  const isTTY = process.stdout.isTTY;
-  if (!isTTY) return `${completed}/${total}`;
-
-  const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-  const barWidth = 20;
-  const filled = Math.round((completed / total) * barWidth);
-  const bar = '█'.repeat(filled) + '░'.repeat(barWidth - filled);
-  return `${bar} ${percentage}% (${completed}/${total})`;
-}
-
 function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
-  const reset = '\x1b[0m';
-  const dim = '\x1b[2m';
-  const bold = '\x1b[1m';
-  const isTTY = process.stdout.isTTY;
-
-  const color = (code: string, text: string) =>
-    isTTY ? `${code}${text}${reset}` : text;
-
   console.log('');
-  console.log(color(bold, 'Crawls'));
+  console.log(fmt.bold('Crawls'));
   if (data.activeCrawls.crawls.length === 0) {
-    console.log(color(dim, '  No active crawls.'));
+    console.log(fmt.dim('  No active crawls.'));
   } else {
     for (const crawl of data.activeCrawls.crawls) {
-      console.log(`  ${color('\x1b[33m', '⏳')} ${crawl.id} ${crawl.url}`);
+      console.log(
+        `  ${colorize(colors.warning, icons.processing)} ${crawl.id} ${crawl.url}`
+      );
     }
   }
 
   if (data.crawls.length > 0) {
     console.log('');
-    console.log(color(bold, 'Crawl Status'));
+    console.log(fmt.bold('Crawl Status'));
     const activeUrlById = new Map(
       data.activeCrawls.crawls.map((crawl) => [crawl.id, crawl.url])
     );
@@ -459,13 +419,16 @@ function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
         ? (crawlData[0]?.metadata?.sourceURL ?? crawlData[0]?.metadata?.url)
         : undefined;
       const displayUrl = sourceUrl ?? activeUrlById.get(crawl.id);
-      const icon = getStatusIcon(crawl.status ?? 'unknown', crawlError);
-      const statusColor = getStatusColor(crawl.status ?? 'unknown', crawlError);
+      const icon = getStatusIcon(crawl.status ?? 'unknown', !!crawlError);
+      const statusColor = getStatusColor(
+        crawl.status ?? 'unknown',
+        !!crawlError
+      );
 
       if (crawlError) {
-        const suffix = displayUrl ? ` ${color(dim, displayUrl)}` : '';
+        const suffix = displayUrl ? ` ${fmt.dim(displayUrl)}` : '';
         console.log(
-          `  ${color(statusColor, icon)} ${crawl.id} ${color(statusColor, 'error')} ${color(dim, `(${crawlError})`)}${suffix}`
+          `  ${colorize(statusColor, icon)} ${crawl.id} ${colorize(statusColor, 'error')} ${fmt.dim(`(${crawlError})`)}${suffix}`
         );
       } else if ('completed' in crawl && 'total' in crawl) {
         const progress = formatProgress(
@@ -473,33 +436,36 @@ function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
           crawl.total as number
         );
         console.log(
-          `  ${color(statusColor, icon)} ${crawl.id} ${color(statusColor, crawl.status)} ${progress}${displayUrl ? ` ${color(dim, displayUrl)}` : ''}`
+          `  ${colorize(statusColor, icon)} ${crawl.id} ${colorize(statusColor, crawl.status)} ${progress}${displayUrl ? ` ${fmt.dim(displayUrl)}` : ''}`
         );
       } else {
         console.log(
-          `  ${color(statusColor, icon)} ${crawl.id} ${color(statusColor, crawl.status ?? 'unknown')}${displayUrl ? ` ${color(dim, displayUrl)}` : ''}`
+          `  ${colorize(statusColor, icon)} ${crawl.id} ${colorize(statusColor, crawl.status ?? 'unknown')}${displayUrl ? ` ${fmt.dim(displayUrl)}` : ''}`
         );
       }
     }
   } else if (data.resolvedIds.crawls.length === 0) {
     console.log('');
-    console.log(color(bold, 'Crawl Status'));
-    console.log(color(dim, '  No recent crawl job IDs found.'));
+    console.log(fmt.bold('Crawl Status'));
+    console.log(fmt.dim('  No recent crawl job IDs found.'));
   }
 
   console.log('');
-  console.log(color(bold, 'Batch Status'));
+  console.log(fmt.bold('Batch Status'));
   if (data.batches.length === 0) {
-    console.log(color(dim, '  No recent batch job IDs found.'));
+    console.log(fmt.dim('  No recent batch job IDs found.'));
   } else {
     for (const batch of data.batches) {
       const batchError = (batch as { error?: string }).error;
-      const icon = getStatusIcon(batch.status ?? 'unknown', batchError);
-      const statusColor = getStatusColor(batch.status ?? 'unknown', batchError);
+      const icon = getStatusIcon(batch.status ?? 'unknown', !!batchError);
+      const statusColor = getStatusColor(
+        batch.status ?? 'unknown',
+        !!batchError
+      );
 
       if (batchError) {
         console.log(
-          `  ${color(statusColor, icon)} ${batch.id} ${color(statusColor, 'error')} ${color(dim, `(${batchError})`)}`
+          `  ${colorize(statusColor, icon)} ${batch.id} ${colorize(statusColor, 'error')} ${fmt.dim(`(${batchError})`)}`
         );
       } else if ('completed' in batch && 'total' in batch) {
         const progress = formatProgress(
@@ -507,54 +473,54 @@ function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
           batch.total as number
         );
         console.log(
-          `  ${color(statusColor, icon)} ${batch.id} ${color(statusColor, batch.status)} ${progress}`
+          `  ${colorize(statusColor, icon)} ${batch.id} ${colorize(statusColor, batch.status)} ${progress}`
         );
       } else {
         console.log(
-          `  ${color(statusColor, icon)} ${batch.id} ${color(statusColor, batch.status ?? 'unknown')}`
+          `  ${colorize(statusColor, icon)} ${batch.id} ${colorize(statusColor, batch.status ?? 'unknown')}`
         );
       }
     }
   }
 
   console.log('');
-  console.log(color(bold, 'Extract Status'));
+  console.log(fmt.bold('Extract Status'));
   if (data.extracts.length === 0) {
-    console.log(color(dim, '  No recent extract job IDs found.'));
+    console.log(fmt.dim('  No recent extract job IDs found.'));
   } else {
     for (const extract of data.extracts) {
       const extractError = (extract as { error?: string }).error;
-      const icon = getStatusIcon(extract.status ?? 'unknown', extractError);
+      const icon = getStatusIcon(extract.status ?? 'unknown', !!extractError);
       const statusColor = getStatusColor(
         extract.status ?? 'unknown',
-        extractError
+        !!extractError
       );
 
       if (extractError) {
         console.log(
-          `  ${color(statusColor, icon)} ${extract.id} ${color(statusColor, 'error')} ${color(dim, `(${extractError})`)}`
+          `  ${colorize(statusColor, icon)} ${extract.id} ${colorize(statusColor, 'error')} ${fmt.dim(`(${extractError})`)}`
         );
       } else {
         console.log(
-          `  ${color(statusColor, icon)} ${extract.id} ${color(statusColor, extract.status ?? 'unknown')}`
+          `  ${colorize(statusColor, icon)} ${extract.id} ${colorize(statusColor, extract.status ?? 'unknown')}`
         );
       }
     }
   }
 
   console.log('');
-  console.log(color(bold, 'Embeddings'));
+  console.log(fmt.bold('Embeddings'));
   const summary = data.embeddings.summary;
   const total =
     summary.pending + summary.processing + summary.completed + summary.failed;
   if (total === 0) {
-    console.log(color(dim, '  No embedding jobs found.'));
+    console.log(fmt.dim('  No embedding jobs found.'));
   } else {
     const stats = [
-      `${color('\x1b[33m', '⏳')} pending ${summary.pending}`,
-      `${color('\x1b[36m', '⏳')} processing ${summary.processing}`,
-      `${color('\x1b[32m', '✓')} completed ${summary.completed}`,
-      `${color('\x1b[31m', '✗')} failed ${summary.failed}`,
+      `${colorize(colors.warning, icons.processing)} pending ${summary.pending}`,
+      `${colorize(colors.info, icons.processing)} processing ${summary.processing}`,
+      `${colorize(colors.success, icons.success)} completed ${summary.completed}`,
+      `${colorize(colors.error, icons.error)} failed ${summary.failed}`,
     ];
     console.log(`  ${stats.join(' | ')}`);
   }
@@ -564,20 +530,22 @@ function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
     const statusColor = getStatusColor(job.status);
     const icon = getStatusIcon(job.status);
     console.log(
-      `  ${color(statusColor, icon)} job ${job.jobId} ${color(statusColor, job.status)} ${color(dim, `(retries ${job.retries}/${job.maxRetries})`)}`
+      `  ${colorize(statusColor, icon)} job ${job.jobId} ${colorize(statusColor, job.status)} ${fmt.dim(`(retries ${job.retries}/${job.maxRetries})`)}`
     );
     if (job.lastError) {
-      console.log(`  ${color('\x1b[31m', `last error: ${job.lastError}`)}`);
+      console.log(
+        `  ${colorize(colors.error, `last error: ${job.lastError}`)}`
+      );
     }
   }
 
-  console.log(`  ${color(dim, 'Failed embeds:')}`);
+  console.log(`  ${fmt.dim('Failed embeds:')}`);
   if (data.embeddings.failed.length === 0) {
-    console.log(color(dim, '    No failed embedding jobs.'));
+    console.log(fmt.dim('    No failed embedding jobs.'));
   } else {
     for (const job of data.embeddings.failed) {
       console.log(
-        `    ${color('\x1b[31m', '✗')} ${job.jobId} ${color('\x1b[31m', job.lastError ?? 'Unknown error')}`
+        `    ${colorize(colors.error, icons.error)} ${job.jobId} ${colorize(colors.error, job.lastError ?? 'Unknown error')}`
       );
     }
   }
@@ -600,26 +568,26 @@ function renderHumanStatus(data: Awaited<ReturnType<typeof executeJobStatus>>) {
     }
   }
 
-  console.log(`  ${color(dim, 'Pending embeds:')}`);
+  console.log(`  ${fmt.dim('Pending embeds:')}`);
   if (data.embeddings.pending.length === 0) {
-    console.log(color(dim, '    No pending embedding jobs.'));
+    console.log(fmt.dim('    No pending embedding jobs.'));
   } else {
     for (const job of data.embeddings.pending) {
       const displayUrl = crawlUrlById.get(job.jobId) ?? job.url;
       console.log(
-        `    ${color('\x1b[33m', '⏳')} ${job.jobId} ${color(dim, `(${job.retries}/${job.maxRetries})`)} ${color(dim, displayUrl)}`
+        `    ${colorize(colors.warning, icons.processing)} ${job.jobId} ${fmt.dim(`(${job.retries}/${job.maxRetries})`)} ${fmt.dim(displayUrl)}`
       );
     }
   }
 
-  console.log(`  ${color(dim, 'Completed embeds:')}`);
+  console.log(`  ${fmt.dim('Completed embeds:')}`);
   if (data.embeddings.completed.length === 0) {
-    console.log(color(dim, '    No completed embedding jobs.'));
+    console.log(fmt.dim('    No completed embedding jobs.'));
   } else {
     for (const job of data.embeddings.completed) {
       const displayUrl = crawlUrlById.get(job.jobId) ?? job.url;
       console.log(
-        `    ${color('\x1b[32m', '✓')} ${job.jobId} ${color(dim, displayUrl)}`
+        `    ${colorize(colors.success, icons.success)} ${job.jobId} ${fmt.dim(displayUrl)}`
       );
     }
   }

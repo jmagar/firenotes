@@ -258,7 +258,8 @@ describe('handleJobStatusCommand', () => {
 
     const output = logSpy.mock.calls.map((call) => call[0]).join('\n');
     expect(output).toContain('Failed embeds:');
-    expect(output).toContain('job-1: Boom');
+    expect(output).toContain('job-1');
+    expect(output).toContain('Boom');
 
     logSpy.mockRestore();
   });
@@ -312,9 +313,10 @@ describe('handleJobStatusCommand', () => {
     await handleJobStatusCommand(container, {});
 
     const output = logSpy.mock.calls.map((call) => call[0]).join('\n');
-    expect(output).toContain(
-      '019c161c-8a80-7051-a438-2ec8707e1bc4: completed (1/1) https://example.com'
-    );
+    expect(output).toContain('019c161c-8a80-7051-a438-2ec8707e1bc4');
+    expect(output).toContain('completed');
+    expect(output).toContain('1/1');
+    expect(output).toContain('https://example.com');
 
     logSpy.mockRestore();
   });
