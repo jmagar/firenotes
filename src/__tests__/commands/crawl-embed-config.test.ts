@@ -31,7 +31,7 @@ vi.mock('../../utils/output', () => ({
 }));
 
 vi.mock('../../utils/embed-queue', () => ({
-  enqueueEmbedJob: vi.fn().mockReturnValue({
+  enqueueEmbedJob: vi.fn().mockResolvedValue({
     id: 'mock-job',
     jobId: 'mock-job',
     url: 'https://example.com',

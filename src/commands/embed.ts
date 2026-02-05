@@ -207,7 +207,7 @@ import { normalizeUrl } from '../utils/url';
 async function handleCancelCommand(
   jobId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const job = getEmbedJob(jobId);
+  const job = await getEmbedJob(jobId);
 
   if (!job) {
     return {
@@ -216,7 +216,7 @@ async function handleCancelCommand(
     };
   }
 
-  removeEmbedJob(jobId);
+  await removeEmbedJob(jobId);
   console.log(`${icons.success} Cancelled embed job ${fmt.dim(jobId)}`);
   return { success: true };
 }

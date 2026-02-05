@@ -84,14 +84,14 @@ export async function executeBatch(
           timeout: options.timeout,
         });
         if (job?.id) {
-          recordJob('batch', job.id);
+          await recordJob('batch', job.id);
         }
         return { success: true, data: job };
       }
 
       const started = await app.startBatchScrape(options.urls, batchOptions);
       if (started?.id) {
-        recordJob('batch', started.id);
+        await recordJob('batch', started.id);
       }
       return { success: true, data: started };
     }
@@ -131,7 +131,7 @@ async function handleBatchStatusCommand(
     const app = container.getFirecrawlClient();
     const status = await app.getBatchScrapeStatus(jobId);
 
-    recordJob('batch', jobId);
+    await recordJob('batch', jobId);
 
     const result = {
       success: true,
@@ -165,7 +165,7 @@ async function handleBatchCancelCommand(
       process.exit(1);
     }
 
-    recordJob('batch', jobId);
+    await recordJob('batch', jobId);
 
     const result = {
       success: true,
@@ -194,7 +194,7 @@ async function handleBatchErrorsCommand(
     const app = container.getFirecrawlClient();
     const errors = await app.getBatchScrapeErrors(jobId);
 
-    recordJob('batch', jobId);
+    await recordJob('batch', jobId);
 
     const result = {
       success: true,

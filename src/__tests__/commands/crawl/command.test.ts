@@ -20,7 +20,7 @@ vi.mock('../../../utils/job', () => ({
 }));
 
 vi.mock('../../../utils/job-history', () => ({
-  recordJob: vi.fn(),
+  recordJob: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../../commands/crawl/execute', () => ({

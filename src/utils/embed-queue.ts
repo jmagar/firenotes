@@ -5,24 +5,28 @@
  * Supports background processing with retries and exponential backoff.
  */
 
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import * as lockfile from 'proper-lockfile';
 import { fmt } from './theme';
 
 /**
+ * Check if a path exists
+ */
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await fs.access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Write file with secure permissions (owner-only read/write)
  */
-function writeSecureFile(filePath: string, data: string): void {
-  writeFileSync(filePath, data, { mode: 0o600 });
+async function writeSecureFile(filePath: string, data: string): Promise<void> {
+  await fs.writeFile(filePath, data, { mode: 0o600 });
 }
 
 export interface EmbedJob {
@@ -60,15 +64,16 @@ const MAX_RETRIES = 3;
 /**
  * Ensure queue directory exists with secure permissions
  */
-function ensureQueueDir(): void {
-  if (!existsSync(QUEUE_DIR)) {
-    mkdirSync(QUEUE_DIR, { recursive: true, mode: 0o700 });
-  } else {
-    try {
-      chmodSync(QUEUE_DIR, 0o700);
-    } catch {
-      // Ignore errors on Windows
-    }
+async function ensureQueueDir(): Promise<void> {
+  if (!(await pathExists(QUEUE_DIR))) {
+    await fs.mkdir(QUEUE_DIR, { recursive: true, mode: 0o700 });
+    return;
+  }
+
+  try {
+    await fs.chmod(QUEUE_DIR, 0o700);
+  } catch {
+    // Ignore errors on Windows
   }
 }
 
@@ -82,12 +87,12 @@ function getJobPath(jobId: string): string {
 /**
  * Add a new embedding job to the queue
  */
-export function enqueueEmbedJob(
+export async function enqueueEmbedJob(
   jobId: string,
   url: string,
   apiKey?: string
-): EmbedJob {
-  ensureQueueDir();
+): Promise<EmbedJob> {
+  await ensureQueueDir();
 
   const job: EmbedJob = {
     id: jobId,
@@ -101,21 +106,21 @@ export function enqueueEmbedJob(
     apiKey,
   };
 
-  writeSecureFile(getJobPath(jobId), JSON.stringify(job, null, 2));
+  await writeSecureFile(getJobPath(jobId), JSON.stringify(job, null, 2));
   return job;
 }
 
 /**
  * Get a job from the queue
  */
-export function getEmbedJob(jobId: string): EmbedJob | null {
+export async function getEmbedJob(jobId: string): Promise<EmbedJob | null> {
   const path = getJobPath(jobId);
-  if (!existsSync(path)) {
+  if (!(await pathExists(path))) {
     return null;
   }
 
   try {
-    const data = readFileSync(path, 'utf-8');
+    const data = await fs.readFile(path, 'utf-8');
     return JSON.parse(data);
   } catch (error) {
     console.error(
@@ -130,10 +135,10 @@ export function getEmbedJob(jobId: string): EmbedJob | null {
 /**
  * Update a job in the queue
  */
-export function updateEmbedJob(job: EmbedJob): void {
-  ensureQueueDir();
+export async function updateEmbedJob(job: EmbedJob): Promise<void> {
+  await ensureQueueDir();
   job.updatedAt = new Date().toISOString();
-  writeSecureFile(getJobPath(job.jobId), JSON.stringify(job, null, 2));
+  await writeSecureFile(getJobPath(job.jobId), JSON.stringify(job, null, 2));
 }
 
 /**
@@ -141,27 +146,27 @@ export function updateEmbedJob(job: EmbedJob): void {
  * Only succeeds if job is in 'pending' status.
  * @returns true if job was successfully claimed, false otherwise
  */
-export function tryClaimJob(jobId: string): boolean {
+export async function tryClaimJob(jobId: string): Promise<boolean> {
   const jobPath = getJobPath(jobId);
-  if (!existsSync(jobPath)) return false;
+  if (!(await pathExists(jobPath))) return false;
 
   let release: (() => void) | undefined;
   try {
-    release = lockfile.lockSync(jobPath, { retries: 0, stale: 60000 });
-    const job = getEmbedJob(jobId);
+    release = await lockfile.lock(jobPath, { retries: 0, stale: 60000 });
+    const job = await getEmbedJob(jobId);
     if (!job || job.status !== 'pending') {
-      release();
+      await release();
       return false;
     }
     job.status = 'processing';
     job.updatedAt = new Date().toISOString();
-    writeSecureFile(jobPath, JSON.stringify(job, null, 2));
-    release();
+    await writeSecureFile(jobPath, JSON.stringify(job, null, 2));
+    await release();
     return true;
   } catch {
     if (release) {
       try {
-        release();
+        await release();
       } catch {
         // Ignore release errors
       }
@@ -173,25 +178,27 @@ export function tryClaimJob(jobId: string): boolean {
 /**
  * Remove a job from the queue
  */
-export function removeEmbedJob(jobId: string): void {
+export async function removeEmbedJob(jobId: string): Promise<void> {
   const path = getJobPath(jobId);
-  if (existsSync(path)) {
-    unlinkSync(path);
+  if (await pathExists(path)) {
+    await fs.unlink(path);
   }
 }
 
 /**
  * List all jobs in the queue
  */
-export function listEmbedJobs(): EmbedJob[] {
-  ensureQueueDir();
+export async function listEmbedJobs(): Promise<EmbedJob[]> {
+  await ensureQueueDir();
 
-  const files = readdirSync(QUEUE_DIR).filter((f) => f.endsWith('.json'));
+  const files = (await fs.readdir(QUEUE_DIR)).filter((f) =>
+    f.endsWith('.json')
+  );
   const jobs: EmbedJob[] = [];
 
   for (const file of files) {
     try {
-      const data = readFileSync(join(QUEUE_DIR, file), 'utf-8');
+      const data = await fs.readFile(join(QUEUE_DIR, file), 'utf-8');
       jobs.push(JSON.parse(data));
     } catch (error) {
       console.error(
@@ -208,8 +215,9 @@ export function listEmbedJobs(): EmbedJob[] {
 /**
  * Get all pending jobs (status: pending, not exceeded max retries)
  */
-export function getPendingJobs(): EmbedJob[] {
-  return listEmbedJobs()
+export async function getPendingJobs(): Promise<EmbedJob[]> {
+  const jobs = await listEmbedJobs();
+  return jobs
     .filter((job) => job.status === 'pending' && job.retries < job.maxRetries)
     .sort(
       (a, b) =>
@@ -220,9 +228,12 @@ export function getPendingJobs(): EmbedJob[] {
 /**
  * Get pending jobs that have been stale for at least maxAgeMs
  */
-export function getStalePendingJobs(maxAgeMs: number): EmbedJob[] {
+export async function getStalePendingJobs(
+  maxAgeMs: number
+): Promise<EmbedJob[]> {
   const cutoff = Date.now() - maxAgeMs;
-  return getPendingJobs()
+  const jobs = await getPendingJobs();
+  return jobs
     .filter((job) => new Date(job.updatedAt).getTime() <= cutoff)
     .sort(
       (a, b) =>
@@ -237,11 +248,12 @@ export function getStalePendingJobs(maxAgeMs: number): EmbedJob[] {
  * longer than the specified threshold (default 5 minutes). This helps recover
  * from daemon crashes where jobs get stuck in processing state forever.
  */
-export function getStuckProcessingJobs(
+export async function getStuckProcessingJobs(
   maxProcessingMs: number = 5 * 60 * 1000
-): EmbedJob[] {
+): Promise<EmbedJob[]> {
   const cutoff = Date.now() - maxProcessingMs;
-  return listEmbedJobs()
+  const jobs = await listEmbedJobs();
+  return jobs
     .filter(
       (job) =>
         job.status === 'processing' &&
@@ -257,22 +269,22 @@ export function getStuckProcessingJobs(
 /**
  * Mark a job as processing
  */
-export function markJobProcessing(jobId: string): void {
-  const job = getEmbedJob(jobId);
+export async function markJobProcessing(jobId: string): Promise<void> {
+  const job = await getEmbedJob(jobId);
   if (job) {
     job.status = 'processing';
-    updateEmbedJob(job);
+    await updateEmbedJob(job);
   }
 }
 
 /**
  * Mark a job as completed and remove from queue
  */
-export function markJobCompleted(jobId: string): void {
-  const job = getEmbedJob(jobId);
+export async function markJobCompleted(jobId: string): Promise<void> {
+  const job = await getEmbedJob(jobId);
   if (job) {
     job.status = 'completed';
-    updateEmbedJob(job);
+    await updateEmbedJob(job);
     // Keep completed jobs for a short time for audit/debugging
     // They can be cleaned up later
   }
@@ -281,13 +293,16 @@ export function markJobCompleted(jobId: string): void {
 /**
  * Mark a job as failed and increment retry counter
  */
-export function markJobFailed(jobId: string, error: string): void {
-  const job = getEmbedJob(jobId);
+export async function markJobFailed(
+  jobId: string,
+  error: string
+): Promise<void> {
+  const job = await getEmbedJob(jobId);
   if (job) {
     job.status = job.retries + 1 >= job.maxRetries ? 'failed' : 'pending';
     job.retries += 1;
     job.lastError = error;
-    updateEmbedJob(job);
+    await updateEmbedJob(job);
   }
 }
 
@@ -296,26 +311,29 @@ export function markJobFailed(jobId: string, error: string): void {
  *
  * Sets retries to maxRetries to prevent further retry attempts.
  */
-export function markJobConfigError(jobId: string, error: string): void {
-  const job = getEmbedJob(jobId);
+export async function markJobConfigError(
+  jobId: string,
+  error: string
+): Promise<void> {
+  const job = await getEmbedJob(jobId);
   if (job) {
     job.status = 'failed';
     job.retries = job.maxRetries;
     job.lastError = `Configuration error: ${error}`;
-    updateEmbedJob(job);
+    await updateEmbedJob(job);
   }
 }
 
 /**
  * Get queue statistics for monitoring
  */
-export function getQueueStats(): {
+export async function getQueueStats(): Promise<{
   pending: number;
   processing: number;
   completed: number;
   failed: number;
-} {
-  const jobs = listEmbedJobs();
+}> {
+  const jobs = await listEmbedJobs();
 
   return jobs.reduce(
     (acc, job) => {
@@ -342,8 +360,10 @@ export function getQueueStats(): {
 /**
  * Clean up completed and old failed jobs
  */
-export function cleanupOldJobs(maxAgeHours: number = 24): number {
-  const jobs = listEmbedJobs();
+export async function cleanupOldJobs(
+  maxAgeHours: number = 24
+): Promise<number> {
+  const jobs = await listEmbedJobs();
   const cutoff = Date.now() - maxAgeHours * 60 * 60 * 1000;
   let cleaned = 0;
 
@@ -354,7 +374,7 @@ export function cleanupOldJobs(maxAgeHours: number = 24): number {
       (job.status === 'completed' || job.status === 'failed') &&
       updatedAt < cutoff
     ) {
-      removeEmbedJob(job.jobId);
+      await removeEmbedJob(job.jobId);
       cleaned++;
     }
   }

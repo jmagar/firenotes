@@ -18,7 +18,11 @@ import {
 } from '../utils/embed-queue';
 import { withTimeout } from '../utils/http';
 import { isJobId } from '../utils/job';
-import { getRecentJobIds, removeJobIds } from '../utils/job-history';
+import {
+  clearJobHistory,
+  getRecentJobIds,
+  removeJobIds,
+} from '../utils/job-history';
 import { writeOutput } from '../utils/output';
 import {
   colorize,
@@ -145,7 +149,7 @@ function shouldPruneError(error: string | undefined): boolean {
   );
 }
 
-function summarizeEmbedQueue(): {
+async function summarizeEmbedQueue(): Promise<{
   summary: EmbedQueueSummary;
   jobs: Array<{
     id: string;
@@ -159,8 +163,8 @@ function summarizeEmbedQueue(): {
     lastError?: string;
     apiKey?: string;
   }>;
-} {
-  const jobs = listEmbedJobs();
+}> {
+  const jobs = await listEmbedJobs();
   const summary: EmbedQueueSummary = {
     pending: 0,
     processing: 0,
@@ -185,9 +189,9 @@ async function executeJobStatus(
 
   // Clean up old completed/failed embed jobs (older than 1 hour)
   // This prevents "Job not found" errors from completed crawls that no longer exist in the API
-  cleanupOldJobs(1); // 1 hour retention
+  await cleanupOldJobs(1); // 1 hour retention
 
-  const embedQueue = summarizeEmbedQueue();
+  const embedQueue = await summarizeEmbedQueue();
   const crawlIds = parseIds(options.crawl);
   const batchIds = parseIds(options.batch);
   const extractIds = parseIds(options.extract);
@@ -198,18 +202,23 @@ async function executeJobStatus(
     .filter((job) => job.status === 'pending' || job.status === 'processing')
     .map((job) => job.jobId);
 
+  const recentCrawlIds = await getRecentJobIds('crawl', 10);
+  const recentBatchIds = await getRecentJobIds('batch', 10);
+  const recentExtractIds = await getRecentJobIds('extract', 10);
+
   const resolvedCrawlIds = filterValidJobIds(
     crawlIds.length > 0
       ? crawlIds
-      : Array.from(
-          new Set([...getRecentJobIds('crawl', 10), ...activeEmbedJobIds])
-        ).slice(0, 10)
+      : Array.from(new Set([...recentCrawlIds, ...activeEmbedJobIds])).slice(
+          0,
+          10
+        )
   );
   const resolvedBatchIds = filterValidJobIds(
-    batchIds.length > 0 ? batchIds : getRecentJobIds('batch', 10)
+    batchIds.length > 0 ? batchIds : recentBatchIds
   );
   const resolvedExtractIds = filterValidJobIds(
-    extractIds.length > 0 ? extractIds : getRecentJobIds('extract', 10)
+    extractIds.length > 0 ? extractIds : recentExtractIds
   );
 
   const STATUS_TIMEOUT_MS = 10000; // 10 second timeout per API call
@@ -296,9 +305,9 @@ async function executeJobStatus(
     .map((status) => status.id)
     .filter((id): id is string => Boolean(id));
 
-  removeJobIds('crawl', crawlPruneIds);
-  removeJobIds('batch', batchPruneIds);
-  removeJobIds('extract', extractPruneIds);
+  await removeJobIds('crawl', crawlPruneIds);
+  await removeJobIds('batch', batchPruneIds);
+  await removeJobIds('extract', extractPruneIds);
 
   const activeUrlById = new Map(
     activeCrawls.crawls.map((crawl) => [crawl.id, crawl.url])
@@ -324,7 +333,7 @@ async function executeJobStatus(
     const sourceUrl = crawlSourceById.get(job.jobId);
     if (sourceUrl && job.url.includes('/v2/crawl/')) {
       job.url = sourceUrl;
-      updateEmbedJob(job);
+      await updateEmbedJob(job);
     }
   }
 
@@ -696,6 +705,7 @@ export function createStatusCommand(): Command {
       '--embed [job-id]',
       'Show embedding queue status (optionally for job ID)'
     )
+    .option('--clear', 'Clear job history cache', false)
     .option('--json', 'Output JSON (compact)', false)
     .option('--pretty', 'Pretty print JSON output', false)
     .option('-o, --output <path>', 'Output file path (default: stdout)')
@@ -703,6 +713,14 @@ export function createStatusCommand(): Command {
       const container = command._container;
       if (!container) {
         throw new Error('Container not initialized');
+      }
+
+      if (options.clear) {
+        await clearJobHistory();
+        console.log('');
+        console.log(`  ${fmt.success(icons.success)} Job history cleared`);
+        console.log('');
+        return;
       }
 
       await handleJobStatusCommand(container, {

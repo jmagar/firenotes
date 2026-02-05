@@ -16,16 +16,17 @@ import type { MockFirecrawlClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 vi.mock('../../utils/embed-queue', () => ({
-  getEmbedJob: vi.fn(),
-  listEmbedJobs: vi.fn().mockReturnValue([]),
-  removeEmbedJob: vi.fn(),
-  updateEmbedJob: vi.fn(),
-  cleanupOldJobs: vi.fn().mockReturnValue(0),
+  getEmbedJob: vi.fn().mockResolvedValue(null),
+  listEmbedJobs: vi.fn().mockResolvedValue([]),
+  removeEmbedJob: vi.fn().mockResolvedValue(undefined),
+  updateEmbedJob: vi.fn().mockResolvedValue(undefined),
+  cleanupOldJobs: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock('../../utils/job-history', () => ({
-  getRecentJobIds: vi.fn().mockReturnValue([]),
-  removeJobIds: vi.fn(),
+  getRecentJobIds: vi.fn().mockResolvedValue([]),
+  removeJobIds: vi.fn().mockResolvedValue(undefined),
+  clearJobHistory: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../utils/output', () => ({
@@ -62,9 +63,9 @@ describe('handleJobStatusCommand', () => {
     const { listEmbedJobs, cleanupOldJobs } = await import(
       '../../utils/embed-queue'
     );
-    vi.mocked(getRecentJobIds).mockReturnValue([]);
-    vi.mocked(listEmbedJobs).mockReturnValue([]);
-    vi.mocked(cleanupOldJobs).mockReturnValue(0);
+    vi.mocked(getRecentJobIds).mockResolvedValue([]);
+    vi.mocked(listEmbedJobs).mockResolvedValue([]);
+    vi.mocked(cleanupOldJobs).mockResolvedValue(0);
     container = createTestContainer(mockClient);
   });
 
@@ -87,7 +88,7 @@ describe('handleJobStatusCommand', () => {
 
   it('should use recent job IDs when none provided', async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
-    vi.mocked(getRecentJobIds).mockImplementation((type: string) => {
+    vi.mocked(getRecentJobIds).mockImplementation(async (type: string) => {
       if (type === 'crawl') return ['019c161c-8a80-7051-a438-2ec8707e1bc4'];
       if (type === 'batch') return ['019c161c-8a80-7051-a438-2ec8707e1bc5'];
       if (type === 'extract') return ['019c161c-8a80-7051-a438-2ec8707e1bc6'];
@@ -111,7 +112,7 @@ describe('handleJobStatusCommand', () => {
 
   it('should ignore invalid recent job IDs', async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
-    vi.mocked(getRecentJobIds).mockImplementation((type: string) => {
+    vi.mocked(getRecentJobIds).mockImplementation(async (type: string) => {
       if (type === 'crawl') return ['not-a-uuid'];
       if (type === 'batch') return ['still-not-a-uuid'];
       if (type === 'extract') return ['bad-id'];
@@ -127,7 +128,7 @@ describe('handleJobStatusCommand', () => {
 
   it('should not throw when status lookups fail', async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
-    vi.mocked(getRecentJobIds).mockImplementation((type: string) => {
+    vi.mocked(getRecentJobIds).mockImplementation(async (type: string) => {
       if (type === 'crawl') return ['019c161c-8a80-7051-a438-2ec8707e1bc4'];
       return [];
     });
@@ -143,7 +144,7 @@ describe('handleJobStatusCommand', () => {
     const { getRecentJobIds, removeJobIds } = await import(
       '../../utils/job-history'
     );
-    vi.mocked(getRecentJobIds).mockImplementation((type: string) => {
+    vi.mocked(getRecentJobIds).mockImplementation(async (type: string) => {
       if (type === 'crawl') return ['019c161c-8a80-7051-a438-2ec8707e1bc4'];
       if (type === 'batch') return ['019c161c-8a80-7051-a438-2ec8707e1bc5'];
       if (type === 'extract') return ['019c161c-8a80-7051-a438-2ec8707e1bc6'];
@@ -180,8 +181,8 @@ describe('handleJobStatusCommand', () => {
     const processingJobId = '019c2d97-f3c5-7302-bfba-06b6b3090b56';
     const failedJobId = '019c2d98-cd46-7119-bb65-396835e36e3f';
 
-    vi.mocked(getRecentJobIds).mockReturnValue([]);
-    vi.mocked(listEmbedJobs).mockReturnValue([
+    vi.mocked(getRecentJobIds).mockResolvedValue([]);
+    vi.mocked(listEmbedJobs).mockResolvedValue([
       {
         id: completedJobId,
         jobId: completedJobId,
@@ -254,7 +255,7 @@ describe('handleJobStatusCommand', () => {
 
   it('should include pending embed jobs in JSON output', async () => {
     const { listEmbedJobs } = await import('../../utils/embed-queue');
-    vi.mocked(listEmbedJobs).mockReturnValue([
+    vi.mocked(listEmbedJobs).mockResolvedValue([
       {
         id: 'job-1',
         jobId: 'job-1',
@@ -295,7 +296,7 @@ describe('handleJobStatusCommand', () => {
 
   it('should list pending embed jobs in human output', async () => {
     const { listEmbedJobs } = await import('../../utils/embed-queue');
-    vi.mocked(listEmbedJobs).mockReturnValue([
+    vi.mocked(listEmbedJobs).mockResolvedValue([
       {
         id: 'job-1',
         jobId: 'job-1',
@@ -325,7 +326,7 @@ describe('handleJobStatusCommand', () => {
 
   it('should list failed embed jobs in human output', async () => {
     const { listEmbedJobs } = await import('../../utils/embed-queue');
-    vi.mocked(listEmbedJobs).mockReturnValue([
+    vi.mocked(listEmbedJobs).mockResolvedValue([
       {
         id: 'job-1',
         jobId: 'job-1',
@@ -353,7 +354,7 @@ describe('handleJobStatusCommand', () => {
 
   it('should list completed embed jobs in human output', async () => {
     const { listEmbedJobs } = await import('../../utils/embed-queue');
-    vi.mocked(listEmbedJobs).mockReturnValue([
+    vi.mocked(listEmbedJobs).mockResolvedValue([
       {
         id: 'job-1',
         jobId: 'job-1',
@@ -383,7 +384,7 @@ describe('handleJobStatusCommand', () => {
 
   it('should list failed, pending, and completed crawls in human output', async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
-    vi.mocked(getRecentJobIds).mockReturnValue([
+    vi.mocked(getRecentJobIds).mockResolvedValue([
       '019c161c-8a80-7051-a438-2ec8707e1bc4',
       '019c161c-8a80-7051-a438-2ec8707e1bc5',
       '019c161c-8a80-7051-a438-2ec8707e1bc6',
@@ -430,7 +431,7 @@ describe('handleJobStatusCommand', () => {
 
   it('should include crawl URL in status output when available', async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
-    vi.mocked(getRecentJobIds).mockReturnValue([
+    vi.mocked(getRecentJobIds).mockResolvedValue([
       '019c161c-8a80-7051-a438-2ec8707e1bc4',
     ]);
 
@@ -458,7 +459,7 @@ describe('handleJobStatusCommand', () => {
 
   it('should include crawl URL in JSON output when available', async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
-    vi.mocked(getRecentJobIds).mockReturnValue([
+    vi.mocked(getRecentJobIds).mockResolvedValue([
       '019c161c-8a80-7051-a438-2ec8707e1bc4',
     ]);
 
@@ -479,7 +480,7 @@ describe('handleJobStatusCommand', () => {
 
   it('should start active crawl and status lookups in parallel', async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
-    vi.mocked(getRecentJobIds).mockImplementation((type: string) => {
+    vi.mocked(getRecentJobIds).mockImplementation(async (type: string) => {
       if (type === 'crawl') return ['019c161c-8a80-7051-a438-2ec8707e1bc4'];
       return [];
     });
@@ -513,7 +514,7 @@ describe('handleJobStatusCommand', () => {
 
     const run = handleJobStatusCommand(container, { json: true });
 
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(mockClient.getActiveCrawls).toHaveBeenCalledTimes(1);
     expect(mockClient.getCrawlStatus).toHaveBeenCalledTimes(1);
@@ -533,7 +534,7 @@ describe('handleJobStatusCommand', () => {
   describe('sorting behavior', () => {
     it('should sort completed embeds by updatedAt descending (newest first)', async () => {
       const { listEmbedJobs } = await import('../../utils/embed-queue');
-      vi.mocked(listEmbedJobs).mockReturnValue([
+      vi.mocked(listEmbedJobs).mockResolvedValue([
         {
           id: 'job-1',
           jobId: 'job-1',
@@ -586,7 +587,7 @@ describe('handleJobStatusCommand', () => {
 
     it('should sort pending embeds by updatedAt descending (newest first)', async () => {
       const { listEmbedJobs } = await import('../../utils/embed-queue');
-      vi.mocked(listEmbedJobs).mockReturnValue([
+      vi.mocked(listEmbedJobs).mockResolvedValue([
         {
           id: 'job-1',
           jobId: 'job-1',
@@ -622,7 +623,7 @@ describe('handleJobStatusCommand', () => {
 
     it('should sort failed embeds by updatedAt descending (newest first)', async () => {
       const { listEmbedJobs } = await import('../../utils/embed-queue');
-      vi.mocked(listEmbedJobs).mockReturnValue([
+      vi.mocked(listEmbedJobs).mockResolvedValue([
         {
           id: 'job-1',
           jobId: 'job-1',
@@ -660,7 +661,7 @@ describe('handleJobStatusCommand', () => {
 
     it('should sort crawls by ID descending (newest first)', async () => {
       const { getRecentJobIds } = await import('../../utils/job-history');
-      vi.mocked(getRecentJobIds).mockImplementation((type: string) => {
+      vi.mocked(getRecentJobIds).mockImplementation(async (type: string) => {
         if (type === 'crawl')
           return [
             '019c21d6-909a-74b8-a486-2a0a39a1834d', // oldest
@@ -694,7 +695,7 @@ describe('handleJobStatusCommand', () => {
 
     it('should sort batches by ID descending (newest first)', async () => {
       const { getRecentJobIds } = await import('../../utils/job-history');
-      vi.mocked(getRecentJobIds).mockImplementation((type: string) => {
+      vi.mocked(getRecentJobIds).mockImplementation(async (type: string) => {
         if (type === 'batch')
           return [
             '019c21d6-909a-74b8-a486-2a0a39a1834d', // oldest
@@ -726,7 +727,7 @@ describe('handleJobStatusCommand', () => {
 
     it('should sort extracts by ID descending (newest first)', async () => {
       const { getRecentJobIds } = await import('../../utils/job-history');
-      vi.mocked(getRecentJobIds).mockImplementation((type: string) => {
+      vi.mocked(getRecentJobIds).mockImplementation(async (type: string) => {
         if (type === 'extract')
           return [
             '019c21d6-909a-74b8-a486-2a0a39a1834d', // oldest
@@ -759,7 +760,7 @@ describe('handleJobStatusCommand', () => {
 describe('createStatusCommand', () => {
   it('should call getActiveCrawls when invoked', async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
-    vi.mocked(getRecentJobIds).mockReturnValue([]);
+    vi.mocked(getRecentJobIds).mockResolvedValue([]);
     const activeClient: Partial<MockFirecrawlClient> = {
       getActiveCrawls: vi.fn().mockResolvedValue({ success: true, crawls: [] }),
       getCrawlStatus: vi.fn(),

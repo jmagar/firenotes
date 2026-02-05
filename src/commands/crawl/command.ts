@@ -153,7 +153,7 @@ export async function handleCrawlCommand(
   let outputContent: string;
   if ('jobId' in crawlResult.data) {
     // Job ID response
-    recordJob('crawl', crawlResult.data.jobId);
+    await recordJob('crawl', crawlResult.data.jobId);
     const jobData = {
       jobId: crawlResult.data.jobId,
       url: crawlResult.data.url,

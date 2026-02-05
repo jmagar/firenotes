@@ -84,7 +84,7 @@ async function processEmbedJob(
   );
 
   try {
-    markJobProcessing(job.jobId);
+    await markJobProcessing(job.jobId);
 
     // Create job-specific container with job's API key
     const jobContainer = createDaemonContainer({
@@ -108,7 +108,7 @@ async function processEmbedJob(
         )
       );
 
-      markJobConfigError(job.jobId, errorMsg);
+      await markJobConfigError(job.jobId, errorMsg);
       return;
     }
 
@@ -148,7 +148,7 @@ async function processEmbedJob(
       console.error(
         fmt.warning(`[Embedder] Job ${job.jobId} has no pages to embed`)
       );
-      markJobCompleted(job.jobId);
+      await markJobCompleted(job.jobId);
       return;
     }
 
@@ -184,11 +184,11 @@ async function processEmbedJob(
         )
       );
     }
-    markJobCompleted(job.jobId);
+    await markJobCompleted(job.jobId);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     console.error(fmt.error(`[Embedder] Job ${job.jobId} failed: ${errorMsg}`));
-    markJobFailed(job.jobId, errorMsg);
+    await markJobFailed(job.jobId, errorMsg);
 
     // Apply backoff for next retry
     if (job.retries + 1 < job.maxRetries) {
@@ -202,7 +202,7 @@ async function processEmbedJob(
  * Process all pending jobs in the queue
  */
 export async function processEmbedQueue(_container: IContainer): Promise<void> {
-  const pendingJobs = getPendingJobs();
+  const pendingJobs = await getPendingJobs();
 
   if (pendingJobs.length === 0) {
     return;
@@ -227,19 +227,19 @@ export async function processStaleJobsOnce(
 ): Promise<number> {
   // First, recover any stuck processing jobs (use shorter threshold for faster recovery)
   const stuckMaxAgeMs = 5 * 60_000; // 5 minutes
-  const stuckJobs = getStuckProcessingJobs(stuckMaxAgeMs);
+  const stuckJobs = await getStuckProcessingJobs(stuckMaxAgeMs);
   if (stuckJobs.length > 0) {
     console.error(
       fmt.dim(`[Embedder] Recovering ${stuckJobs.length} stuck processing jobs`)
     );
     for (const job of stuckJobs) {
       job.status = 'pending';
-      updateEmbedJob(job);
+      await updateEmbedJob(job);
     }
   }
 
   // Then process stale pending jobs
-  const staleJobs = getStalePendingJobs(maxAgeMs);
+  const staleJobs = await getStalePendingJobs(maxAgeMs);
   if (staleJobs.length === 0) {
     return 0;
   }
@@ -273,7 +273,7 @@ async function handleWebhookPayload(payload: unknown): Promise<void> {
     return;
   }
 
-  const job = getEmbedJob(info.jobId);
+  const job = await getEmbedJob(info.jobId);
   if (!job) {
     console.error(
       fmt.error(`[Embedder] Webhook for unknown job: ${info.jobId}`)
@@ -290,7 +290,7 @@ async function handleWebhookPayload(payload: unknown): Promise<void> {
     job.status = 'failed';
     job.retries = job.maxRetries;
     job.lastError = `Crawl ${status}`;
-    updateEmbedJob(job);
+    await updateEmbedJob(job);
     return;
   }
 
@@ -339,7 +339,7 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
 
     // Status endpoint for monitoring
     if (req.method === 'GET' && requestUrl.pathname === '/status') {
-      const stats = getQueueStats();
+      const stats = await getQueueStats();
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
       res.end(
@@ -450,7 +450,7 @@ export async function startEmbedderDaemon(
   logEmbedderConfig(container.config);
 
   // Clean up old jobs on startup
-  const cleaned = cleanupOldJobs(24);
+  const cleaned = await cleanupOldJobs(24);
   if (cleaned > 0) {
     console.error(fmt.dim(`[Embedder] Cleaned up ${cleaned} old jobs`));
   }

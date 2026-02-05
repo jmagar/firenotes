@@ -69,7 +69,7 @@ describe('getStalePendingJobs', () => {
     );
 
     const { getStalePendingJobs } = await import('../../utils/embed-queue');
-    const stale = getStalePendingJobs(5 * 60_000);
+    const stale = await getStalePendingJobs(5 * 60_000);
 
     expect(stale).toHaveLength(1);
     expect(stale[0].jobId).toBe('job-stale');
@@ -138,7 +138,7 @@ describe('getStuckProcessingJobs', () => {
     );
 
     const { getStuckProcessingJobs } = await import('../../utils/embed-queue');
-    const stuck = getStuckProcessingJobs(5 * 60_000);
+    const stuck = await getStuckProcessingJobs(5 * 60_000);
 
     expect(stuck).toHaveLength(1);
     expect(stuck[0].jobId).toBe('job-stuck');
@@ -178,7 +178,7 @@ describe('getStuckProcessingJobs', () => {
     );
 
     const { getStuckProcessingJobs } = await import('../../utils/embed-queue');
-    const stuck = getStuckProcessingJobs(5 * 60_000);
+    const stuck = await getStuckProcessingJobs(5 * 60_000);
 
     expect(stuck).toHaveLength(1);
     expect(stuck[0].jobId).toBe('job-2');
@@ -203,7 +203,7 @@ describe('getStuckProcessingJobs', () => {
     );
 
     const { getStuckProcessingJobs } = await import('../../utils/embed-queue');
-    const stuck = getStuckProcessingJobs(5 * 60_000);
+    const stuck = await getStuckProcessingJobs(5 * 60_000);
 
     expect(stuck).toHaveLength(0);
   });
@@ -229,11 +229,11 @@ describe('markJobConfigError', () => {
       '../../utils/embed-queue'
     );
 
-    enqueueEmbedJob('job-config-error', 'https://example.com');
+    await enqueueEmbedJob('job-config-error', 'https://example.com');
 
-    markJobConfigError('job-config-error', 'TEI_URL not configured');
+    await markJobConfigError('job-config-error', 'TEI_URL not configured');
 
-    const job = getEmbedJob('job-config-error');
+    const job = await getEmbedJob('job-config-error');
 
     expect(job).not.toBeNull();
     expect(job?.status).toBe('failed');
@@ -246,11 +246,11 @@ describe('markJobConfigError', () => {
     const { enqueueEmbedJob, markJobConfigError, getPendingJobs } =
       await import('../../utils/embed-queue');
 
-    enqueueEmbedJob('job-1', 'https://example.com');
+    await enqueueEmbedJob('job-1', 'https://example.com');
 
-    markJobConfigError('job-1', 'QDRANT_URL not configured');
+    await markJobConfigError('job-1', 'QDRANT_URL not configured');
 
-    const pending = getPendingJobs();
+    const pending = await getPendingJobs();
 
     expect(pending).toHaveLength(0);
   });
@@ -276,19 +276,19 @@ describe('tryClaimJob', () => {
       '../../utils/embed-queue'
     );
 
-    enqueueEmbedJob('job-claim-test', 'https://example.com');
+    await enqueueEmbedJob('job-claim-test', 'https://example.com');
 
-    const claimed = tryClaimJob('job-claim-test');
+    const claimed = await tryClaimJob('job-claim-test');
 
     expect(claimed).toBe(true);
-    const job = getEmbedJob('job-claim-test');
+    const job = await getEmbedJob('job-claim-test');
     expect(job?.status).toBe('processing');
   });
 
   it('should return false for non-existent job', async () => {
     const { tryClaimJob } = await import('../../utils/embed-queue');
 
-    const claimed = tryClaimJob('non-existent-job');
+    const claimed = await tryClaimJob('non-existent-job');
 
     expect(claimed).toBe(false);
   });
@@ -312,7 +312,7 @@ describe('tryClaimJob', () => {
     );
 
     const { tryClaimJob } = await import('../../utils/embed-queue');
-    const claimed = tryClaimJob('job-processing');
+    const claimed = await tryClaimJob('job-processing');
 
     expect(claimed).toBe(false);
   });
@@ -336,7 +336,7 @@ describe('tryClaimJob', () => {
     );
 
     const { tryClaimJob } = await import('../../utils/embed-queue');
-    const claimed = tryClaimJob('job-completed');
+    const claimed = await tryClaimJob('job-completed');
 
     expect(claimed).toBe(false);
   });
@@ -360,7 +360,7 @@ describe('tryClaimJob', () => {
     );
 
     const { tryClaimJob } = await import('../../utils/embed-queue');
-    const claimed = tryClaimJob('job-failed');
+    const claimed = await tryClaimJob('job-failed');
 
     expect(claimed).toBe(false);
   });
@@ -370,15 +370,15 @@ describe('tryClaimJob', () => {
       '../../utils/embed-queue'
     );
 
-    enqueueEmbedJob('job-timestamp-test', 'https://example.com');
-    const before = getEmbedJob('job-timestamp-test');
+    await enqueueEmbedJob('job-timestamp-test', 'https://example.com');
+    const before = await getEmbedJob('job-timestamp-test');
     const beforeTime = new Date(before!.updatedAt).getTime();
 
     // Small delay to ensure timestamp changes
     await new Promise((resolve) => setTimeout(resolve, 10));
 
-    tryClaimJob('job-timestamp-test');
-    const after = getEmbedJob('job-timestamp-test');
+    await tryClaimJob('job-timestamp-test');
+    const after = await getEmbedJob('job-timestamp-test');
     const afterTime = new Date(after!.updatedAt).getTime();
 
     expect(afterTime).toBeGreaterThanOrEqual(beforeTime);
@@ -404,7 +404,7 @@ describe('secure file permissions', () => {
     const { statSync } = await import('node:fs');
     const { enqueueEmbedJob } = await import('../../utils/embed-queue');
 
-    enqueueEmbedJob('job-perms-test', 'https://example.com');
+    await enqueueEmbedJob('job-perms-test', 'https://example.com');
 
     const stats = statSync(queueDir);
     // On Unix, 0o700 is owner read/write/execute only
@@ -417,7 +417,7 @@ describe('secure file permissions', () => {
     const { statSync } = await import('node:fs');
     const { enqueueEmbedJob } = await import('../../utils/embed-queue');
 
-    enqueueEmbedJob('job-file-perms', 'https://example.com');
+    await enqueueEmbedJob('job-file-perms', 'https://example.com');
 
     const jobPath = join(queueDir, 'job-file-perms.json');
     const stats = statSync(jobPath);
@@ -505,7 +505,7 @@ describe('getQueueStats', () => {
     }
 
     const { getQueueStats } = await import('../../utils/embed-queue');
-    const stats = getQueueStats();
+    const stats = await getQueueStats();
 
     expect(stats.pending).toBe(2);
     expect(stats.processing).toBe(1);
@@ -515,7 +515,7 @@ describe('getQueueStats', () => {
 
   it('should return zero stats for empty queue', async () => {
     const { getQueueStats } = await import('../../utils/embed-queue');
-    const stats = getQueueStats();
+    const stats = await getQueueStats();
 
     expect(stats.pending).toBe(0);
     expect(stats.processing).toBe(0);

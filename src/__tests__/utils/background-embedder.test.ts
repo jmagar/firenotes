@@ -6,15 +6,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IContainer } from '../../container/types';
 
 vi.mock('../../utils/embed-queue', () => ({
-  getStalePendingJobs: vi.fn(),
-  getStuckProcessingJobs: vi.fn().mockReturnValue([]),
-  markJobProcessing: vi.fn(),
-  markJobCompleted: vi.fn(),
-  markJobFailed: vi.fn(),
-  markJobConfigError: vi.fn(),
-  updateEmbedJob: vi.fn(),
-  cleanupOldJobs: vi.fn().mockReturnValue(0),
-  getQueueStats: vi.fn().mockReturnValue({
+  getStalePendingJobs: vi.fn().mockResolvedValue([]),
+  getStuckProcessingJobs: vi.fn().mockResolvedValue([]),
+  markJobProcessing: vi.fn().mockResolvedValue(undefined),
+  markJobCompleted: vi.fn().mockResolvedValue(undefined),
+  markJobFailed: vi.fn().mockResolvedValue(undefined),
+  markJobConfigError: vi.fn().mockResolvedValue(undefined),
+  updateEmbedJob: vi.fn().mockResolvedValue(undefined),
+  cleanupOldJobs: vi.fn().mockResolvedValue(0),
+  getQueueStats: vi.fn().mockResolvedValue({
     pending: 0,
     processing: 0,
     completed: 0,
@@ -66,8 +66,8 @@ describe('processStaleJobsOnce', () => {
       updatedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
     };
 
-    vi.mocked(getStuckProcessingJobs).mockReturnValue([stuckJob]);
-    vi.mocked(getStalePendingJobs).mockReturnValue([]);
+    vi.mocked(getStuckProcessingJobs).mockResolvedValue([stuckJob]);
+    vi.mocked(getStalePendingJobs).mockResolvedValue([]);
 
     const mockContainer: IContainer = {
       config: {
@@ -116,7 +116,7 @@ describe('processStaleJobsOnce', () => {
       '../../container/DaemonContainerFactory'
     );
 
-    vi.mocked(getStalePendingJobs).mockReturnValue([
+    vi.mocked(getStalePendingJobs).mockResolvedValue([
       {
         id: 'job-1',
         jobId: 'job-1',
@@ -191,7 +191,7 @@ describe('processEmbedJob - configuration errors', () => {
       '../../container/DaemonContainerFactory'
     );
 
-    vi.mocked(getStalePendingJobs).mockReturnValue([
+    vi.mocked(getStalePendingJobs).mockResolvedValue([
       {
         id: 'job-1',
         jobId: 'job-1',
@@ -249,7 +249,7 @@ describe('processEmbedJob - configuration errors', () => {
       '../../container/DaemonContainerFactory'
     );
 
-    vi.mocked(getStalePendingJobs).mockReturnValue([
+    vi.mocked(getStalePendingJobs).mockResolvedValue([
       {
         id: 'job-1',
         jobId: 'job-1',
@@ -307,7 +307,7 @@ describe('processEmbedJob - configuration errors', () => {
       '../../container/DaemonContainerFactory'
     );
 
-    vi.mocked(getStalePendingJobs).mockReturnValue([
+    vi.mocked(getStalePendingJobs).mockResolvedValue([
       {
         id: 'job-1',
         jobId: 'job-1',
@@ -369,7 +369,7 @@ describe('processEmbedJob - success logging', () => {
       '../../container/DaemonContainerFactory'
     );
 
-    vi.mocked(getStalePendingJobs).mockReturnValue([
+    vi.mocked(getStalePendingJobs).mockResolvedValue([
       {
         id: 'job-1',
         jobId: 'job-1',

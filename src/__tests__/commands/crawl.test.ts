@@ -81,7 +81,7 @@ vi.mock('../../utils/settings', () => ({
 }));
 
 vi.mock('../../utils/embed-queue', () => ({
-  enqueueEmbedJob: vi.fn().mockReturnValue({
+  enqueueEmbedJob: vi.fn().mockResolvedValue({
     id: 'mock-job',
     jobId: 'mock-job',
     url: 'https://example.com',
@@ -91,7 +91,7 @@ vi.mock('../../utils/embed-queue', () => ({
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }),
-  getEmbedJob: vi.fn().mockReturnValue(null),
+  getEmbedJob: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../../utils/background-embedder', () => ({

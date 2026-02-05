@@ -16,7 +16,7 @@ vi.mock('../../../utils/embedder-webhook', () => ({
 }));
 
 vi.mock('../../../utils/job-history', () => ({
-  recordJob: vi.fn(),
+  recordJob: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { buildEmbedderWebhookConfig } from '../../../utils/embedder-webhook';
@@ -84,7 +84,7 @@ describe('handleAsyncEmbedding', () => {
   });
 
   it('should enqueue job and show webhook message when configured', async () => {
-    const mockEnqueueEmbedJob = vi.fn();
+    const mockEnqueueEmbedJob = vi.fn().mockResolvedValue(undefined);
     const webhookConfig = { url: 'https://webhook.example.com' };
 
     vi.mocked(buildEmbedderWebhookConfig).mockReturnValue(
@@ -118,7 +118,7 @@ describe('handleAsyncEmbedding', () => {
   });
 
   it('should show setup instructions when webhook not configured', async () => {
-    const mockEnqueueEmbedJob = vi.fn();
+    const mockEnqueueEmbedJob = vi.fn().mockResolvedValue(undefined);
 
     vi.mocked(buildEmbedderWebhookConfig).mockReturnValue(null);
     vi.doMock('../../../utils/embed-queue', () => ({
@@ -244,8 +244,8 @@ describe('handleManualEmbedding', () => {
 
   it('should enqueue and process job when not already queued', async () => {
     const mockProcessEmbedQueue = vi.fn();
-    const mockEnqueueEmbedJob = vi.fn();
-    const mockGetEmbedJob = vi.fn().mockReturnValue(null);
+    const mockEnqueueEmbedJob = vi.fn().mockResolvedValue(undefined);
+    const mockGetEmbedJob = vi.fn().mockResolvedValue(null);
 
     const mockClient = {
       getCrawlStatus: vi.fn().mockResolvedValue({
@@ -288,8 +288,8 @@ describe('handleManualEmbedding', () => {
 
   it('should skip enqueueing if job already exists', async () => {
     const mockProcessEmbedQueue = vi.fn();
-    const mockEnqueueEmbedJob = vi.fn();
-    const mockGetEmbedJob = vi.fn().mockReturnValue({ jobId: 'job-123' });
+    const mockEnqueueEmbedJob = vi.fn().mockResolvedValue(undefined);
+    const mockGetEmbedJob = vi.fn().mockResolvedValue({ jobId: 'job-123' });
 
     const container = createTestContainer();
 
@@ -315,7 +315,7 @@ describe('handleManualEmbedding', () => {
 
   it('should return early if job not completed', async () => {
     const mockProcessEmbedQueue = vi.fn();
-    const mockGetEmbedJob = vi.fn().mockReturnValue(null);
+    const mockGetEmbedJob = vi.fn().mockResolvedValue(null);
 
     const mockClient = {
       getCrawlStatus: vi.fn().mockResolvedValue({
@@ -330,7 +330,7 @@ describe('handleManualEmbedding', () => {
       processEmbedQueue: mockProcessEmbedQueue,
     }));
     vi.doMock('../../../utils/embed-queue', () => ({
-      enqueueEmbedJob: vi.fn(),
+      enqueueEmbedJob: vi.fn().mockResolvedValue(undefined),
       getEmbedJob: mockGetEmbedJob,
     }));
 
@@ -350,8 +350,8 @@ describe('handleManualEmbedding', () => {
 
   it('should use job ID as fallback URL', async () => {
     const mockProcessEmbedQueue = vi.fn();
-    const mockEnqueueEmbedJob = vi.fn();
-    const mockGetEmbedJob = vi.fn().mockReturnValue(null);
+    const mockEnqueueEmbedJob = vi.fn().mockResolvedValue(undefined);
+    const mockGetEmbedJob = vi.fn().mockResolvedValue(null);
 
     const mockClient = {
       getCrawlStatus: vi.fn().mockResolvedValue({

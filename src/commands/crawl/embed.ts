@@ -60,7 +60,7 @@ export async function handleAsyncEmbedding(
   const { enqueueEmbedJob } = await import('../../utils/embed-queue');
   const webhookConfig = buildEmbedderWebhookConfig();
 
-  enqueueEmbedJob(jobId, url, apiKey);
+  await enqueueEmbedJob(jobId, url, apiKey);
   console.error();
   console.error(
     `${icons.pending} Queued embedding job for background processing: ${fmt.dim(jobId)}`
@@ -104,7 +104,7 @@ export async function handleSyncEmbedding(
   crawlJobData: CrawlJobData
 ): Promise<void> {
   if (crawlJobData.id) {
-    recordJob('crawl', crawlJobData.id);
+    await recordJob('crawl', crawlJobData.id);
   }
 
   const pagesToEmbed = crawlJobData.data ?? [];
@@ -159,7 +159,7 @@ export async function handleManualEmbedding(
   );
 
   // Check if already queued
-  const existingJob = getEmbedJob(jobId);
+  const existingJob = await getEmbedJob(jobId);
 
   if (!existingJob) {
     // Get crawl info to queue it (only need first page for URL extraction)
@@ -198,7 +198,7 @@ export async function handleManualEmbedding(
       url = jobId;
     }
 
-    enqueueEmbedJob(jobId, url, apiKey);
+    await enqueueEmbedJob(jobId, url, apiKey);
   }
 
   // Process queue

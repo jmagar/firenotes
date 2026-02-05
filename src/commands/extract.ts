@@ -97,7 +97,7 @@ export async function executeExtract(
     }
 
     if ((result as { id?: string }).id) {
-      recordJob('extract', (result as { id?: string }).id as string);
+      await recordJob('extract', (result as { id?: string }).id as string);
     }
 
     return {
@@ -209,7 +209,7 @@ async function handleExtractStatusCommand(
       process.exit(1);
     }
 
-    recordJob('extract', jobId);
+    await recordJob('extract', jobId);
 
     const result = {
       success: true,

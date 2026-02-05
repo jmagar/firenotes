@@ -8,6 +8,8 @@
 
 **Tech Stack:** TypeScript, Node.js fs/promises, Vitest
 
+**Constraints:** User approved executing on current workspace without a worktree.
+
 ---
 
 ### Task 1: Update embed-queue API to async
@@ -26,12 +28,17 @@ Expected: FAIL (promise expected / function not async / returned value not await
 **Step 3: Implement async refactor in embed-queue**
 Convert all exported functions to async and use `node:fs/promises`:
 - `enqueueEmbedJob`, `getEmbedJob`, `updateEmbedJob`, `removeEmbedJob`, `listEmbedJobs`, `getPendingJobs`, `getStalePendingJobs`, `getStuckProcessingJobs`, `markJob*`, `tryClaimJob`.
-- Use `fs.promises.mkdir`, `chmod`, `readFile`, `writeFile`, `readdir`, `unlink`, `stat` as needed.
+- Use `fs.promises.mkdir`, `chmod`, `readFile`, `writeFile`, `readdir`, `unlink`.
 - Preserve secure permissions with `writeFile(..., { mode: 0o600 })` and best-effort `chmod`.
 - Replace `proper-lockfile.lockSync` with async `lock()`.
 - Keep same sorting and filtering semantics.
 
 **Step 4: Update tests for async queue functions**
+- Switch mocks from `node:fs` to `node:fs/promises` where applicable.
+- Replace sync mock implementations with `mockResolvedValue`/`mockRejectedValue`.
+- Update permission checks to use async `stat` or to assert `writeFile` called with `{ mode: 0o600 }`.
+- Ensure all queue helpers are awaited in tests.
+
 - Replace sync mocks of `node:fs` with `node:fs/promises` mocks.
 - Update tests to `await` queue functions.
 - Ensure file permission expectations use async `stat` where needed.
