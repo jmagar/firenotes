@@ -107,7 +107,7 @@ describe('processStaleJobsOnce', () => {
       })
     );
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      '[Embedder] Recovering 1 stuck processing jobs'
+      expect.stringContaining('Recovering 1 stuck processing jobs')
     );
 
     consoleErrorSpy.mockRestore();

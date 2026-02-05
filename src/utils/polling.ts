@@ -111,7 +111,7 @@ export async function pollWithProgress<T>(
       if (finalFetcher) {
         try {
           return await finalFetcher(jobId);
-        } catch (error) {
+        } catch (_error) {
           // Fall back to the last status if final fetch fails
           return status;
         }

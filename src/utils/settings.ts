@@ -7,6 +7,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { type UserSettings, UserSettingsSchema } from '../schemas/storage';
 import { getConfigDirectoryPath } from './credentials';
+import { fmt } from './theme';
 
 // Re-export type for backward compatibility
 export type { UserSettings };
@@ -55,7 +56,9 @@ export function loadSettings(): UserSettings {
     // Validate with Zod schema for runtime type safety
     const result = UserSettingsSchema.safeParse(parsed);
     if (!result.success) {
-      console.error('[Settings] Invalid settings file:', result.error.message);
+      console.error(
+        fmt.error(`[Settings] Invalid settings file: ${result.error.message}`)
+      );
       return {};
     }
 

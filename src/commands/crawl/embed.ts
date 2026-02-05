@@ -61,7 +61,7 @@ export async function handleAsyncEmbedding(
   const webhookConfig = buildEmbedderWebhookConfig();
 
   enqueueEmbedJob(jobId, url, apiKey);
-  console.error('');
+  console.error();
   console.error(
     `${icons.pending} Queued embedding job for background processing: ${fmt.dim(jobId)}`
   );
@@ -182,7 +182,7 @@ export async function handleManualEmbedding(
       if (sourceURL && typeof sourceURL === 'string') {
         url = sourceURL;
       } else {
-        console.warn(
+        console.error(
           fmt.warning(
             `${icons.warning} No valid source URL found, using job ID as fallback`
           )
@@ -190,7 +190,7 @@ export async function handleManualEmbedding(
         url = jobId;
       }
     } else {
-      console.warn(
+      console.error(
         fmt.warning(
           `${icons.warning} No crawl data available, using job ID as URL`
         )

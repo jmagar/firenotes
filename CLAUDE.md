@@ -60,12 +60,13 @@ This project uses a **self-hosted Firecrawl stack**, NOT the cloud API.
 
 ### Docker Services
 
-| Container | Image | Port | Purpose |
-|-----------|-------|------|---------|
-| `firecrawl` | ghcr.io/firecrawl/firecrawl | 53002 | Main Firecrawl API |
-| `firecrawl-playwright` | loorisr/patchright-scrape-api | 53006 (internal) | Browser scraping backend |
-| `tei` | ghcr.io/huggingface/tei | 53010 | Text embeddings |
-| `firecrawl-qdrant` | qdrant/qdrant | 53333 | Vector database |
+| Container | Image | Port | Purpose | Status |
+|-----------|-------|------|---------|--------|
+| `firecrawl` | ghcr.io/firecrawl/firecrawl | 53002 | Main Firecrawl API | Active |
+| `firecrawl-playwright` | loorisr/patchright-scrape-api | 53006 (internal) | Browser scraping backend | Active |
+| `firecrawl-qdrant` | qdrant/qdrant | 53333 | Vector database | Active |
+
+**Note:** TEI is NOT running - always use `--no-embed` flag.
 
 ### Scraping Architecture
 
@@ -99,8 +100,8 @@ QDRANT_URL=http://localhost:53333
 
 ## External Integrations
 
-- **TEI (Text Embeddings Inference)**: Local vector embedding service at port 53010
 - **Qdrant**: Local vector database at port 53333
+- **TEI**: NOT AVAILABLE - do not attempt embedding operations
 
 ## Configuration Priority
 
@@ -191,3 +192,16 @@ This fix persists across container restarts.
 ### Client-Side Rendered Sites
 
 Sites using heavy JS frameworks (TanStack Router, Next.js client-only, etc.) may fail to scrape if content isn't in initial HTML. The `fetch` engine will see empty content, and `playwright` engine may timeout before JS hydrates.
+
+## Current Environment
+
+### TEI IS NOT RUNNING
+
+**TEI (Text Embeddings Inference) is NOT available on this device.** Always use `--no-embed` flag when running scrape/crawl commands to prevent embedding failures:
+
+```bash
+firecrawl scrape https://example.com --no-embed
+firecrawl crawl https://example.com --wait --progress --no-embed
+```
+
+Do NOT attempt to start TEI or troubleshoot embedding failures - embedding is simply not available.

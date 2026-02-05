@@ -5,6 +5,7 @@
 import type { IContainer } from '../../container/types';
 import type { CrawlJobData } from '../../types/crawl';
 import { pollWithProgress } from '../../utils/polling';
+import { fmt } from '../../utils/theme';
 
 /**
  * Poll crawl job status with progress updates and timeout handling
@@ -45,8 +46,8 @@ export async function pollCrawlProgress(
 
   try {
     // Write initial messages to stderr
-    process.stderr.write(`Polling job status...\n`);
-    process.stderr.write(`Job ID: ${jobId}\n`);
+    process.stderr.write(`${fmt.dim('Polling job status...')}\n`);
+    process.stderr.write(`${fmt.dim(`Job ID: ${jobId}`)}\n`);
 
     return await pollWithProgress({
       jobId,
@@ -66,7 +67,8 @@ export async function pollCrawlProgress(
         `Progress: ${status.completed}/${status.total} pages (${status.status})`,
     });
   } catch (error) {
-    process.stderr.write(`\nPolling failed: ${error}\n`);
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`\n${fmt.error(`Polling failed: ${message}`)}\n`);
     throw error;
   }
 }

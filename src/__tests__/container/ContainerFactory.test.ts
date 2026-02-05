@@ -26,7 +26,7 @@ describe('ContainerFactory', () => {
     });
 
     it('should reject port < 1 from options', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const container = createContainer({
         embedderWebhookPort: 0,
@@ -41,7 +41,7 @@ describe('ContainerFactory', () => {
     });
 
     it('should reject port >= 65536 from options', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const container = createContainer({
         embedderWebhookPort: 65536,
@@ -56,7 +56,7 @@ describe('ContainerFactory', () => {
     });
 
     it('should reject negative port from options', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const container = createContainer({
         embedderWebhookPort: -1,
@@ -71,7 +71,7 @@ describe('ContainerFactory', () => {
     });
 
     it('should reject non-finite port from options', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const container = createContainer({
         embedderWebhookPort: Number.NaN,
@@ -86,7 +86,7 @@ describe('ContainerFactory', () => {
     });
 
     it('should reject invalid port from environment variable', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = '0';
 
@@ -101,7 +101,7 @@ describe('ContainerFactory', () => {
     });
 
     it('should reject non-numeric port from environment variable', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = 'invalid';
 
@@ -128,7 +128,7 @@ describe('ContainerFactory', () => {
     });
 
     it('should use environment variable when options are invalid', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = '53001';
 

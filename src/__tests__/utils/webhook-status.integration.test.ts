@@ -3,6 +3,7 @@
  */
 
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -32,11 +33,34 @@ vi.mock('../../container/DaemonContainerFactory', () => ({
 describe('webhook server status endpoint', () => {
   let queueDir: string;
   let cleanup: (() => Promise<void>) | undefined;
+  let port: number;
 
-  beforeEach(() => {
+  const getAvailablePort = async (): Promise<number> =>
+    await new Promise((resolve, reject) => {
+      const server = createServer();
+      server.unref();
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', () => {
+        const address = server.address();
+        if (!address || typeof address === 'string') {
+          server.close(() => reject(new Error('Failed to allocate port')));
+          return;
+        }
+        server.close((err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve(address.port);
+        });
+      });
+    });
+
+  beforeEach(async () => {
+    port = await getAvailablePort();
     queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
     process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
-    process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = '53999'; // Use a different port for tests
+    process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = String(port);
     vi.clearAllMocks();
     vi.resetModules();
   });
@@ -100,7 +124,7 @@ describe('webhook server status endpoint', () => {
         teiUrl: 'http://tei:8080',
         qdrantUrl: 'http://qdrant:6333',
         embedderWebhookUrl: 'https://example.com/webhook',
-        embedderWebhookPort: 53999,
+        embedderWebhookPort: port,
         embedderWebhookPath: '/webhooks/crawl',
       },
       getFirecrawlClient: vi.fn(),
@@ -122,7 +146,7 @@ describe('webhook server status endpoint', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Make request to status endpoint
-    const response = await fetch('http://localhost:53999/status');
+    const response = await fetch(`http://localhost:${port}/status`);
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -144,7 +168,7 @@ describe('webhook server status endpoint', () => {
         teiUrl: 'http://tei:8080',
         qdrantUrl: 'http://qdrant:6333',
         embedderWebhookUrl: undefined, // No webhook URL
-        embedderWebhookPort: 53998,
+        embedderWebhookPort: port,
         embedderWebhookPath: '/webhooks/crawl',
       },
       getFirecrawlClient: vi.fn(),
@@ -156,7 +180,7 @@ describe('webhook server status endpoint', () => {
     };
 
     // Update port for this test BEFORE importing to avoid module cache issues
-    process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = '53998';
+    process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = String(port);
     vi.resetModules();
 
     const { startEmbedderDaemon } = await import(
@@ -170,7 +194,7 @@ describe('webhook server status endpoint', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Make request to status endpoint
-    const response = await fetch('http://localhost:53998/status');
+    const response = await fetch(`http://localhost:${port}/status`);
     const body = await response.json();
 
     expect(response.status).toBe(200);

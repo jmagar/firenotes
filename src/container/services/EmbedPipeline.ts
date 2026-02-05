@@ -11,6 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import pLimit from 'p-limit';
 import { chunkText } from '../../utils/chunker';
+import { fmt } from '../../utils/theme';
 import type { IEmbedPipeline, IQdrantService, ITeiService } from '../types';
 
 /**
@@ -110,7 +111,9 @@ export class EmbedPipeline implements IEmbedPipeline {
     // Upsert to Qdrant
     await this.qdrantService.upsertPoints(this.collectionName, points);
 
-    console.error(`Embedded ${chunks.length} chunks for ${metadata.url}`);
+    console.error(
+      fmt.dim(`Embedded ${chunks.length} chunks for ${metadata.url}`)
+    );
   }
 
   /**
@@ -140,8 +143,9 @@ export class EmbedPipeline implements IEmbedPipeline {
       await this.autoEmbedInternal(content, metadata);
     } catch (error) {
       console.error(
-        `Embed failed for ${metadata.url}:`,
-        error instanceof Error ? error.message : 'Unknown error'
+        fmt.error(
+          `Embed failed for ${metadata.url}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
       );
     }
   }
@@ -208,7 +212,9 @@ export class EmbedPipeline implements IEmbedPipeline {
     if (result.failed > 0) {
       const total = result.succeeded + result.failed;
       console.error(
-        `Embedded ${result.succeeded}/${total} items (${result.failed} failed)`
+        fmt.warning(
+          `Embedded ${result.succeeded}/${total} items (${result.failed} failed)`
+        )
       );
     }
 

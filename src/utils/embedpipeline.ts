@@ -16,6 +16,7 @@ import { chunkText } from './chunker';
 import { getConfig } from './config';
 import { embedChunks, getTeiInfo } from './embeddings';
 import { deleteByUrl, ensureCollection, upsertPoints } from './qdrant';
+import { fmt } from './theme';
 
 /**
  * Maximum concurrent embedding operations to prevent resource exhaustion
@@ -93,7 +94,7 @@ async function autoEmbedInternal(
   // No-op for empty content
   const trimmed = content.trim();
   if (!trimmed) {
-    console.error(`Skipping empty content for ${metadata.url}`);
+    console.error(fmt.warning(`Skipping empty content for ${metadata.url}`));
     return;
   }
 
@@ -106,7 +107,9 @@ async function autoEmbedInternal(
   // Chunk content
   const chunks = chunkText(trimmed);
   if (chunks.length === 0) {
-    console.error(`Chunking produced 0 chunks for ${metadata.url}`);
+    console.error(
+      fmt.warning(`Chunking produced 0 chunks for ${metadata.url}`)
+    );
     return;
   }
 
@@ -142,7 +145,9 @@ async function autoEmbedInternal(
   // Upsert to Qdrant
   await upsertPoints(qdrantUrl, collection, points);
 
-  console.error(`Embedded ${chunks.length} chunks for ${metadata.url}`);
+  console.error(
+    `${fmt.success('Embedded')} ${chunks.length} chunks for ${fmt.dim(metadata.url)}`
+  );
 }
 
 /**
@@ -159,8 +164,9 @@ export async function autoEmbed(
     await autoEmbedInternal(content, metadata, config);
   } catch (error) {
     console.error(
-      `Embed failed for ${metadata.url}:`,
-      error instanceof Error ? error.message : 'Unknown error'
+      fmt.error(
+        `Embed failed for ${metadata.url}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     );
   }
 }
@@ -222,7 +228,9 @@ export async function batchEmbed(
   if (result.failed > 0) {
     const total = result.succeeded + result.failed;
     console.error(
-      `Embedded ${result.succeeded}/${total} items (${result.failed} failed)`
+      fmt.warning(
+        `Embedded ${result.succeeded}/${total} items (${result.failed} failed)`
+      )
     );
   }
 
@@ -252,7 +260,9 @@ export function createEmbedItems<
   const skippedCount = pages.length - validPages.length;
 
   if (skippedCount > 0) {
-    console.warn(`Skipped ${skippedCount} pages without content for embedding`);
+    console.warn(
+      fmt.warning(`Skipped ${skippedCount} pages without content for embedding`)
+    );
   }
 
   return validPages.map((page) => ({

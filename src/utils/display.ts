@@ -2,6 +2,8 @@
  * Display utilities for command execution info
  */
 
+import { fmt } from './theme';
+
 /**
  * Format a value for display
  *
@@ -72,11 +74,11 @@ export function displayCommandInfo(
   target: string,
   options: Record<string, unknown>
 ): void {
-  console.error(`${action}: ${target}`);
+  console.error(`${action}: ${fmt.dim(target)}`);
 
   const optionsStr = formatOptionsDisplay(options);
   if (optionsStr) {
-    console.error(`Options: ${optionsStr}`);
+    console.error(`Options: ${fmt.dim(optionsStr)}`);
   }
 
   console.error(''); // Blank line for separation

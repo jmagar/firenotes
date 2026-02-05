@@ -14,6 +14,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { fmt } from './theme';
 
 export interface EmbedJob {
   id: string;
@@ -102,7 +103,11 @@ export function getEmbedJob(jobId: string): EmbedJob | null {
     const data = readFileSync(path, 'utf-8');
     return JSON.parse(data);
   } catch (error) {
-    console.error(`Failed to read job ${jobId}:`, error);
+    console.error(
+      fmt.error(
+        `Failed to read job ${jobId}: ${error instanceof Error ? error.message : String(error)}`
+      )
+    );
     return null;
   }
 }
@@ -140,7 +145,11 @@ export function listEmbedJobs(): EmbedJob[] {
       const data = readFileSync(join(QUEUE_DIR, file), 'utf-8');
       jobs.push(JSON.parse(data));
     } catch (error) {
-      console.error(`Failed to read job file ${file}:`, error);
+      console.error(
+        fmt.error(
+          `Failed to read job file ${file}: ${error instanceof Error ? error.message : String(error)}`
+        )
+      );
     }
   }
 

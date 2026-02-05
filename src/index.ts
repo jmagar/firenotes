@@ -46,6 +46,7 @@ import {
 import type { IContainer } from './container/types';
 import { ensureAuthenticated, printBanner } from './utils/auth';
 import { initializeConfig } from './utils/config';
+import { fmt } from './utils/theme';
 import { isUrl, normalizeUrl } from './utils/url';
 
 /**
@@ -78,12 +79,14 @@ let isShuttingDown = false;
 function handleShutdown(signal: string): void {
   if (isShuttingDown) {
     // Force exit on second signal
-    console.error('\nForce exiting...');
+    console.error(`\n${fmt.warning('Force exiting...')}`);
     process.exit(130);
   }
 
   isShuttingDown = true;
-  console.error(`\n${signal} received. Shutting down gracefully...`);
+  console.error(
+    `\n${fmt.dim(`${signal} received.`)} Shutting down gracefully...`
+  );
 
   // Dispose container resources (HTTP connections, etc.) then exit
   const exitCode = signal === 'SIGINT' ? 130 : 143;
@@ -92,8 +95,9 @@ function handleShutdown(signal: string): void {
     .catch((error) => {
       // Log but don't block shutdown on dispose errors
       console.error(
-        'Warning: Error during cleanup:',
-        error instanceof Error ? error.message : 'Unknown error'
+        fmt.warning(
+          `Error during cleanup: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
       );
     })
     .finally(() => {
@@ -102,7 +106,7 @@ function handleShutdown(signal: string): void {
 
   // Force exit after timeout if dispose hangs
   setTimeout(() => {
-    console.error('Warning: Cleanup timeout, forcing exit...');
+    console.error(fmt.warning('Cleanup timeout, forcing exit...'));
     process.exit(exitCode);
   }, 5000);
 }
@@ -277,8 +281,7 @@ async function main() {
 
 main().catch((error) => {
   console.error(
-    'Error:',
-    error instanceof Error ? error.message : 'Unknown error'
+    fmt.error(error instanceof Error ? error.message : 'Unknown error')
   );
   process.exit(1);
 });

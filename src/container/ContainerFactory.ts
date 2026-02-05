@@ -4,6 +4,7 @@
  */
 
 import { loadCredentials } from '../utils/credentials';
+import { fmt } from '../utils/theme';
 import { Container } from './Container';
 import type { ConfigOptions, IContainer, ImmutableConfig } from './types';
 
@@ -43,8 +44,10 @@ export function createContainer(options: ConfigOptions = {}): IContainer {
     if (Number.isFinite(parsed) && parsed > 0 && parsed < 65536) {
       embedderWebhookPortFromEnv = parsed;
     } else {
-      console.warn(
-        `[Container] Invalid FIRECRAWL_EMBEDDER_WEBHOOK_PORT: ${process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT} (must be 1-65535)`
+      console.error(
+        fmt.warning(
+          `[Container] Invalid FIRECRAWL_EMBEDDER_WEBHOOK_PORT: ${process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT} (must be 1-65535)`
+        )
       );
     }
   }
@@ -57,8 +60,10 @@ export function createContainer(options: ConfigOptions = {}): IContainer {
       embedderWebhookPort <= 0 ||
       embedderWebhookPort >= 65536
     ) {
-      console.warn(
-        `[Container] Invalid embedderWebhookPort option: ${embedderWebhookPort} (must be 1-65535), clearing invalid value`
+      console.error(
+        fmt.warning(
+          `[Container] Invalid embedderWebhookPort option: ${embedderWebhookPort} (must be 1-65535), clearing invalid value`
+        )
       );
       embedderWebhookPort = undefined;
     }

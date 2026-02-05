@@ -33,7 +33,8 @@ function normalizePort(port: number | undefined): number {
     return DEFAULT_EMBEDDER_WEBHOOK_PORT;
   }
   const normalized = Math.trunc(port);
-  if (normalized < DEFAULT_EMBEDDER_WEBHOOK_PORT) {
+  // Only reject privileged ports (< 1024) and invalid ports
+  if (normalized < 1024 || normalized > 65535) {
     return DEFAULT_EMBEDDER_WEBHOOK_PORT;
   }
   return normalized;

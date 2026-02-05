@@ -10,6 +10,7 @@
 import * as readline from 'node:readline';
 import { DEFAULT_API_URL, getConfig, updateConfig } from './config';
 import { saveCredentials } from './credentials';
+import { fmt, icons } from './theme';
 
 /**
  * Prompt for input
@@ -67,11 +68,6 @@ function envVarLogin(): { apiKey: string; apiUrl: string } | null {
  * Print the Firecrawl CLI banner
  */
 function printBanner(): void {
-  const orange = '\x1b[38;5;208m';
-  const reset = '\x1b[0m';
-  const dim = '\x1b[2m';
-  const bold = '\x1b[1m';
-
   // Get version from package.json
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const packageJson = require('../../package.json');
@@ -79,9 +75,9 @@ function printBanner(): void {
 
   console.log('');
   console.log(
-    `  ${orange}🔥 ${bold}firecrawl${reset} ${dim}cli${reset} ${dim}v${version}${reset}`
+    `  ${fmt.primary(`${icons.success} firecrawl`)} ${fmt.dim('cli')} ${fmt.dim(`v${version}`)}`
   );
-  console.log(`  ${dim}Turn websites into LLM-ready data${reset}`);
+  console.log(`  ${fmt.dim('Turn websites into LLM-ready data')}`);
   console.log('');
 }
 
@@ -96,14 +92,18 @@ async function interactiveLogin(): Promise<{
   const envResult = envVarLogin();
   if (envResult) {
     printBanner();
-    console.log('Using FIRECRAWL_API_KEY from environment variable\n');
+    console.log(fmt.dim('Using FIRECRAWL_API_KEY from environment variable\n'));
     return envResult;
   }
 
   printBanner();
-  console.log('Welcome! To get started, provide your Firecrawl API key.\n');
   console.log(
-    'Tip: You can also set FIRECRAWL_API_KEY and FIRECRAWL_API_URL environment variables\n'
+    fmt.dim('Welcome! To get started, provide your Firecrawl API key.\n')
+  );
+  console.log(
+    fmt.dim(
+      'Tip: You can also set FIRECRAWL_API_KEY and FIRECRAWL_API_URL environment variables\n'
+    )
   );
 
   return manualLogin();
@@ -150,13 +150,14 @@ export async function ensureAuthenticated(): Promise<string> {
       apiUrl: result.apiUrl,
     });
 
-    console.log('\n✓ Login successful!');
+    console.log(`\n${fmt.success(`${icons.success} Login successful!`)}`);
 
     return result.apiKey;
   } catch (error) {
     console.error(
-      '\nAuthentication failed:',
-      error instanceof Error ? error.message : 'Unknown error'
+      fmt.error(
+        `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     );
     process.exit(1);
   }

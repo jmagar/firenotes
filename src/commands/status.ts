@@ -24,7 +24,6 @@ import {
   getStatusColor,
   getStatusIcon,
   icons,
-  isTTY,
 } from '../utils/theme';
 
 type AuthSource = 'env' | 'stored' | 'none';
@@ -89,19 +88,12 @@ export async function handleStatusCommand(
   container: IContainer,
   _options: Record<string, unknown>
 ): Promise<void> {
-  const orange = '\x1b[38;5;208m';
-  const reset = '\x1b[0m';
-  const dim = '\x1b[2m';
-  const bold = '\x1b[1m';
-  const green = '\x1b[32m';
-  const red = '\x1b[31m';
-
   const status = getStatus(container.config);
 
   // Header
   console.log('');
   console.log(
-    `  ${orange}🔥 ${bold}firecrawl${reset} ${dim}cli${reset} ${dim}v${status.version}${reset}`
+    `  ${fmt.primary(`${icons.success} firecrawl`)} ${fmt.dim('cli')} ${fmt.dim(`v${status.version}`)}`
   );
   console.log('');
 
@@ -112,17 +104,17 @@ export async function handleStatusCommand(
         ? 'via FIRECRAWL_API_KEY'
         : 'via stored credentials';
     console.log(
-      `  ${green}●${reset} Authenticated ${dim}${sourceLabel}${reset}`
+      `  ${fmt.success(icons.active)} Authenticated ${fmt.dim(sourceLabel)}`
     );
   } else {
-    console.log(`  ${red}●${reset} Not authenticated`);
-    console.log(`  ${dim}Run 'firecrawl login' to authenticate${reset}`);
+    console.log(`  ${fmt.error(icons.active)} Not authenticated`);
+    console.log(fmt.dim("Run 'firecrawl login' to authenticate"));
     console.log('');
     return;
   }
 
   // API URL
-  console.log(`  ${dim}API URL:${reset} ${status.apiUrl}`);
+  console.log(`  ${fmt.dim('API URL:')} ${status.apiUrl}`);
   console.log('');
 }
 
@@ -663,7 +655,9 @@ export async function handleJobStatusCommand(
     );
     writeOutput(outputContent, options.output, !!options.output);
   } catch (error) {
-    console.error('Error:', error instanceof Error ? error.message : error);
+    console.error(
+      fmt.error(error instanceof Error ? error.message : String(error))
+    );
     process.exit(1);
   }
 }

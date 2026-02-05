@@ -45,7 +45,7 @@ function outputTiming(
     timingInfo.error = error instanceof Error ? error.message : 'Unknown error';
   }
 
-  console.error('Timing:', JSON.stringify(timingInfo, null, 2));
+  console.error(`${fmt.dim('Timing:')} ${JSON.stringify(timingInfo, null, 2)}`);
 }
 
 /**

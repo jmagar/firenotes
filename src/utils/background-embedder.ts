@@ -32,6 +32,7 @@ import {
   getEmbedderWebhookSettings,
 } from './embedder-webhook';
 import { batchEmbed, createEmbedItems } from './embedpipeline';
+import { fmt } from './theme';
 
 const POLL_INTERVAL_MS = 10000; // 10 seconds (retry base)
 const BACKOFF_MULTIPLIER = 2;
@@ -41,13 +42,19 @@ const MAX_BACKOFF_MS = 60000; // 1 minute
  * Log embedder configuration for debugging
  */
 export function logEmbedderConfig(config: Partial<ImmutableConfig>): void {
-  console.error('[Embedder] Config:');
-  console.error(`[Embedder]   TEI_URL: ${config.teiUrl || '(not configured)'}`);
+  console.error(fmt.dim('[Embedder] Config:'));
   console.error(
-    `[Embedder]   QDRANT_URL: ${config.qdrantUrl || '(not configured)'}`
+    fmt.dim(`[Embedder]   TEI_URL: ${config.teiUrl || '(not configured)'}`)
   );
   console.error(
-    `[Embedder]   QDRANT_COLLECTION: ${config.qdrantCollection || 'firecrawl'}`
+    fmt.dim(
+      `[Embedder]   QDRANT_URL: ${config.qdrantUrl || '(not configured)'}`
+    )
+  );
+  console.error(
+    fmt.dim(
+      `[Embedder]   QDRANT_COLLECTION: ${config.qdrantCollection || 'firecrawl'}`
+    )
   );
 }
 
@@ -70,7 +77,9 @@ async function processEmbedJob(
   crawlStatus?: { status?: string; data?: Document[] }
 ): Promise<void> {
   console.error(
-    `[Embedder] Processing job ${job.jobId} (attempt ${job.retries + 1}/${job.maxRetries})`
+    fmt.dim(
+      `[Embedder] Processing job ${job.jobId} (attempt ${job.retries + 1}/${job.maxRetries})`
+    )
   );
 
   try {
@@ -89,11 +98,13 @@ async function processEmbedJob(
 
       const errorMsg = `Missing required configuration: ${missingConfigs.join(', ')}. Set these environment variables to enable embedding.`;
 
-      console.error(`[Embedder] CONFIGURATION ERROR: ${errorMsg}`);
+      console.error(fmt.error(`[Embedder] CONFIGURATION ERROR: ${errorMsg}`));
       console.error(
-        `[Embedder] To enable embedding, configure:\n` +
-          `  - TEI_URL: Text Embeddings Inference service endpoint (e.g., http://localhost:53080)\n` +
-          `  - QDRANT_URL: Qdrant vector database endpoint (e.g., http://localhost:53333)`
+        fmt.dim(
+          `[Embedder] To enable embedding, configure:\n` +
+            `  - TEI_URL: Text Embeddings Inference service endpoint (e.g., http://localhost:53080)\n` +
+            `  - QDRANT_URL: Qdrant vector database endpoint (e.g., http://localhost:53333)`
+        )
       );
 
       markJobConfigError(job.jobId, errorMsg);
@@ -113,7 +124,9 @@ async function processEmbedJob(
     if (status.status !== 'completed') {
       // Still processing, re-queue for later
       console.error(
-        `[Embedder] Job ${job.jobId} still ${status.status}, will retry later`
+        fmt.warning(
+          `[Embedder] Job ${job.jobId} still ${status.status}, will retry later`
+        )
       );
       throw new Error(`Crawl still ${status.status}`);
     }
@@ -131,13 +144,17 @@ async function processEmbedJob(
     }
 
     if (pages.length === 0) {
-      console.error(`[Embedder] Job ${job.jobId} has no pages to embed`);
+      console.error(
+        fmt.warning(`[Embedder] Job ${job.jobId} has no pages to embed`)
+      );
       markJobCompleted(job.jobId);
       return;
     }
 
     // Embed pages using job-specific container config
-    console.error(`[Embedder] Embedding ${pages.length} pages for ${job.url}`);
+    console.error(
+      fmt.dim(`[Embedder] Embedding ${pages.length} pages for ${job.url}`)
+    );
     const embedItems = createEmbedItems(pages, 'crawl');
     const result = await batchEmbed(embedItems, {
       config: jobContainer.config,
@@ -147,23 +164,27 @@ async function processEmbedJob(
     if (result.failed > 0) {
       const total = result.succeeded + result.failed;
       console.error(
-        `[Embedder] Partial embed: ${result.succeeded}/${total} succeeded`
+        fmt.warning(
+          `[Embedder] Partial embed: ${result.succeeded}/${total} succeeded`
+        )
       );
     } else {
       console.error(
-        `[Embedder] Successfully embedded ${result.succeeded} pages for ${job.url}`
+        fmt.success(
+          `[Embedder] Successfully embedded ${result.succeeded} pages for ${job.url}`
+        )
       );
     }
     markJobCompleted(job.jobId);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`[Embedder] Job ${job.jobId} failed:`, errorMsg);
+    console.error(fmt.error(`[Embedder] Job ${job.jobId} failed: ${errorMsg}`));
     markJobFailed(job.jobId, errorMsg);
 
     // Apply backoff for next retry
     if (job.retries + 1 < job.maxRetries) {
       const delay = getBackoffDelay(job.retries);
-      console.error(`[Embedder] Will retry in ${delay / 1000}s`);
+      console.error(fmt.dim(`[Embedder] Will retry in ${delay / 1000}s`));
     }
   }
 }
@@ -178,7 +199,9 @@ export async function processEmbedQueue(_container: IContainer): Promise<void> {
     return;
   }
 
-  console.error(`[Embedder] Processing ${pendingJobs.length} pending jobs`);
+  console.error(
+    fmt.dim(`[Embedder] Processing ${pendingJobs.length} pending jobs`)
+  );
 
   // Process jobs sequentially to avoid overwhelming TEI/Qdrant
   for (const job of pendingJobs) {
@@ -198,7 +221,7 @@ export async function processStaleJobsOnce(
   const stuckJobs = getStuckProcessingJobs(stuckMaxAgeMs);
   if (stuckJobs.length > 0) {
     console.error(
-      `[Embedder] Recovering ${stuckJobs.length} stuck processing jobs`
+      fmt.dim(`[Embedder] Recovering ${stuckJobs.length} stuck processing jobs`)
     );
     for (const job of stuckJobs) {
       job.status = 'pending';
@@ -212,7 +235,9 @@ export async function processStaleJobsOnce(
     return 0;
   }
 
-  console.error(`[Embedder] Processing ${staleJobs.length} stale jobs`);
+  console.error(
+    fmt.dim(`[Embedder] Processing ${staleJobs.length} stale jobs`)
+  );
   for (const job of staleJobs) {
     await processEmbedJob(job);
   }
@@ -235,13 +260,15 @@ async function readJsonBody(req: NodeJS.ReadableStream): Promise<unknown> {
 async function handleWebhookPayload(payload: unknown): Promise<void> {
   const info = extractEmbedderWebhookJobInfo(payload);
   if (!info) {
-    console.error('[Embedder] Webhook payload missing job ID');
+    console.error(fmt.error('[Embedder] Webhook payload missing job ID'));
     return;
   }
 
   const job = getEmbedJob(info.jobId);
   if (!job) {
-    console.error(`[Embedder] Webhook for unknown job: ${info.jobId}`);
+    console.error(
+      fmt.error(`[Embedder] Webhook for unknown job: ${info.jobId}`)
+    );
     return;
   }
 
@@ -260,7 +287,9 @@ async function handleWebhookPayload(payload: unknown): Promise<void> {
 
   if (status !== 'completed') {
     console.error(
-      `[Embedder] Ignoring webhook for ${info.jobId} with status ${info.status}`
+      fmt.warning(
+        `[Embedder] Ignoring webhook for ${info.jobId} with status ${info.status}`
+      )
     );
     return;
   }
@@ -364,7 +393,11 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
       res.statusCode = 202;
       res.end();
     } catch (error) {
-      console.error('[Embedder] Failed to parse webhook payload:', error);
+      console.error(
+        fmt.error(
+          `[Embedder] Failed to parse webhook payload: ${error instanceof Error ? error.message : String(error)}`
+        )
+      );
       res.statusCode = 400;
       res.end();
     }
@@ -376,15 +409,19 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
   });
 
   const localUrl = `http://localhost:${settings.port}${settings.path}`;
-  console.error(`[Embedder] Webhook server listening on ${localUrl}`);
+  console.error(fmt.dim(`[Embedder] Webhook server listening on ${localUrl}`));
 
   if (!settings.url) {
-    console.error(`[Embedder] WARNING: No webhook URL configured`);
+    console.error(fmt.warning('[Embedder] WARNING: No webhook URL configured'));
     console.error(
-      `[Embedder] Jobs will be processed via polling (every ${Math.round(intervalMs / 1000)}s, stale after ${Math.round(staleMs / 1000)}s)`
+      fmt.dim(
+        `[Embedder] Jobs will be processed via polling (every ${Math.round(intervalMs / 1000)}s, stale after ${Math.round(staleMs / 1000)}s)`
+      )
     );
     console.error(
-      `[Embedder] For faster processing, set FIRECRAWL_EMBEDDER_WEBHOOK_URL`
+      fmt.dim(
+        '[Embedder] For faster processing, set FIRECRAWL_EMBEDDER_WEBHOOK_URL'
+      )
     );
   }
 
@@ -400,29 +437,39 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
 export async function startEmbedderDaemon(
   container: IContainer
 ): Promise<() => Promise<void>> {
-  console.error('[Embedder] Starting background embedder daemon');
+  console.error(fmt.dim('[Embedder] Starting background embedder daemon'));
   logEmbedderConfig(container.config);
 
   // Clean up old jobs on startup
   const cleaned = cleanupOldJobs(24);
   if (cleaned > 0) {
-    console.error(`[Embedder] Cleaned up ${cleaned} old jobs`);
+    console.error(fmt.dim(`[Embedder] Cleaned up ${cleaned} old jobs`));
   }
 
   const { intervalMs, staleMs, server } =
     await startEmbedderWebhookServer(container);
 
   console.error(
-    `[Embedder] Checking for stale jobs every ${Math.round(intervalMs / 1000)}s (stale after ${Math.round(staleMs / 1000)}s)`
+    fmt.dim(
+      `[Embedder] Checking for stale jobs every ${Math.round(intervalMs / 1000)}s (stale after ${Math.round(staleMs / 1000)}s)`
+    )
   );
 
   void processStaleJobsOnce(container, staleMs).catch((error) => {
-    console.error('[Embedder] Failed to process stale jobs:', error);
+    console.error(
+      fmt.error(
+        `[Embedder] Failed to process stale jobs: ${error instanceof Error ? error.message : String(error)}`
+      )
+    );
   });
 
   const intervalId = setInterval(() => {
     void processStaleJobsOnce(container, staleMs).catch((error) => {
-      console.error('[Embedder] Failed to process stale jobs:', error);
+      console.error(
+        fmt.error(
+          `[Embedder] Failed to process stale jobs: ${error instanceof Error ? error.message : String(error)}`
+        )
+      );
     });
   }, intervalMs);
 
@@ -455,7 +502,7 @@ export function spawnBackgroundEmbedder(): void {
 
   child.unref();
 
-  console.error('[Embedder] Background embedder spawned');
+  console.error(fmt.dim('[Embedder] Background embedder spawned'));
 }
 
 /**

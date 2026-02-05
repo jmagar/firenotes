@@ -20,7 +20,7 @@ import type {
 import { formatJson, handleCommandError } from '../utils/command';
 import { displayCommandInfo } from '../utils/display';
 import { validateOutputPath, writeOutput } from '../utils/output';
-import { fmt, icons } from '../utils/theme';
+import { fmt } from '../utils/theme';
 
 /**
  * Maximum concurrent embedding operations to prevent resource exhaustion
