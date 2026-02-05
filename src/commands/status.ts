@@ -11,7 +11,11 @@ import { isAuthenticated } from '../utils/auth';
 import { formatJson } from '../utils/command';
 import { DEFAULT_API_URL } from '../utils/config';
 import { loadCredentials } from '../utils/credentials';
-import { listEmbedJobs, updateEmbedJob } from '../utils/embed-queue';
+import {
+  cleanupOldJobs,
+  listEmbedJobs,
+  updateEmbedJob,
+} from '../utils/embed-queue';
 import { withTimeout } from '../utils/http';
 import { isJobId } from '../utils/job';
 import { getRecentJobIds, removeJobIds } from '../utils/job-history';
@@ -178,17 +182,27 @@ async function executeJobStatus(
   options: JobStatusOptions
 ) {
   const client = container.getFirecrawlClient();
+
+  // Clean up old completed/failed embed jobs (older than 1 hour)
+  // This prevents "Job not found" errors from completed crawls that no longer exist in the API
+  cleanupOldJobs(1); // 1 hour retention
+
   const embedQueue = summarizeEmbedQueue();
   const crawlIds = parseIds(options.crawl);
   const batchIds = parseIds(options.batch);
   const extractIds = parseIds(options.extract);
-  const embedJobIds = embedQueue.jobs.map((job) => job.jobId);
+
+  // Only include pending/processing embed jobs in crawl status checks
+  // Completed/failed embeds indicate the crawl is done, so no need to query API
+  const activeEmbedJobIds = embedQueue.jobs
+    .filter((job) => job.status === 'pending' || job.status === 'processing')
+    .map((job) => job.jobId);
 
   const resolvedCrawlIds = filterValidJobIds(
     crawlIds.length > 0
       ? crawlIds
       : Array.from(
-          new Set([...getRecentJobIds('crawl', 10), ...embedJobIds])
+          new Set([...getRecentJobIds('crawl', 10), ...activeEmbedJobIds])
         ).slice(0, 10)
   );
   const resolvedBatchIds = filterValidJobIds(

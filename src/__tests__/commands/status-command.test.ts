@@ -20,6 +20,7 @@ vi.mock('../../utils/embed-queue', () => ({
   listEmbedJobs: vi.fn().mockReturnValue([]),
   removeEmbedJob: vi.fn(),
   updateEmbedJob: vi.fn(),
+  cleanupOldJobs: vi.fn().mockReturnValue(0),
 }));
 
 vi.mock('../../utils/job-history', () => ({
@@ -58,9 +59,12 @@ describe('handleJobStatusCommand', () => {
 
   beforeEach(async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
-    const { listEmbedJobs } = await import('../../utils/embed-queue');
+    const { listEmbedJobs, cleanupOldJobs } = await import(
+      '../../utils/embed-queue'
+    );
     vi.mocked(getRecentJobIds).mockReturnValue([]);
     vi.mocked(listEmbedJobs).mockReturnValue([]);
+    vi.mocked(cleanupOldJobs).mockReturnValue(0);
     container = createTestContainer(mockClient);
   });
 
@@ -163,6 +167,89 @@ describe('handleJobStatusCommand', () => {
     expect(removeJobIds).toHaveBeenCalledWith('extract', [
       '019c161c-8a80-7051-a438-2ec8707e1bc6',
     ]);
+  });
+
+  it('should not query crawl status for completed embed jobs', async () => {
+    const { listEmbedJobs } = await import('../../utils/embed-queue');
+    const { getRecentJobIds } = await import('../../utils/job-history');
+
+    // Setup: no job history, but completed and pending embeds exist
+    // Use valid ULID format job IDs
+    const completedJobId = '019c2d95-e2c6-7158-9987-ec571c694928';
+    const pendingJobId = '019c2d96-e415-70c9-a326-58e4b113acb4';
+    const processingJobId = '019c2d97-f3c5-7302-bfba-06b6b3090b56';
+    const failedJobId = '019c2d98-cd46-7119-bb65-396835e36e3f';
+
+    vi.mocked(getRecentJobIds).mockReturnValue([]);
+    vi.mocked(listEmbedJobs).mockReturnValue([
+      {
+        id: completedJobId,
+        jobId: completedJobId,
+        url: 'https://example.com/completed',
+        status: 'completed',
+        retries: 0,
+        maxRetries: 3,
+        createdAt: '2026-02-01T00:00:00.000Z',
+        updatedAt: '2026-02-01T00:01:00.000Z',
+      },
+      {
+        id: pendingJobId,
+        jobId: pendingJobId,
+        url: 'https://example.com/pending',
+        status: 'pending',
+        retries: 0,
+        maxRetries: 3,
+        createdAt: '2026-02-01T00:00:00.000Z',
+        updatedAt: '2026-02-01T00:01:00.000Z',
+      },
+      {
+        id: processingJobId,
+        jobId: processingJobId,
+        url: 'https://example.com/processing',
+        status: 'processing',
+        retries: 0,
+        maxRetries: 3,
+        createdAt: '2026-02-01T00:00:00.000Z',
+        updatedAt: '2026-02-01T00:01:00.000Z',
+      },
+      {
+        id: failedJobId,
+        jobId: failedJobId,
+        url: 'https://example.com/failed',
+        status: 'failed',
+        retries: 3,
+        maxRetries: 3,
+        createdAt: '2026-02-01T00:00:00.000Z',
+        updatedAt: '2026-02-01T00:01:00.000Z',
+        lastError: 'Test error',
+      },
+    ]);
+
+    mockClient.getCrawlStatus.mockResolvedValue({
+      id: pendingJobId,
+      status: 'running',
+      total: 1,
+      completed: 0,
+      data: [],
+    });
+
+    await handleJobStatusCommand(container, { json: true });
+
+    // Should only query pending and processing jobs, NOT completed or failed
+    expect(mockClient.getCrawlStatus).toHaveBeenCalledWith(pendingJobId, {
+      autoPaginate: false,
+    });
+    expect(mockClient.getCrawlStatus).toHaveBeenCalledWith(processingJobId, {
+      autoPaginate: false,
+    });
+    expect(mockClient.getCrawlStatus).not.toHaveBeenCalledWith(
+      completedJobId,
+      expect.anything()
+    );
+    expect(mockClient.getCrawlStatus).not.toHaveBeenCalledWith(
+      failedJobId,
+      expect.anything()
+    );
   });
 
   it('should include pending embed jobs in JSON output', async () => {
