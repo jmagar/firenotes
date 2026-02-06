@@ -28,7 +28,7 @@ const BATCH_RETRY_DELAY_MS = 30000;
 /**
  * Calculate dynamic timeout based on batch size
  *
- * Formula: BASE + (size × PER_TEXT) × BUFFER
+ * Formula: (BASE + size × PER_TEXT) × BUFFER
  * - BASE: 10s for overhead (network, tokenization)
  * - PER_TEXT: 2s empirical average per text
  * - BUFFER: 1.5x (50% safety margin)

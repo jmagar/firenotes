@@ -188,14 +188,11 @@ async function processEmbedJob(
         updateCounter++;
         const shouldPersist = updateCounter % THROTTLE_INTERVAL === 0;
 
-        // Calculate succeeded from current count (current = succeeded + failed)
-        const succeeded = result.succeeded;
-        const failed = result.failed;
-
+        // Use current count from callback (result is not yet available)
         await updateJobProgress(
           job.jobId,
-          succeeded,
-          failed,
+          current,
+          0, // Failed count not available during progress, updated at completion
           shouldPersist
         ).catch((error) => {
           // Log but don't throw - embedding should continue even if progress update fails

@@ -397,13 +397,13 @@ export async function cleanupOldJobs(
  * @param jobId - Job identifier
  * @param processedDocuments - Number of documents successfully embedded
  * @param failedDocuments - Number of documents that failed embedding
- * @param shouldPersist - If true, writes changes to disk immediately
+ * @param shouldPersist - If true, writes changes to disk immediately (default: true)
  */
 export async function updateJobProgress(
   jobId: string,
   processedDocuments: number,
   failedDocuments: number,
-  shouldPersist: boolean = false
+  shouldPersist: boolean = true
 ): Promise<void> {
   const job = await getEmbedJob(jobId);
   if (!job) return;

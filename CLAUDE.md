@@ -4,41 +4,82 @@
 
 A command-line interface for the Firecrawl web scraping API with integrated semantic search capabilities via TEI embeddings and Qdrant vector database.
 
+## Quick Start
+
+### First-Time Setup
+```bash
+cp .env.example .env          # Copy environment template
+docker compose up -d          # Start infrastructure (first run: 5-10min for image pulls)
+docker compose ps             # Verify all services show "Up" or "Up (healthy)"
+pnpm install                  # Install dependencies
+pnpm build                    # Compile TypeScript to dist/
+pnpm local status             # Test installation
+```
+
+**Important**: Uncomment `TEI_URL=http://100.74.16.82:52000` in your `.env` file - embeddings are enabled by default.
+
+### Daily Workflow
+```bash
+docker compose up -d          # Start infrastructure
+pnpm dev                      # Auto-rebuild on file changes
+pnpm local <command>          # Test CLI commands (uses dist/index.js)
+pnpm test                     # Run unit tests
+```
+
 ## Architecture Overview
 
 ```
 src/
-├── index.ts              # CLI entry point (Commander.js, ~850 lines)
-├── commands/             # Command implementations (13 commands)
+├── index.ts              # CLI entry point (Commander.js)
+├── commands/             # Command implementations (21 user commands)
 │   ├── scrape.ts        # Single URL scraping
-│   ├── crawl.ts         # Multi-page crawling with progress
+│   ├── crawl/           # Multi-page crawling (8 supporting modules)
 │   ├── map.ts           # URL discovery (sitemap-like)
 │   ├── search.ts        # Web search with optional scraping
 │   ├── extract.ts       # Structured data extraction
 │   ├── embed.ts         # Manual vector embedding
-│   ├── query.ts         # Semantic search
+│   ├── query.ts         # Semantic search in Qdrant
 │   ├── retrieve.ts      # Document reconstruction
 │   ├── config.ts        # Configuration management
 │   ├── login.ts         # Authentication
 │   ├── logout.ts        # Credential removal
 │   ├── status.ts        # System status
-│   └── version.ts       # Version info
-├── utils/                # Shared utilities (14 modules)
+│   ├── version.ts       # Version info
+│   ├── batch.ts         # Batch operations
+│   ├── delete.ts        # Delete crawl jobs
+│   ├── domains.ts       # Domain management
+│   ├── history.ts       # Job history
+│   ├── info.ts          # Job info
+│   ├── list.ts          # List jobs
+│   ├── sources.ts       # Source management
+│   └── stats.ts         # Statistics
+├── utils/                # Shared utilities (25 modules)
 │   ├── client.ts        # Firecrawl SDK client singleton
 │   ├── config.ts        # Global configuration (env > credentials > defaults)
 │   ├── credentials.ts   # OS credential storage (keychain/file fallback)
 │   ├── auth.ts          # Authentication flow
 │   ├── output.ts        # Output formatting with path traversal protection
+│   ├── theme.ts         # CLI output theming (colors, icons, progress)
 │   ├── http.ts          # HTTP utilities with timeout and retry
 │   ├── embedpipeline.ts # Embedding orchestration (chunking → TEI → Qdrant)
 │   ├── chunker.ts       # Markdown-aware text chunking
 │   ├── embeddings.ts    # TEI integration (batched, concurrent)
 │   ├── qdrant.ts        # Qdrant vector database client
+│   ├── background-embedder.ts # Background embedding daemon
+│   ├── embed-queue.ts   # Persistent job queue for embeddings
+│   ├── embedder-webhook.ts # Webhook handler for async embeddings
+│   ├── job-history.ts   # Job tracking and history
 │   ├── url.ts           # URL validation
 │   ├── options.ts       # CLI option parsing
+│   ├── options-builder.ts # Fluent option builder
 │   ├── job.ts           # Job ID detection
-│   └── settings.ts      # User settings persistence
-└── types/                # TypeScript interfaces (8 files)
+│   ├── polling.ts       # Long-running job polling
+│   ├── settings.ts      # User settings persistence
+│   ├── command.ts       # Command utilities
+│   ├── display.ts       # Display formatting
+│   ├── constants.ts     # Shared constants
+│   └── extensions.ts    # Type extensions
+└── types/                # TypeScript interfaces (15+ files)
 ```
 
 ## Key Technologies
@@ -92,6 +133,10 @@ CLI (scrape/crawl/extract) → Embedder Daemon (53000) → TEI @ steamy-wsl (100
 - **Embedder Daemon** runs as a background service (`firecrawl-embedder` container)
 - Processes embedding jobs asynchronously via queue system
 - **TEI** runs on remote machine (steamy-wsl) with GPU acceleration
+- **Embedding Model**: `Qwen/Qwen3-Embedding-0.6B` via Hugging Face TEI
+- **TEI Endpoints**:
+  - `/embed` - Native TEI endpoint
+  - `/v1` - OpenAI-compatible endpoint
 - Embeddings are automatically generated for all scrape/crawl/extract/search operations
 - Vectors stored in local Qdrant for semantic search queries
 
@@ -108,15 +153,26 @@ QDRANT_URL=http://localhost:53333
 
 1. Check Firecrawl logs: `docker logs firecrawl --tail 100`
 2. Check Patchright logs: `docker logs firecrawl-playwright --tail 100`
-3. Common issues:
-   - Patchright `page.timeout()` bug - should be `page.wait_for_timeout()`
-   - Client-side rendered sites may need `--wait-for` flag
-   - Bot detection on some sites (try Chrome DevTools MCP as workaround)
+3. Check embedder daemon: `docker logs firecrawl-embedder --tail 100`
+4. Verify Qdrant health: `curl http://localhost:53333/collections/firecrawl`
+5. Check port availability: `ss -tuln | grep -E '(53002|53000|53333)'`
+6. Verify Docker services: `docker compose ps` (all should be "Up" or "Up (healthy)")
+
+**Common Issues:**
+- Patchright `page.timeout()` bug - should be `page.wait_for_timeout()` (fixed via mounted patch)
+- Client-side rendered sites may need `--wait-for` flag for JS hydration
+- Bot detection on some sites (try Chrome DevTools MCP as workaround)
+- Port conflicts: Ensure 53002, 53000, 53333 are free before `docker compose up`
+- Qdrant connection errors: Check if `firecrawl-qdrant` container is healthy
+- RabbitMQ startup: May take 30-60s to show "Up (healthy)" on first run
+- Embedder queue not processing: Check `.cache/embed-queue/` permissions and disk space
 
 ## External Integrations
 
 - **Qdrant**: Local vector database at port 53333
-- **TEI**: Remote embedding service on steamy-wsl (100.74.16.82:52000) with RTX 4070 GPU
+- **TEI (Text Embeddings Inference)**: Remote embedding service on steamy-wsl (100.74.16.82:52000) with RTX 4070 GPU
+  - Model: `Qwen/Qwen3-Embedding-0.6B`
+  - Endpoints: `/embed` (native), `/v1` (OpenAI-compatible)
 - **Embedder Daemon**: Background service processing embedding jobs asynchronously (port 53000)
 
 ## Configuration Priority
@@ -163,13 +219,27 @@ All command output uses `utils/theme.ts` for consistent styling:
 ## Development Commands
 
 ```bash
-pnpm build          # Compile TypeScript
-pnpm dev            # Watch mode
-pnpm test           # Run tests (326 tests, ~800ms)
+# Building
+pnpm build          # Compile TypeScript to dist/
+pnpm dev            # Watch mode (auto-rebuild on changes)
+pnpm clean          # Remove dist/ directory
+
+# Running
+pnpm start          # Run built CLI from dist/index.js
+pnpm local          # Alias for pnpm start
+
+# Testing
+pnpm test           # Run unit tests (326 tests, ~800ms)
+pnpm test:unit      # Unit tests only (excludes integration)
+pnpm test:e2e       # E2E tests only (requires infrastructure)
+pnpm test:all       # Full test suite (unit + e2e)
+pnpm test:watch     # Watch mode for TDD
+
+# Code Quality
 pnpm format         # Biome formatting
 pnpm lint           # Biome linting
 pnpm check          # Biome check (format + lint)
-pnpm type-check     # TypeScript check
+pnpm type-check     # TypeScript type checking (no emit)
 ```
 
 ## Testing
@@ -208,3 +278,41 @@ This fix persists across container restarts.
 ### Client-Side Rendered Sites
 
 Sites using heavy JS frameworks (TanStack Router, Next.js client-only, etc.) may fail to scrape if content isn't in initial HTML. The `fetch` engine will see empty content, and `playwright` engine may timeout before JS hydrates.
+
+### Environment Configuration Gotchas
+
+**TEI URL is Commented Out in `.env.example`**
+
+Embeddings are **enabled by default**, but the `.env.example` file comments out `TEI_URL`. You must uncomment this line in your `.env`:
+
+```bash
+# .env.example (commented)
+# TEI_URL=http://100.74.16.82:52000
+
+# Your .env (uncommented - required!)
+TEI_URL=http://100.74.16.82:52000
+```
+
+Without this, the embedding pipeline will fail with connection errors.
+
+**First-Time Docker Setup**
+
+When running `docker compose up` for the first time:
+- Image pulls may take 5-10 minutes (Firecrawl, Patchright, Qdrant, Redis, RabbitMQ)
+- Qdrant creates `qdrant_storage/` directory in project root (gitignored)
+- RabbitMQ may take 30-60s to become healthy - this is normal
+- Check status with: `docker compose ps` (all services should show "Up" or "Up (healthy)")
+- If any service fails to start, check logs: `docker logs <container-name>`
+
+**Port Conflicts**
+
+This project uses high ports (53000+) to avoid conflicts, but you should verify availability before starting:
+
+```bash
+ss -tuln | grep -E '(53002|53000|53333)'  # Should return empty
+```
+
+If ports are in use:
+1. Stop conflicting services: `docker ps` to identify containers
+2. Or modify `docker-compose.yaml` to use different ports
+3. Update `.env` to match new port assignments

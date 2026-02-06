@@ -19,7 +19,7 @@ npx skills add firecrawl/cli
 This project includes a self-hosted Firecrawl stack with Docker Compose:
 
 ```bash
-# Start all services (Firecrawl, Patchright, TEI, Qdrant)
+# Start all services (Firecrawl, Patchright, Qdrant, Embedder Daemon)
 docker compose up -d
 
 # Check service status
@@ -29,8 +29,10 @@ docker compose ps
 **Services:**
 - **Firecrawl API**: http://localhost:53002
 - **Patchright** (browser scraping): Internal on port 53006
-- **TEI** (embeddings): http://localhost:53010
 - **Qdrant** (vector DB): http://localhost:53333
+- **Embedder Daemon**: http://localhost:53000
+
+**Note:** TEI (Text Embeddings Inference) runs on a remote GPU server (steamy-wsl) and is not part of the local Docker stack.
 
 **Important:** The project includes a patched `patchright-app.py` file that fixes a bug in the upstream `loorisr/patchright-scrape-api` image. This file is automatically mounted into the container via `docker-compose.yaml`. The fix changes `page.timeout()` to `page.wait_for_timeout()` to prevent 500 errors when using the `--wait-for` flag.
 
@@ -65,7 +67,8 @@ export FIRECRAWL_API_KEY=your-api-key
 export FIRECRAWL_API_URL=http://localhost:53002
 
 # Optional: embedding pipeline (enables embed, query, retrieve commands)
-export TEI_URL=http://localhost:52000
+# TEI runs on remote GPU server (steamy-wsl) - update with your TEI endpoint
+export TEI_URL=http://100.74.16.82:52000
 export QDRANT_URL=http://localhost:53333
 
 # Interactive (prompts automatically when needed)
@@ -192,7 +195,7 @@ firecrawl search "firecrawl tutorials" --scrape
 firecrawl search "API documentation" --scrape --scrape-formats markdown,links
 
 # Output as pretty JSON
-firecrawl search "web scraping"
+firecrawl search "web scraping" -p
 ```
 
 #### Search Options
@@ -758,9 +761,10 @@ When configured, `scrape`, `crawl`, `search --scrape`, and `extract` automatical
 Set these environment variables (or add to `.env`):
 
 ```bash
-export TEI_URL=http://localhost:52000        # Text Embeddings Inference server
+# TEI runs on remote GPU server (steamy-wsl) - update with your TEI endpoint
+export TEI_URL=http://100.74.16.82:52000     # Text Embeddings Inference server
 export QDRANT_URL=http://localhost:53333      # Qdrant vector database
-export QDRANT_COLLECTION=firecrawl_collection # optional, this is the default
+export QDRANT_COLLECTION=firecrawl            # optional, this is the default
 ```
 
 ### Auto-Embed Behavior

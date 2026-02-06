@@ -1100,6 +1100,11 @@ describe('createCrawlCommand', () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    resetTeiCache();
+    resetQdrantCache();
+  });
+
   describe('status subcommand', () => {
     it('should exist as a subcommand', () => {
       const cmd = createCrawlCommand();

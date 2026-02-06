@@ -62,6 +62,10 @@ interface EmbedQueueSummary {
   failed: number;
 }
 
+function statusHeading(text: string): string {
+  return fmt.bold(colorize(colors.primary, text));
+}
+
 /**
  * Detect how the user is authenticated
  */
@@ -123,7 +127,7 @@ export async function handleStatusCommand(
   }
 
   // API URL
-  console.log(`  ${fmt.dim('API URL:')} ${status.apiUrl}`);
+  console.log(`  ${colorize(colors.primary, 'API URL:')} ${status.apiUrl}`);
   console.log('');
 }
 
@@ -554,7 +558,7 @@ function renderActiveCrawlsSection(
   data: Awaited<ReturnType<typeof executeJobStatus>>
 ): void {
   console.log('');
-  console.log(fmt.bold('Crawls'));
+  console.log(statusHeading('Crawls'));
   if (data.activeCrawls.crawls.length === 0) {
     console.log(fmt.dim('  No active crawls.'));
   } else {
@@ -581,7 +585,7 @@ function renderCrawlStatusSection(
 
   if (hasCrawlLookup) {
     console.log('');
-    console.log(fmt.bold('Crawl Status'));
+    console.log(statusHeading('Crawl Status'));
     if (data.crawls.length === 0) {
       console.log(fmt.dim('  No crawl jobs found.'));
     }
@@ -625,7 +629,7 @@ function renderCrawlStatusSection(
       (row) => !row.isFailed && !row.isCompleted
     );
 
-    console.log(`  ${fmt.dim('Failed crawls:')}`);
+    console.log(`  ${colorize(colors.primary, 'Failed crawls:')}`);
     if (failedCrawls.length === 0) {
       console.log(fmt.dim('    No failed crawl jobs.'));
     } else {
@@ -634,7 +638,7 @@ function renderCrawlStatusSection(
       }
     }
 
-    console.log(`  ${fmt.dim('Pending crawls:')}`);
+    console.log(`  ${colorize(colors.primary, 'Pending crawls:')}`);
     if (pendingCrawls.length === 0) {
       console.log(fmt.dim('    No pending crawl jobs.'));
     } else {
@@ -643,7 +647,7 @@ function renderCrawlStatusSection(
       }
     }
 
-    console.log(`  ${fmt.dim('Completed crawls:')}`);
+    console.log(`  ${colorize(colors.primary, 'Completed crawls:')}`);
     if (completedCrawls.length === 0) {
       console.log(fmt.dim('    No completed crawl jobs.'));
     } else {
@@ -653,7 +657,7 @@ function renderCrawlStatusSection(
     }
   } else {
     console.log('');
-    console.log(fmt.bold('Crawl Status'));
+    console.log(statusHeading('Crawl Status'));
     console.log(fmt.dim('  No recent crawl job IDs found.'));
   }
 }
@@ -667,7 +671,7 @@ function renderBatchSection(
   data: Awaited<ReturnType<typeof executeJobStatus>>
 ): void {
   console.log('');
-  console.log(fmt.bold('Batch Status'));
+  console.log(statusHeading('Batch Status'));
   if (data.batches.length === 0) {
     console.log(fmt.dim('  No recent batch job IDs found.'));
   } else {
@@ -709,7 +713,7 @@ function renderExtractSection(
   data: Awaited<ReturnType<typeof executeJobStatus>>
 ): void {
   console.log('');
-  console.log(fmt.bold('Extract Status'));
+  console.log(statusHeading('Extract Status'));
   if (data.extracts.length === 0) {
     console.log(fmt.dim('  No recent extract job IDs found.'));
   } else {
@@ -750,7 +754,7 @@ function renderEmbeddingSection(
   >
 ): void {
   console.log('');
-  console.log(fmt.bold('Embeddings'));
+  console.log(statusHeading('Embeddings'));
   const summary = data.embeddings.summary;
   const total =
     summary.pending + summary.processing + summary.completed + summary.failed;
@@ -780,7 +784,7 @@ function renderEmbeddingSection(
     }
   }
 
-  console.log(`  ${fmt.dim('Failed embeds:')}`);
+  console.log(`  ${colorize(colors.primary, 'Failed embeds:')}`);
   if (data.embeddings.failed.length === 0) {
     console.log(fmt.dim('    No failed embedding jobs.'));
   } else {
@@ -814,7 +818,7 @@ function renderEmbeddingSection(
     }
   }
 
-  console.log(`  ${fmt.dim('Pending embeds:')}`);
+  console.log(`  ${colorize(colors.primary, 'Pending embeds:')}`);
   if (data.embeddings.pending.length === 0) {
     console.log(fmt.dim('    No pending embedding jobs.'));
   } else {
@@ -843,7 +847,7 @@ function renderEmbeddingSection(
     }
   }
 
-  console.log(`  ${fmt.dim('Completed embeds:')}`);
+  console.log(`  ${colorize(colors.primary, 'Completed embeds:')}`);
   if (data.embeddings.completed.length === 0) {
     console.log(fmt.dim('    No completed embedding jobs.'));
   } else {

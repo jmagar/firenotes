@@ -12,7 +12,7 @@ import { config as loadDotenv } from 'dotenv';
 // Load .env from the CLI project directory, not the current working directory
 // __dirname is available in CommonJS (tsconfig uses "module": "commonjs")
 const envPath = resolve(__dirname, '..', '.env');
-loadDotenv({ path: envPath });
+loadDotenv({ path: envPath, quiet: true });
 
 import packageJson from '../package.json';
 import { createBatchCommand } from './commands/batch';
@@ -46,7 +46,7 @@ import {
 import type { IContainer } from './container/types';
 import { ensureAuthenticated, printBanner } from './utils/auth';
 import { initializeConfig } from './utils/config';
-import { fmt } from './utils/theme';
+import { fmt, icons, isTTY } from './utils/theme';
 import { isUrl, normalizeUrl } from './utils/url';
 
 /**
@@ -123,8 +123,191 @@ const AUTH_REQUIRED_COMMANDS = [
   'extract',
   'batch',
 ];
+const TOP_LEVEL_COMMANDS = new Set([
+  'scrape',
+  'crawl',
+  'list',
+  'status',
+  'map',
+  'search',
+  'extract',
+  'embed',
+  'query',
+  'retrieve',
+  'batch',
+  'config',
+  'view-config',
+  'login',
+  'logout',
+  'version',
+  'sources',
+  'stats',
+  'domains',
+  'delete',
+  'history',
+  'info',
+  'help',
+]);
 
 const program = new Command();
+const ANSI_RESET = '\x1b[0m';
+
+function fg256(color: number, text: string): string {
+  if (!isTTY()) {
+    return text;
+  }
+  return `\x1b[38;5;${color}m${text}${ANSI_RESET}`;
+}
+
+function bg256(color: number, text: string): string {
+  if (!isTTY()) {
+    return text;
+  }
+  return `\x1b[48;5;${color}m${text}${ANSI_RESET}`;
+}
+
+function gradientText(text: string, palette: number[]): string {
+  if (!isTTY() || palette.length === 0) {
+    return text;
+  }
+
+  return text
+    .split('')
+    .map((char, index) => fg256(palette[index % palette.length], char))
+    .join('');
+}
+
+function isTopLevelHelpInvocation(): boolean {
+  const nonOptionArgs = process.argv
+    .slice(2)
+    .filter((arg) => !arg.startsWith('-'));
+  if (nonOptionArgs.length === 0) return true;
+  return !TOP_LEVEL_COMMANDS.has(nonOptionArgs[0]);
+}
+
+function renderTopLevelHelp(): string {
+  const globalOptions = [
+    ['-V, --version', 'output the version number'],
+    [
+      '-k, --api-key <key>',
+      'Firecrawl API key (or set FIRECRAWL_API_KEY env var)',
+    ],
+    ['--status', 'Show version, auth status, concurrency, and credits'],
+    ['-h, --help', 'display help for command'],
+  ];
+
+  const commandGroups = [
+    {
+      title: 'Core Web Operations',
+      commands: [
+        ['scrape [url] [formats...]', 'Scrape a URL using Firecrawl'],
+        ['crawl [url-or-job-id]', 'Crawl a website using Firecrawl'],
+        ['map [url]', 'Map URLs on a website using Firecrawl'],
+        ['search <query>', 'Search the web using Firecrawl'],
+        ['extract [urls...]', 'Extract structured data from URLs'],
+        ['batch [urls...]', 'Batch scrape multiple URLs'],
+      ],
+    },
+    {
+      title: 'Vector Search',
+      commands: [
+        ['embed [input]', 'Embed content into Qdrant vector database'],
+        ['query <query>', 'Semantic search over embedded content'],
+        ['retrieve <url>', 'Retrieve full document from Qdrant by URL'],
+        ['sources', 'List all indexed source URLs'],
+        ['domains', 'List unique indexed domains'],
+        ['stats', 'Show vector database statistics'],
+        ['history', 'Show time-based index history'],
+        ['info <url>', 'Show detailed information for a URL'],
+        ['delete', 'Delete vectors from the vector database'],
+      ],
+    },
+    {
+      title: 'Jobs & Account',
+      commands: [
+        ['list', 'List active crawl jobs'],
+        ['status', 'Show active jobs and embedding queue status'],
+        ['config', 'Configure Firecrawl (login if not authenticated)'],
+        ['view-config', 'View current configuration and auth status'],
+        ['login', 'Login to Firecrawl (alias for config)'],
+        ['logout', 'Logout and clear stored credentials'],
+        ['version', 'Display version information'],
+      ],
+    },
+  ];
+
+  const optionWidth = Math.max(...globalOptions.map(([name]) => name.length));
+  const commandWidth = 30;
+  const formatRow = (left: string, right: string, width: number): string =>
+    `  ${fg256(81, left.padEnd(width, ' '))}  ${fg256(252, right)}`;
+
+  const title = gradientText('FIRECRAWL CLI', [196, 202, 208, 214, 220, 226]);
+  const titleRule = gradientText(
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    [196, 202, 208, 214, 220, 226]
+  );
+  const section = (text: string): string => fg256(208, text);
+  const muted = (text: string): string => fg256(245, text);
+  const chip = (text: string): string => {
+    if (!isTTY()) {
+      return text;
+    }
+    return `${bg256(236, fg256(229, ` ${text} `))}`;
+  };
+
+  const lines = [
+    '',
+    `  ${title}`,
+    `  ${titleRule}`,
+    `  ${muted(`Version ${packageJson.version}  ${icons.separator}  Turn websites into LLM-ready data`)}`,
+    `  ${muted('CLI tool for Firecrawl web scraping')}`,
+    '',
+    `  ${section('Usage')}`,
+    `  ${chip('firecrawl [options] [command]')}`,
+    '',
+    `  ${section('Quick Start')}`,
+    `  ${muted('firecrawl https://example.com markdown')}`,
+    `  ${muted('firecrawl crawl https://docs.example.com --limit 50')}`,
+    `  ${muted('firecrawl extract https://example.com --prompt "Get contact info"')}`,
+    '',
+    `  ${section('Global Options')}`,
+    ...globalOptions.map(([left, right]) =>
+      formatRow(left, right, optionWidth)
+    ),
+  ];
+
+  for (const group of commandGroups) {
+    lines.push('');
+    lines.push(`  ${section(group.title)}`);
+    lines.push(
+      ...group.commands.map(([left, right]) =>
+        formatRow(left, right, commandWidth)
+      )
+    );
+  }
+
+  lines.push('');
+  lines.push(`  ${section('Examples')}`);
+  lines.push(
+    `  ${muted('firecrawl scrape https://example.com markdown --output result.md')}`
+  );
+  lines.push(
+    `  ${muted('firecrawl map https://example.com --search docs --limit 100')}`
+  );
+  lines.push(
+    `  ${muted('firecrawl search "firecrawl blog" --limit 5 --scrape')}`
+  );
+  lines.push(
+    `  ${muted('firecrawl query "pricing and limits" --domain docs.firecrawl.dev')}`
+  );
+  lines.push('');
+  lines.push(
+    `  ${muted(`${icons.arrow} Run firecrawl <command> --help for command-specific flags`)}`
+  );
+  lines.push('');
+
+  return lines.join('\n');
+}
 
 program
   .name('firecrawl')
@@ -217,6 +400,14 @@ async function main() {
     return;
   }
 
+  // Handle top-level help with custom formatted output
+  // Keep subcommand help delegated to Commander.
+  const hasHelpFlag = args.includes('--help') || args.includes('-h');
+  if (hasHelpFlag && isTopLevelHelpInvocation()) {
+    console.log(renderTopLevelHelp());
+    return;
+  }
+
   // If no arguments or just help flags, check auth and show appropriate message
   if (args.length === 0) {
     const { isAuthenticated } = await import('./utils/auth');
@@ -233,7 +424,7 @@ async function main() {
 
     // Authenticated - show banner and help
     printBanner();
-    program.outputHelp();
+    console.log(renderTopLevelHelp());
     return;
   }
 

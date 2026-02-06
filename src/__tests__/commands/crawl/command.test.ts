@@ -72,7 +72,9 @@ describe('handleCrawlCommand', () => {
 
     await handleCrawlCommand(container, options);
 
-    expect(mockError).toHaveBeenCalledWith('URL or job ID is required.');
+    expect(mockError).toHaveBeenCalledWith(
+      expect.stringContaining('URL or job ID is required')
+    );
     expect(mockExit).toHaveBeenCalledWith(1);
 
     mockExit.mockRestore();
@@ -118,7 +120,9 @@ describe('handleCrawlCommand', () => {
 
     await handleCrawlCommand(container, options);
 
-    expect(mockError).toHaveBeenCalledWith('Network error');
+    expect(mockError).toHaveBeenCalledWith(
+      expect.stringContaining('Network error')
+    );
     expect(mockExit).toHaveBeenCalledWith(1);
 
     mockExit.mockRestore();

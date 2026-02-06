@@ -1,7 +1,5 @@
 # IO Blocking Async Refactor Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
 **Goal:** Convert hot-path filesystem operations in `embed-queue` and `job-history` to async to avoid event-loop blocking.
 
 **Architecture:** Replace sync `node:fs` calls with `node:fs/promises` in queue and history utilities, then update all call sites and tests to await async APIs. Preserve JSON formats and error handling.
@@ -12,7 +10,7 @@
 
 ---
 
-### Task 1: Update embed-queue API to async
+## Task 1: Update embed-queue API to async
 
 **Files:**
 - Modify: `src/utils/embed-queue.ts`
@@ -39,17 +37,13 @@ Convert all exported functions to async and use `node:fs/promises`:
 - Update permission checks to use async `stat` or to assert `writeFile` called with `{ mode: 0o600 }`.
 - Ensure all queue helpers are awaited in tests.
 
-- Replace sync mocks of `node:fs` with `node:fs/promises` mocks.
-- Update tests to `await` queue functions.
-- Ensure file permission expectations use async `stat` where needed.
-
 **Step 5: Run tests**
 Run: `pnpm test src/__tests__/utils/embed-queue.test.ts`
 Expected: PASS
 
 ---
 
-### Task 2: Update background-embedder to await async queue functions
+## Task 2: Update background-embedder to await async queue functions
 
 **Files:**
 - Modify: `src/utils/background-embedder.ts`
@@ -79,7 +73,7 @@ Expected: PASS
 
 ---
 
-### Task 3: Convert job-history to async and update callers
+## Task 3: Convert job-history to async and update callers
 
 **Files:**
 - Modify: `src/utils/job-history.ts`
@@ -116,7 +110,7 @@ Expected: PASS
 
 ---
 
-### Task 4: Verification sweep
+## Task 4: Verification sweep
 
 **Files:**
 - No code changes unless test failures require it.
@@ -131,7 +125,7 @@ Run:
 
 ---
 
-### Task 5: Documentation update
+## Task 5: Documentation update
 
 **Files:**
 - Modify: `.docs/sessions/2026-02-05-06-39-io-blocking-investigation.md`
