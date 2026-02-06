@@ -560,6 +560,135 @@ describe('HTTP utilities with timeout and retry', () => {
     });
   });
 
+  describe('fetchWithRetry - Retry-After Header Parsing', () => {
+    it('should parse numeric Retry-After (seconds)', async () => {
+      vi.useFakeTimers();
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: new Headers({ 'Retry-After': '15' }),
+        })
+        .mockResolvedValueOnce({ ok: true, status: 200 });
+
+      const promise = fetchWithRetry('http://test.com');
+
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(15000); // Should wait exactly 15s
+      const response = await promise;
+
+      expect(response.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('should parse HTTP date Retry-After', async () => {
+      vi.useFakeTimers();
+
+      const retryDate = new Date(Date.now() + 20000); // 20s from now
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          headers: new Headers({ 'Retry-After': retryDate.toUTCString() }),
+        })
+        .mockResolvedValueOnce({ ok: true, status: 200 });
+
+      const promise = fetchWithRetry('http://test.com');
+
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(20000);
+      const response = await promise;
+
+      expect(response.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('should cap Retry-After at maxDelayMs', async () => {
+      vi.useFakeTimers();
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          headers: new Headers({ 'Retry-After': '300' }), // 5 minutes
+        })
+        .mockResolvedValueOnce({ ok: true, status: 200 });
+
+      const promise = fetchWithRetry('http://test.com', undefined, {
+        maxDelayMs: 60000, // Cap at 60s
+      });
+
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(60000); // Should cap at 60s, not 300s
+      const response = await promise;
+
+      expect(response.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('should fallback to exponential backoff on invalid Retry-After', async () => {
+      vi.useFakeTimers();
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          headers: new Headers({ 'Retry-After': 'invalid' }),
+        })
+        .mockResolvedValueOnce({ ok: true, status: 200 });
+
+      const promise = fetchWithRetry('http://test.com', undefined, {
+        baseDelayMs: 1000,
+      });
+
+      await vi.advanceTimersByTimeAsync(0);
+      // Account for jitter (±25%) in backoff: 1000ms ± 250ms
+      await vi.advanceTimersByTimeAsync(1500);
+      const response = await promise;
+
+      expect(response.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    }, 10000); // 10s timeout
+
+    it('should only parse Retry-After for 429 responses', async () => {
+      vi.useFakeTimers();
+
+      // 503 with Retry-After should be ignored
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          headers: new Headers({ 'Retry-After': '30' }),
+        })
+        .mockResolvedValueOnce({ ok: true, status: 200 });
+
+      const promise = fetchWithRetry('http://test.com', undefined, {
+        baseDelayMs: 1000,
+      });
+
+      await vi.advanceTimersByTimeAsync(0);
+      // Account for jitter (±25%) in backoff: 1000ms ± 250ms
+      await vi.advanceTimersByTimeAsync(1500);
+      const response = await promise;
+
+      expect(response.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    }, 10000); // 10s timeout
+  });
+
   describe('fetchWithRetry - Timeout Handling', () => {
     it('should convert AbortError to TimeoutError', async () => {
       const abortError = new Error('The operation was aborted');

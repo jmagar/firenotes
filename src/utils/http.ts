@@ -141,11 +141,34 @@ export async function fetchWithRetry(
 
         // If we have retries left, delay and continue
         if (attempt < config.maxRetries) {
-          const delay = calculateBackoff(
+          let delay = calculateBackoff(
             attempt,
             config.baseDelayMs,
             config.maxDelayMs
           );
+
+          // Parse Retry-After header (429 responses)
+          if (response.status === 429 && response.headers) {
+            const retryAfter = response.headers.get('Retry-After');
+            if (retryAfter) {
+              const retryAfterSeconds = Number.parseInt(retryAfter, 10);
+
+              if (!Number.isNaN(retryAfterSeconds)) {
+                // Numeric seconds
+                delay = retryAfterSeconds * 1000;
+              } else {
+                // HTTP date format
+                const retryDate = new Date(retryAfter);
+                if (!Number.isNaN(retryDate.getTime())) {
+                  delay = Math.max(0, retryDate.getTime() - Date.now());
+                }
+              }
+
+              // Cap at maxDelayMs
+              delay = Math.min(delay, config.maxDelayMs);
+            }
+          }
+
           await sleep(delay);
           continue;
         }
