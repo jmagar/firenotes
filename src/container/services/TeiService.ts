@@ -18,6 +18,19 @@ const TEI_INFO_TIMEOUT_MS = 30000;
 /** Number of retries for TEI requests */
 const TEI_MAX_RETRIES = 3;
 
+/** Number of batch-level retries (in addition to HTTP retries) */
+const BATCH_RETRY_ATTEMPTS = 2;
+
+/** Delay before batch retry (30 seconds) */
+const BATCH_RETRY_DELAY_MS = 30000;
+
+/**
+ * Sleep utility for batch retry delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Calculate dynamic timeout based on batch size
  *
@@ -127,40 +140,82 @@ export class TeiService implements ITeiService {
   }
 
   /**
-   * Embed a single batch of texts
+   * Embed a single batch with batch-level retry
+   *
+   * Total attempts: (3 HTTP retries + 1) × (2 batch retries + 1) = up to 12 attempts
+   *
    * @param inputs Array of text strings to embed (up to BATCH_SIZE)
    * @returns Array of embedding vectors
    */
   async embedBatch(inputs: string[]): Promise<number[][]> {
     const timeoutMs = calculateBatchTimeout(inputs.length);
+    let lastError: Error | null = null;
 
-    // Log timeout for debugging (dim color, won't clutter normal output)
     console.error(
       fmt.dim(
         `[TEI] Embedding ${inputs.length} texts (timeout: ${timeoutMs}ms)`
       )
     );
 
-    const response = await this.httpClient.fetchWithRetry(
-      `${this.teiUrl}/embed`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputs }),
-      },
-      {
-        timeoutMs,
-        maxRetries: TEI_MAX_RETRIES,
-      }
-    );
+    for (
+      let batchAttempt = 0;
+      batchAttempt <= BATCH_RETRY_ATTEMPTS;
+      batchAttempt++
+    ) {
+      try {
+        const response = await this.httpClient.fetchWithRetry(
+          `${this.teiUrl}/embed`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ inputs }),
+          },
+          {
+            timeoutMs,
+            maxRetries: TEI_MAX_RETRIES,
+          }
+        );
 
-    if (!response.ok) {
-      throw new Error(
-        `TEI /embed failed: ${response.status} ${response.statusText}`
-      );
+        if (!response.ok) {
+          throw new Error(
+            `TEI /embed failed: ${response.status} ${response.statusText}`
+          );
+        }
+
+        const result = await response.json();
+
+        if (batchAttempt > 0) {
+          console.error(
+            fmt.success(`[TEI] Batch succeeded after ${batchAttempt} retries`)
+          );
+        }
+
+        return result;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        if (batchAttempt < BATCH_RETRY_ATTEMPTS) {
+          console.error(
+            fmt.warning(
+              `[TEI] Batch retry ${batchAttempt + 1}/${BATCH_RETRY_ATTEMPTS} ` +
+                `after error: ${lastError.message}`
+            )
+          );
+          await sleep(BATCH_RETRY_DELAY_MS);
+          continue;
+        }
+
+        // Log final failure
+        console.error(
+          fmt.error(
+            `[TEI] Batch failed after ${BATCH_RETRY_ATTEMPTS + 1} attempts: ${lastError.message}`
+          )
+        );
+        throw lastError;
+      }
     }
 
-    return response.json();
+    throw lastError || new Error('Batch embedding failed after all retries');
   }
 
   /**

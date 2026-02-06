@@ -149,16 +149,34 @@ describe('TeiService', () => {
     });
 
     it('should throw on non-ok response', async () => {
+      vi.useFakeTimers();
+
+      // Mock all batch retry attempts to fail
       vi.mocked(mockHttpClient.fetchWithRetry).mockResolvedValue({
         ok: false,
         status: 400,
         statusText: 'Bad Request',
       } as Response);
 
-      await expect(service.embedBatch(['test'])).rejects.toThrow(
-        'TEI /embed failed: 400 Bad Request'
-      );
-    });
+      const promise = service.embedBatch(['test']);
+
+      // Advance through batch retries (30s each)
+      const advanceTimers = async () => {
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(30000); // Retry 1
+        await vi.advanceTimersByTimeAsync(30000); // Retry 2
+      };
+
+      await Promise.all([
+        expect(promise).rejects.toThrow('TEI /embed failed: 400 Bad Request'),
+        advanceTimers(),
+      ]);
+
+      // Should have tried 3 times (1 initial + 2 batch retries)
+      expect(mockHttpClient.fetchWithRetry).toHaveBeenCalledTimes(3);
+
+      vi.useRealTimers();
+    }, 70000); // Increase timeout for fake timers
   });
 
   describe('embedChunks', () => {
@@ -276,16 +294,32 @@ describe('TeiService', () => {
     });
 
     it('should propagate errors from embedBatch', async () => {
+      vi.useFakeTimers();
+
       vi.mocked(mockHttpClient.fetchWithRetry).mockResolvedValue({
         ok: false,
         status: 500,
         statusText: 'Internal Server Error',
       } as Response);
 
-      await expect(service.embedChunks(['test'])).rejects.toThrow(
-        'TEI /embed failed: 500 Internal Server Error'
-      );
-    });
+      const promise = service.embedChunks(['test']);
+
+      // Advance through batch retries
+      const advanceTimers = async () => {
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(30000); // Retry 1
+        await vi.advanceTimersByTimeAsync(30000); // Retry 2
+      };
+
+      await Promise.all([
+        expect(promise).rejects.toThrow(
+          'TEI /embed failed: 500 Internal Server Error'
+        ),
+        advanceTimers(),
+      ]);
+
+      vi.useRealTimers();
+    }, 70000);
   });
 
   describe('embedBatch with dynamic timeout', () => {
@@ -370,5 +404,94 @@ describe('TeiService', () => {
 
       vi.useRealTimers();
     });
+  });
+
+  describe('Batch-Level Retry', () => {
+    it('should retry batch after all HTTP retries exhausted', async () => {
+      vi.useFakeTimers();
+
+      // HTTP retries fail twice, then succeed on 3rd batch attempt
+      vi.mocked(mockHttpClient.fetchWithRetry)
+        .mockRejectedValueOnce(new Error('All HTTP retries exhausted'))
+        .mockRejectedValueOnce(new Error('All HTTP retries exhausted'))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve([[0.1]]),
+        } as Response);
+
+      const promise = service.embedBatch(['test']);
+
+      // First attempt fails immediately
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Wait 30s for batch retry
+      await vi.advanceTimersByTimeAsync(30000);
+
+      // Second attempt fails
+      await vi.advanceTimersByTimeAsync(30000);
+
+      // Third attempt succeeds
+      const result = await promise;
+
+      expect(result).toEqual([[0.1]]);
+      expect(mockHttpClient.fetchWithRetry).toHaveBeenCalledTimes(3);
+
+      vi.useRealTimers();
+    });
+
+    it('should fail after all batch retries exhausted', async () => {
+      vi.useFakeTimers();
+
+      // All attempts fail
+      vi.mocked(mockHttpClient.fetchWithRetry).mockRejectedValue(
+        new Error('Persistent failure')
+      );
+
+      const promise = service.embedBatch(['test']);
+
+      // Advance through batch retries
+      const advanceTimers = async () => {
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(30000); // Retry 1
+        await vi.advanceTimersByTimeAsync(30000); // Retry 2
+      };
+
+      await Promise.all([
+        expect(promise).rejects.toThrow('Persistent failure'),
+        advanceTimers(),
+      ]);
+
+      // 1 initial + 2 batch retries = 3 total attempts
+      expect(mockHttpClient.fetchWithRetry).toHaveBeenCalledTimes(3);
+
+      vi.useRealTimers();
+    }, 70000);
+
+    it('should log batch retry attempts', async () => {
+      vi.useFakeTimers();
+      const consoleSpy = vi.spyOn(console, 'error');
+
+      vi.mocked(mockHttpClient.fetchWithRetry)
+        .mockRejectedValueOnce(new Error('Fail'))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve([[0.1]]),
+        } as Response);
+
+      const promise = service.embedBatch(['test']);
+
+      // Advance through first retry
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(30000);
+
+      await promise;
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/Batch retry 1\/2/)
+      );
+
+      consoleSpy.mockRestore();
+      vi.useRealTimers();
+    }, 70000);
   });
 });

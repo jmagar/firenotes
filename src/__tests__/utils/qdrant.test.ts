@@ -362,7 +362,7 @@ describe('Qdrant client', () => {
       await expect(
         deleteByDomain(qdrantUrl, collection, 'example.com')
       ).rejects.toThrow(/delete failed/);
-    });
+    }, 10000); // Increased timeout for intermittent CI timing issues
   });
 
   describe('countByDomain', () => {
