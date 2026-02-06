@@ -422,7 +422,7 @@ describe('EmbedPipeline', () => {
 
         // Check for FAILED line
         expect(consoleSpy).toHaveBeenCalledWith(
-          expect.stringMatching(/✗ FAILED.*https:\/\/fail\.com/)
+          expect.stringMatching(/FAILED.*https:\/\/fail\.com/)
         );
 
         // Check for Error details line

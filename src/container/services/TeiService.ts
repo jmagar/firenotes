@@ -3,6 +3,7 @@
  * Handles batched embedding generation with concurrency control
  */
 
+import { sleep } from '../../utils/http';
 import { fmt } from '../../utils/theme';
 import type { IHttpClient, ITeiService, TeiInfo } from '../types';
 
@@ -23,13 +24,6 @@ const BATCH_RETRY_ATTEMPTS = 2;
 
 /** Delay before batch retry (30 seconds) */
 const BATCH_RETRY_DELAY_MS = 30000;
-
-/**
- * Sleep utility for batch retry delays
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 /**
  * Calculate dynamic timeout based on batch size
@@ -185,8 +179,11 @@ export class TeiService implements ITeiService {
         const result = await response.json();
 
         if (batchAttempt > 0) {
+          const retriesText = batchAttempt === 1 ? 'retry' : 'retries';
           console.error(
-            fmt.success(`[TEI] Batch succeeded after ${batchAttempt} retries`)
+            fmt.success(
+              `[TEI] Batch succeeded after ${batchAttempt} ${retriesText}`
+            )
           );
         }
 
@@ -215,7 +212,8 @@ export class TeiService implements ITeiService {
       }
     }
 
-    throw lastError || new Error('Batch embedding failed after all retries');
+    // Unreachable: loop always returns or throws
+    throw new Error('Batch embedding failed after all retries');
   }
 
   /**

@@ -17,9 +17,9 @@ export interface HttpOptions {
   timeoutMs?: number;
   /** Number of retry attempts (default: 3) */
   maxRetries?: number;
-  /** Base delay for exponential backoff in ms (default: 1000) */
+  /** Base delay for exponential backoff in ms (default: 5000) */
   baseDelayMs?: number;
-  /** Maximum delay between retries in ms (default: 30000) */
+  /** Maximum delay between retries in ms (default: 60000) */
   maxDelayMs?: number;
 }
 
@@ -99,7 +99,7 @@ function calculateBackoff(
 /**
  * Sleep for a specified duration
  */
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 

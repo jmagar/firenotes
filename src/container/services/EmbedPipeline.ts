@@ -11,7 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import pLimit from 'p-limit';
 import { chunkText } from '../../utils/chunker';
-import { fmt } from '../../utils/theme';
+import { fmt, icons } from '../../utils/theme';
 import type { IEmbedPipeline, IQdrantService, ITeiService } from '../types';
 
 /**
@@ -218,7 +218,9 @@ export class EmbedPipeline implements IEmbedPipeline {
           result.succeeded++;
 
           console.error(
-            fmt.success(`[Pipeline] ✓ Embedded: ${item.metadata.url}`)
+            fmt.success(
+              `[Pipeline] ${icons.success} Embedded: ${item.metadata.url}`
+            )
           );
         } catch (error) {
           result.failed++;
@@ -228,7 +230,9 @@ export class EmbedPipeline implements IEmbedPipeline {
             error instanceof Error ? error.message : 'Unknown error';
 
           // Log detailed failure
-          console.error(fmt.error(`[Pipeline] ✗ FAILED: ${item.metadata.url}`));
+          console.error(
+            fmt.error(`[Pipeline] ${icons.error} FAILED: ${item.metadata.url}`)
+          );
           console.error(fmt.dim(`[Pipeline]   Error: ${errorMsg}`));
 
           // Collect error messages (limit to first 10 to avoid memory issues)
@@ -274,7 +278,7 @@ export class EmbedPipeline implements IEmbedPipeline {
     } else {
       console.error(
         fmt.success(
-          `\n[Pipeline] ✓ Successfully embedded all ${result.succeeded} items`
+          `\n[Pipeline] ${icons.success} Successfully embedded all ${result.succeeded} items`
         )
       );
     }
