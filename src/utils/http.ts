@@ -141,20 +141,26 @@ export async function fetchWithRetry(
 
         // If we have retries left, delay and continue
         if (attempt < config.maxRetries) {
+          // Release connection by consuming the response body
+          await response.body?.cancel().catch(() => {});
+
           let delay = calculateBackoff(
             attempt,
             config.baseDelayMs,
             config.maxDelayMs
           );
 
-          // Parse Retry-After header (429 responses)
-          if (response.status === 429 && response.headers) {
+          // Parse Retry-After header (RFC 9110: valid on 429 and 503 responses)
+          if (
+            (response.status === 429 || response.status === 503) &&
+            response.headers
+          ) {
             const retryAfter = response.headers.get('Retry-After');
             if (retryAfter) {
               const retryAfterSeconds = Number.parseInt(retryAfter, 10);
 
-              if (!Number.isNaN(retryAfterSeconds)) {
-                // Numeric seconds
+              if (!Number.isNaN(retryAfterSeconds) && retryAfterSeconds > 0) {
+                // Numeric seconds (positive values only)
                 delay = retryAfterSeconds * 1000;
               } else {
                 // HTTP date format

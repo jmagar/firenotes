@@ -12,8 +12,8 @@ const BATCH_SIZE = 24;
 /** Maximum concurrent batch requests */
 const MAX_CONCURRENT = 4;
 
-/** HTTP timeout for TEI requests (30 seconds) */
-const TEI_TIMEOUT_MS = 30000;
+/** HTTP timeout for TEI /info endpoint (30 seconds) */
+const TEI_INFO_TIMEOUT_MS = 30000;
 
 /** Number of retries for TEI requests */
 const TEI_MAX_RETRIES = 3;
@@ -37,9 +37,10 @@ function calculateBatchTimeout(batchSize: number): number {
   const BASE_TIMEOUT_MS = 10000;
   const PER_TEXT_MS = 2000;
   const BUFFER_MULTIPLIER = 1.5;
+  const safeBatchSize = Math.max(0, batchSize);
 
   return Math.ceil(
-    (BASE_TIMEOUT_MS + batchSize * PER_TEXT_MS) * BUFFER_MULTIPLIER
+    (BASE_TIMEOUT_MS + safeBatchSize * PER_TEXT_MS) * BUFFER_MULTIPLIER
   );
 }
 
@@ -97,7 +98,7 @@ export class TeiService implements ITeiService {
       `${this.teiUrl}/info`,
       undefined,
       {
-        timeoutMs: TEI_TIMEOUT_MS,
+        timeoutMs: TEI_INFO_TIMEOUT_MS,
         maxRetries: TEI_MAX_RETRIES,
       }
     );

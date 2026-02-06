@@ -124,7 +124,8 @@ export interface IHttpClient {
     options?: {
       timeoutMs?: number;
       maxRetries?: number;
-      backoffFactor?: number;
+      baseDelayMs?: number;
+      maxDelayMs?: number;
     }
   ): Promise<Response>;
 

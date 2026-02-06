@@ -34,14 +34,16 @@ export class HttpClient implements IHttpClient {
     options?: {
       timeoutMs?: number;
       maxRetries?: number;
-      backoffFactor?: number;
+      baseDelayMs?: number;
+      maxDelayMs?: number;
     }
   ): Promise<Response> {
     // Map container options to utility options
-    // Note: backoffFactor is ignored by utility (uses fixed baseDelayMs=1000)
     return utilFetchWithRetry(url, init, {
       timeoutMs: options?.timeoutMs,
       maxRetries: options?.maxRetries,
+      baseDelayMs: options?.baseDelayMs,
+      maxDelayMs: options?.maxDelayMs,
     });
   }
 

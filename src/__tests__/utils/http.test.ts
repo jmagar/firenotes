@@ -661,10 +661,10 @@ describe('HTTP utilities with timeout and retry', () => {
       vi.useRealTimers();
     }, 10000); // 10s timeout
 
-    it('should only parse Retry-After for 429 responses', async () => {
+    it('should parse Retry-After for both 429 and 503 responses', async () => {
       vi.useFakeTimers();
 
-      // 503 with Retry-After should be ignored
+      // 503 with Retry-After should be honored (RFC 9110)
       mockFetch
         .mockResolvedValueOnce({
           ok: false,
@@ -678,15 +678,15 @@ describe('HTTP utilities with timeout and retry', () => {
       });
 
       await vi.advanceTimersByTimeAsync(0);
-      // Account for jitter (±25%) in backoff: 1000ms ± 250ms
-      await vi.advanceTimersByTimeAsync(1500);
+      // Should wait exactly 30s as specified in Retry-After header
+      await vi.advanceTimersByTimeAsync(30000);
       const response = await promise;
 
       expect(response.status).toBe(200);
       expect(mockFetch).toHaveBeenCalledTimes(2);
 
       vi.useRealTimers();
-    }, 10000); // 10s timeout
+    }, 35000); // 35s timeout
   });
 
   describe('fetchWithRetry - Timeout Handling', () => {
