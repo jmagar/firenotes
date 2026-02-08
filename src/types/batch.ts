@@ -1,17 +1,13 @@
 export interface BatchOptions {
   urls?: string[];
-  jobId?: string;
+  jobId?: string; // Used internally for URL mode
   wait?: boolean;
-  status?: boolean;
-  errors?: boolean;
-  cancel?: boolean;
   pollInterval?: number;
   timeout?: number;
   // scrape options
   format?: string;
   onlyMainContent?: boolean;
   waitFor?: number;
-  scrapeTimeout?: number;
   screenshot?: boolean;
   includeTags?: string[];
   excludeTags?: string[];

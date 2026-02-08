@@ -3,7 +3,7 @@
  */
 
 import type { Document, WebhookConfig } from '@mendable/firecrawl-js';
-import { getConfig } from './config';
+import type { ImmutableConfig } from '../container/types';
 
 export const DEFAULT_EMBEDDER_WEBHOOK_PORT = 53000;
 export const DEFAULT_EMBEDDER_WEBHOOK_PATH = '/webhooks/crawl';
@@ -32,14 +32,16 @@ function normalizePort(port: number | undefined): number {
     return DEFAULT_EMBEDDER_WEBHOOK_PORT;
   }
   const normalized = Math.trunc(port);
-  if (normalized < DEFAULT_EMBEDDER_WEBHOOK_PORT) {
+  // Only reject privileged ports (< 1024) and invalid ports
+  if (normalized < 1024 || normalized > 65535) {
     return DEFAULT_EMBEDDER_WEBHOOK_PORT;
   }
   return normalized;
 }
 
-export function getEmbedderWebhookSettings(): EmbedderWebhookSettings {
-  const config = getConfig();
+export function getEmbedderWebhookSettings(
+  config: Partial<ImmutableConfig> = {}
+): EmbedderWebhookSettings {
   return {
     url: config.embedderWebhookUrl,
     port: normalizePort(config.embedderWebhookPort),
@@ -48,8 +50,10 @@ export function getEmbedderWebhookSettings(): EmbedderWebhookSettings {
   };
 }
 
-export function buildEmbedderWebhookConfig(): WebhookConfig | null {
-  const settings = getEmbedderWebhookSettings();
+export function buildEmbedderWebhookConfig(
+  config?: ImmutableConfig
+): WebhookConfig | null {
+  const settings = getEmbedderWebhookSettings(config);
   if (!settings.url) {
     return null;
   }

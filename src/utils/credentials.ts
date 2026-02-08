@@ -10,8 +10,8 @@ import {
   type StoredCredentials,
   StoredCredentialsSchema,
 } from '../schemas/storage';
+import { fmt } from './theme';
 
-// Re-export type for backward compatibility
 export type { StoredCredentials };
 
 /**
@@ -81,15 +81,20 @@ export function loadCredentials(): StoredCredentials | null {
     const result = StoredCredentialsSchema.safeParse(parsed);
     if (!result.success) {
       console.error(
-        '[Credentials] Invalid credentials file:',
-        result.error.message
+        fmt.error(
+          `[Credentials] Invalid credentials file: ${result.error.message}`
+        )
       );
       return null;
     }
 
     return result.data;
   } catch (error) {
-    console.error('[Credentials] Failed to load credentials:', error);
+    console.error(
+      fmt.error(
+        `[Credentials] Failed to load credentials: ${error instanceof Error ? error.message : String(error)}`
+      )
+    );
     return null;
   }
 }

@@ -4,6 +4,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fmt } from './theme';
 
 /**
  * Validates that an output path is safe (within cwd or a configured base directory).
@@ -212,7 +213,7 @@ export function writeOutput(
     fs.writeFileSync(safePath, content, 'utf-8');
     if (!silent) {
       // Always use stderr for file confirmation messages
-      console.error(`Output written to: ${safePath}`);
+      console.error(`${fmt.dim('Output written to:')} ${safePath}`);
     }
   } else {
     // Use process.stdout.write for raw output (like curl)
@@ -242,7 +243,7 @@ export function handleScrapeOutput(
 ): void {
   if (!result.success) {
     // Always use stderr for errors to allow piping
-    console.error('Error:', result.error);
+    console.error(fmt.error(result.error || 'Unknown error'));
     process.exit(1);
   }
 

@@ -24,3 +24,33 @@ export function isValidUrl(str: string): boolean {
     return false;
   }
 }
+
+/**
+ * Extract job ID from a string that could be a raw ID or a URL containing an ID
+ * Supports both raw UUIDs and URLs like https://api.firecrawl.dev/v1/extract/550e8400-...
+ *
+ * @param input - Raw job ID or URL containing job ID
+ * @returns Normalized job ID
+ */
+export function normalizeJobId(input: string): string {
+  // Already a job ID - return as-is
+  if (isJobId(input)) {
+    return input;
+  }
+
+  // Try to extract from URL
+  if (isValidUrl(input)) {
+    const url = new URL(input);
+    const pathSegments = url.pathname.split('/').filter(Boolean);
+
+    // Find a UUID in the path segments
+    for (const segment of pathSegments) {
+      if (isJobId(segment)) {
+        return segment;
+      }
+    }
+  }
+
+  // Not a URL or no job ID found - return as-is and let caller validate
+  return input;
+}

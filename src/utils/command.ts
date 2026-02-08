@@ -11,7 +11,8 @@
  * @module utils/command
  */
 
-import { writeOutput } from './output';
+import { validateOutputPath, writeOutput } from './output';
+import { fmt } from './theme';
 
 /**
  * Standard result type for all command executions.
@@ -55,7 +56,7 @@ export function handleCommandError<T>(
   exitOnError: boolean = true
 ): result is CommandResult<T> & { success: true; data: T } {
   if (!result.success) {
-    console.error('Error:', result.error || 'Unknown error occurred');
+    console.error(fmt.error(result.error || 'Unknown error occurred'));
     if (exitOnError) {
       process.exit(1);
     }
@@ -107,9 +108,13 @@ export function writeCommandOutput(
   options: CommonOutputOptions,
   forceJson: boolean = false
 ): void {
+  if (options.output) {
+    validateOutputPath(options.output);
+  }
+
   let outputContent: string;
 
-  if (typeof content === 'string' && !forceJson && !options.json) {
+  if (typeof content === 'string' && !forceJson) {
     outputContent = content;
   } else {
     outputContent = formatJson(content, options.pretty);

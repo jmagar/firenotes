@@ -17,9 +17,9 @@ export interface HttpOptions {
   timeoutMs?: number;
   /** Number of retry attempts (default: 3) */
   maxRetries?: number;
-  /** Base delay for exponential backoff in ms (default: 1000) */
+  /** Base delay for exponential backoff in ms (default: 5000) */
   baseDelayMs?: number;
-  /** Maximum delay between retries in ms (default: 30000) */
+  /** Maximum delay between retries in ms (default: 60000) */
   maxDelayMs?: number;
 }
 
@@ -29,8 +29,8 @@ export interface HttpOptions {
 const DEFAULT_HTTP_OPTIONS: Required<HttpOptions> = {
   timeoutMs: 30000,
   maxRetries: 3,
-  baseDelayMs: 1000,
-  maxDelayMs: 30000,
+  baseDelayMs: 5000, // Increased from 1000ms to give TEI time to clear permits
+  maxDelayMs: 60000, // Increased from 30000ms to handle longer backpressure
 };
 
 /**
@@ -99,7 +99,7 @@ function calculateBackoff(
 /**
  * Sleep for a specified duration
  */
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -134,20 +134,55 @@ export async function fetchWithRetry(
       clearTimeout(timeoutId);
 
       // Check if we should retry based on status code
-      if (
-        RETRYABLE_STATUS_CODES.includes(response.status) &&
-        attempt < config.maxRetries
-      ) {
+      if (RETRYABLE_STATUS_CODES.includes(response.status)) {
         lastError = new Error(
           `HTTP ${response.status}: ${response.statusText}`
         );
-        const delay = calculateBackoff(
-          attempt,
-          config.baseDelayMs,
-          config.maxDelayMs
+
+        // If we have retries left, delay and continue
+        if (attempt < config.maxRetries) {
+          // Release connection by consuming the response body
+          await response.body?.cancel().catch(() => {});
+
+          let delay = calculateBackoff(
+            attempt,
+            config.baseDelayMs,
+            config.maxDelayMs
+          );
+
+          // Parse Retry-After header (RFC 9110: valid on 429 and 503 responses)
+          if (
+            (response.status === 429 || response.status === 503) &&
+            response.headers
+          ) {
+            const retryAfter = response.headers.get('Retry-After');
+            if (retryAfter) {
+              const retryAfterSeconds = Number.parseInt(retryAfter, 10);
+
+              if (!Number.isNaN(retryAfterSeconds) && retryAfterSeconds > 0) {
+                // Numeric seconds (positive values only)
+                delay = retryAfterSeconds * 1000;
+              } else {
+                // HTTP date format
+                const retryDate = new Date(retryAfter);
+                if (!Number.isNaN(retryDate.getTime())) {
+                  delay = Math.max(0, retryDate.getTime() - Date.now());
+                }
+              }
+
+              // Cap at maxDelayMs
+              delay = Math.min(delay, config.maxDelayMs);
+            }
+          }
+
+          await sleep(delay);
+          continue;
+        }
+
+        // No retries left - throw error with context
+        throw new Error(
+          `Request failed after ${config.maxRetries} retries: HTTP ${response.status} ${response.statusText}`
         );
-        await sleep(delay);
-        continue;
       }
 
       return response;
@@ -182,6 +217,43 @@ export async function fetchWithRetry(
 
   // Should only reach here if all retries exhausted
   throw lastError || new Error('Request failed after all retries');
+}
+
+/**
+ * Wrap any promise with a timeout
+ *
+ * Useful for wrapping SDK calls that don't support timeout natively.
+ *
+ * @param promise - The promise to wrap
+ * @param timeoutMs - Timeout in milliseconds (default: 30000)
+ * @param errorMessage - Custom error message for timeout
+ * @returns The resolved value of the promise
+ * @throws Error if timeout occurs
+ */
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number = DEFAULT_HTTP_OPTIONS.timeoutMs,
+  errorMessage?: string
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const error = new Error(
+        errorMessage ?? `Operation timed out after ${timeoutMs}ms`
+      );
+      error.name = 'TimeoutError';
+      reject(error);
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 /**

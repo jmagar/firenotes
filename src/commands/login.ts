@@ -4,8 +4,9 @@
  */
 
 import { interactiveLogin, isAuthenticated } from '../utils/auth';
-import { DEFAULT_API_URL, updateConfig } from '../utils/config';
 import { getConfigDirectoryPath, saveCredentials } from '../utils/credentials';
+import { DEFAULT_API_URL } from '../utils/defaults';
+import { fmt, icons } from '../utils/theme';
 
 export interface LoginOptions {
   apiKey?: string;
@@ -22,11 +23,12 @@ export async function handleLoginCommand(
 
   // If already authenticated, let them know
   if (isAuthenticated() && !options.apiKey) {
-    console.log('You are already logged in.');
-    console.log(`Credentials stored at: ${getConfigDirectoryPath()}`);
-    console.log('\nTo login with a different account, run:');
-    console.log('  firecrawl logout');
-    console.log('  firecrawl login');
+    console.log(`${icons.success} You are already logged in.`);
+    console.log(fmt.dim(`Credentials stored at: ${getConfigDirectoryPath()}`));
+    console.log('');
+    console.log(fmt.dim('To login with a different account, run:'));
+    console.log(fmt.dim('  firecrawl logout'));
+    console.log(fmt.dim('  firecrawl login'));
     return;
   }
 
@@ -37,16 +39,12 @@ export async function handleLoginCommand(
         apiKey: options.apiKey,
         apiUrl: apiUrl,
       });
-      console.log('✓ Login successful!');
-
-      updateConfig({
-        apiKey: options.apiKey,
-        apiUrl: apiUrl,
-      });
+      console.log(fmt.success(`${icons.success} Login successful!`));
     } catch (error) {
       console.error(
-        'Error saving credentials:',
-        error instanceof Error ? error.message : 'Unknown error'
+        fmt.error(
+          `Error saving credentials: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
       );
       process.exit(1);
     }
@@ -62,16 +60,12 @@ export async function handleLoginCommand(
       apiUrl: result.apiUrl || apiUrl,
     });
 
-    console.log('\n✓ Login successful!');
-
-    updateConfig({
-      apiKey: result.apiKey,
-      apiUrl: result.apiUrl || apiUrl,
-    });
+    console.log('');
+    console.log(fmt.success(`${icons.success} Login successful!`));
   } catch (error) {
+    console.error('');
     console.error(
-      '\nError:',
-      error instanceof Error ? error.message : 'Unknown error'
+      fmt.error(error instanceof Error ? error.message : 'Unknown error')
     );
     process.exit(1);
   }
@@ -89,7 +83,11 @@ export function createLoginCommand(): Command {
       '-k, --api-key <key>',
       'Provide API key directly (skips interactive flow)'
     )
-    .option('--api-url <url>', 'API URL (default: https://api.firecrawl.dev)')
+    .option(
+      '--api-url <url>',
+      'API URL (default: https://api.firecrawl.dev)',
+      'https://api.firecrawl.dev'
+    )
     .action(async (options) => {
       await handleLoginCommand({
         apiKey: options.apiKey,

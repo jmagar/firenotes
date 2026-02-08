@@ -18,12 +18,12 @@ describe('E2E: version command', () => {
 
   it('should display version with version command', async () => {
     const result = await runCLISuccess(['version']);
-    expect(result.stdout).toMatch(/version.*\d+\.\d+\.\d+/i);
+    expect(result.stdout).toMatch(/(?:version|firecrawl\s+v).*?\d+\.\d+\.\d+/i);
   });
 
   it('should display version with auth status when --auth-status flag is used', async () => {
     const result = await runCLISuccess(['version', '--auth-status']);
-    expect(result.stdout).toMatch(/version.*\d+\.\d+\.\d+/i);
+    expect(result.stdout).toMatch(/(?:version|firecrawl\s+v).*?\d+\.\d+\.\d+/i);
     expect(result.stdout).toMatch(/authenticated/i);
   });
 

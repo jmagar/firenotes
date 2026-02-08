@@ -12,17 +12,6 @@ import type { MockFirecrawlClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 // Mock embedpipeline and capture config state
-type EmbedPage = {
-  markdown?: string;
-  html?: string;
-  url?: string;
-  title?: string;
-  metadata?: {
-    sourceURL?: string;
-    url?: string;
-    title?: string;
-  };
-};
 
 type CrawlMockClient = MockFirecrawlClient &
   Required<
@@ -40,7 +29,7 @@ vi.mock('../../utils/output', () => ({
 }));
 
 vi.mock('../../utils/embed-queue', () => ({
-  enqueueEmbedJob: vi.fn().mockReturnValue({
+  enqueueEmbedJob: vi.fn().mockResolvedValue({
     id: 'mock-job',
     jobId: 'mock-job',
     url: 'https://example.com',
@@ -230,7 +219,7 @@ describe('Crawl embedding config initialization', () => {
     });
   });
 
-  describe('Embedding should not run without config', () => {
+  describe('Embedding with default config values', () => {
     it('should have default config values when TEI/Qdrant URLs not explicitly set', async () => {
       const mockCrawlJob = {
         id: 'test-job-id',

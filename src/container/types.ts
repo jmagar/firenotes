@@ -65,12 +65,46 @@ export interface TeiInfo {
 }
 
 /**
- * Qdrant point structure
+ * Qdrant point structure (with vector)
  */
 export interface QdrantPoint {
   id: string;
   vector: number[];
   payload: Record<string, unknown>;
+  score?: number; // Similarity score from query operations
+}
+
+/**
+ * Qdrant scroll point structure (without vector)
+ * Used for scroll operations that don't need vector data
+ */
+export interface QdrantScrollPoint {
+  id: string;
+  payload: Record<string, unknown>;
+}
+
+/**
+ * Qdrant collection distance types
+ */
+export type QdrantDistance =
+  | 'Cosine'
+  | 'Dot'
+  | 'Euclid'
+  | 'Manhattan'
+  | 'unknown';
+
+/**
+ * Qdrant collection information
+ */
+export interface CollectionInfo {
+  status: string;
+  vectorsCount: number;
+  pointsCount: number;
+  segmentsCount: number;
+  config: {
+    dimension: number;
+    distance: QdrantDistance;
+  };
 }
 
 /**
@@ -90,7 +124,8 @@ export interface IHttpClient {
     options?: {
       timeoutMs?: number;
       maxRetries?: number;
-      backoffFactor?: number;
+      baseDelayMs?: number;
+      maxDelayMs?: number;
     }
   ): Promise<Response>;
 
@@ -167,7 +202,7 @@ export interface IQdrantService {
     collection: string,
     vector: number[],
     limit?: number,
-    filter?: Record<string, unknown>
+    filter?: Record<string, string | number | boolean>
   ): Promise<QdrantPoint[]>;
 
   /**
@@ -176,6 +211,55 @@ export interface IQdrantService {
    * @param url URL to scroll points for
    */
   scrollByUrl(collection: string, url: string): Promise<QdrantPoint[]>;
+
+  /**
+   * Delete all points for a domain
+   * @param collection Collection name
+   * @param domain Domain to delete points for
+   */
+  deleteByDomain(collection: string, domain: string): Promise<void>;
+
+  /**
+   * Count points matching a domain filter
+   * @param collection Collection name
+   * @param domain Domain to count points for
+   */
+  countByDomain(collection: string, domain: string): Promise<number>;
+
+  /**
+   * Get collection information (vector count, config)
+   * @param collection Collection name
+   */
+  getCollectionInfo(collection: string): Promise<CollectionInfo>;
+
+  /**
+   * Scroll all points with optional filter, paginating through results
+   * @param collection Collection name
+   * @param filter Optional payload filter
+   */
+  scrollAll(
+    collection: string,
+    filter?: Record<string, string | number | boolean>
+  ): Promise<QdrantScrollPoint[]>;
+
+  /**
+   * Count total points in collection
+   * @param collection Collection name
+   */
+  countPoints(collection: string): Promise<number>;
+
+  /**
+   * Count points matching a URL filter
+   * @param collection Collection name
+   * @param url URL to count
+   */
+  countByUrl(collection: string, url: string): Promise<number>;
+
+  /**
+   * Delete all points in collection
+   * @param collection Collection name
+   */
+  deleteAll(collection: string): Promise<void>;
 }
 
 /**
@@ -204,6 +288,9 @@ export interface IEmbedPipeline {
    * Batch embed multiple items with concurrency control
    * @param items Array of items to embed
    * @param options Batch options
+   * @param options.concurrency Maximum number of concurrent embedding operations
+   * @param options.onProgress Optional callback invoked after each item completes
+   * @returns Promise with embedding result statistics
    */
   batchEmbed(
     items: Array<{
@@ -216,8 +303,11 @@ export interface IEmbedPipeline {
         [key: string]: unknown;
       };
     }>,
-    options?: { concurrency?: number }
-  ): Promise<void>;
+    options?: {
+      concurrency?: number;
+      onProgress?: (current: number, total: number) => void | Promise<void>;
+    }
+  ): Promise<{ succeeded: number; failed: number; errors: string[] }>;
 }
 
 /**

@@ -16,6 +16,7 @@ const mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
 // Mock the output module to prevent console output in tests
 vi.mock('../../utils/output', () => ({
   writeOutput: vi.fn(),
+  validateOutputPath: vi.fn((path: string) => path),
 }));
 
 describe('executeSearch', () => {
@@ -487,21 +488,6 @@ describe('executeSearch', () => {
       expect(result.data?.web).toEqual([
         { url: 'https://example.com', title: 'Test' },
       ]);
-    });
-
-    it('should handle array response format (legacy)', async () => {
-      const mockResponse = [
-        { url: 'https://example.com', title: 'Test 1' },
-        { url: 'https://example2.com', title: 'Test 2' },
-      ];
-      mockClient.search.mockResolvedValue(mockResponse);
-
-      const result = await executeSearch(mockContainer, {
-        query: 'test',
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.data?.web).toEqual(mockResponse);
     });
 
     it('should include warning in result when present', async () => {

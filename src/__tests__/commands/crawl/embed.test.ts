@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   attachEmbedWebhook,
   handleAsyncEmbedding,
@@ -8,13 +8,16 @@ import {
 import type { CrawlJobData } from '../../../types/crawl';
 import { createTestContainer } from '../../utils/test-container';
 
+const createContainer = (...args: Parameters<typeof createTestContainer>) =>
+  createTestContainer(...args);
+
 // Mock dependencies
 vi.mock('../../../utils/embedder-webhook', () => ({
   buildEmbedderWebhookConfig: vi.fn(),
 }));
 
 vi.mock('../../../utils/job-history', () => ({
-  recordJob: vi.fn(),
+  recordJob: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { buildEmbedderWebhookConfig } from '../../../utils/embedder-webhook';
@@ -25,6 +28,8 @@ describe('attachEmbedWebhook', () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {});
+
   it('should attach webhook when embedding enabled and not in wait mode', () => {
     const webhookConfig = { url: 'https://webhook.example.com' };
     vi.mocked(buildEmbedderWebhookConfig).mockReturnValue(
@@ -32,7 +37,7 @@ describe('attachEmbedWebhook', () => {
     );
 
     const options = { limit: 10 };
-    const result = attachEmbedWebhook(options, true, false);
+    const result = attachEmbedWebhook(options, true, false, {});
 
     expect(result).toEqual({ limit: 10, webhook: webhookConfig });
   });
@@ -44,7 +49,7 @@ describe('attachEmbedWebhook', () => {
     );
 
     const options = { limit: 10 };
-    const result = attachEmbedWebhook(options, false, false);
+    const result = attachEmbedWebhook(options, false, false, {});
 
     expect(result).toEqual({ limit: 10 });
   });
@@ -56,7 +61,7 @@ describe('attachEmbedWebhook', () => {
     );
 
     const options = { limit: 10 };
-    const result = attachEmbedWebhook(options, true, true);
+    const result = attachEmbedWebhook(options, true, true, {});
 
     expect(result).toEqual({ limit: 10 });
   });
@@ -65,7 +70,7 @@ describe('attachEmbedWebhook', () => {
     vi.mocked(buildEmbedderWebhookConfig).mockReturnValue(null);
 
     const options = { limit: 10 };
-    const result = attachEmbedWebhook(options, true, false);
+    const result = attachEmbedWebhook(options, true, false, {});
 
     expect(result).toEqual({ limit: 10 });
   });
@@ -77,7 +82,7 @@ describe('handleAsyncEmbedding', () => {
   });
 
   it('should enqueue job and show webhook message when configured', async () => {
-    const mockEnqueueEmbedJob = vi.fn();
+    const mockEnqueueEmbedJob = vi.fn().mockResolvedValue(undefined);
     const webhookConfig = { url: 'https://webhook.example.com' };
 
     vi.mocked(buildEmbedderWebhookConfig).mockReturnValue(
@@ -91,7 +96,12 @@ describe('handleAsyncEmbedding', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => {});
 
-    await handleAsyncEmbedding('job-123', 'https://example.com', 'test-key');
+    await handleAsyncEmbedding(
+      'job-123',
+      'https://example.com',
+      { embedderWebhookUrl: 'https://webhook.example.com' },
+      'test-key'
+    );
 
     expect(mockEnqueueEmbedJob).toHaveBeenCalledWith(
       'job-123',
@@ -111,7 +121,7 @@ describe('handleAsyncEmbedding', () => {
   });
 
   it('should show setup instructions when webhook not configured', async () => {
-    const mockEnqueueEmbedJob = vi.fn();
+    const mockEnqueueEmbedJob = vi.fn().mockResolvedValue(undefined);
 
     vi.mocked(buildEmbedderWebhookConfig).mockReturnValue(null);
     vi.doMock('../../../utils/embed-queue', () => ({
@@ -122,7 +132,7 @@ describe('handleAsyncEmbedding', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => {});
 
-    await handleAsyncEmbedding('job-456', 'https://example.com');
+    await handleAsyncEmbedding('job-456', 'https://example.com', {});
 
     expect(consoleError).toHaveBeenCalledWith(
       expect.stringContaining('Embedder webhook not configured')
@@ -237,8 +247,8 @@ describe('handleManualEmbedding', () => {
 
   it('should enqueue and process job when not already queued', async () => {
     const mockProcessEmbedQueue = vi.fn();
-    const mockEnqueueEmbedJob = vi.fn();
-    const mockGetEmbedJob = vi.fn().mockReturnValue(null);
+    const mockEnqueueEmbedJob = vi.fn().mockResolvedValue(undefined);
+    const mockGetEmbedJob = vi.fn().mockResolvedValue(null);
 
     const mockClient = {
       getCrawlStatus: vi.fn().mockResolvedValue({
@@ -247,7 +257,7 @@ describe('handleManualEmbedding', () => {
       }),
     };
 
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
 
     vi.doMock('../../../utils/background-embedder', () => ({
       processEmbedQueue: mockProcessEmbedQueue,
@@ -263,7 +273,9 @@ describe('handleManualEmbedding', () => {
 
     await handleManualEmbedding(container, 'job-123', 'test-key');
 
-    expect(mockClient.getCrawlStatus).toHaveBeenCalledWith('job-123');
+    expect(mockClient.getCrawlStatus).toHaveBeenCalledWith('job-123', {
+      autoPaginate: false,
+    });
     expect(mockEnqueueEmbedJob).toHaveBeenCalledWith(
       'job-123',
       'https://example.com',
@@ -279,8 +291,8 @@ describe('handleManualEmbedding', () => {
 
   it('should skip enqueueing if job already exists', async () => {
     const mockProcessEmbedQueue = vi.fn();
-    const mockEnqueueEmbedJob = vi.fn();
-    const mockGetEmbedJob = vi.fn().mockReturnValue({ jobId: 'job-123' });
+    const mockEnqueueEmbedJob = vi.fn().mockResolvedValue(undefined);
+    const mockGetEmbedJob = vi.fn().mockResolvedValue({ jobId: 'job-123' });
 
     const container = createTestContainer();
 
@@ -306,7 +318,7 @@ describe('handleManualEmbedding', () => {
 
   it('should return early if job not completed', async () => {
     const mockProcessEmbedQueue = vi.fn();
-    const mockGetEmbedJob = vi.fn().mockReturnValue(null);
+    const mockGetEmbedJob = vi.fn().mockResolvedValue(null);
 
     const mockClient = {
       getCrawlStatus: vi.fn().mockResolvedValue({
@@ -315,13 +327,13 @@ describe('handleManualEmbedding', () => {
       }),
     };
 
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
 
     vi.doMock('../../../utils/background-embedder', () => ({
       processEmbedQueue: mockProcessEmbedQueue,
     }));
     vi.doMock('../../../utils/embed-queue', () => ({
-      enqueueEmbedJob: vi.fn(),
+      enqueueEmbedJob: vi.fn().mockResolvedValue(undefined),
       getEmbedJob: mockGetEmbedJob,
     }));
 
@@ -332,7 +344,7 @@ describe('handleManualEmbedding', () => {
     await handleManualEmbedding(container, 'job-123');
 
     expect(consoleError).toHaveBeenCalledWith(
-      'Crawl job-123 is processing, cannot embed yet'
+      '! Crawl job-123 is processing, cannot embed yet'
     );
     expect(mockProcessEmbedQueue).not.toHaveBeenCalled();
 
@@ -341,8 +353,8 @@ describe('handleManualEmbedding', () => {
 
   it('should use job ID as fallback URL', async () => {
     const mockProcessEmbedQueue = vi.fn();
-    const mockEnqueueEmbedJob = vi.fn();
-    const mockGetEmbedJob = vi.fn().mockReturnValue(null);
+    const mockEnqueueEmbedJob = vi.fn().mockResolvedValue(undefined);
+    const mockGetEmbedJob = vi.fn().mockResolvedValue(null);
 
     const mockClient = {
       getCrawlStatus: vi.fn().mockResolvedValue({
@@ -351,7 +363,7 @@ describe('handleManualEmbedding', () => {
       }),
     };
 
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
 
     vi.doMock('../../../utils/background-embedder', () => ({
       processEmbedQueue: mockProcessEmbedQueue,

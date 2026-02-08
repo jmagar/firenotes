@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { pollCrawlProgress } from '../../../commands/crawl/polling';
 import { createTestContainer } from '../../utils/test-container';
 
+const createContainer = (...args: Parameters<typeof createTestContainer>) =>
+  createTestContainer(...args);
+
 // Mock dependencies
 vi.mock('../../../utils/polling', () => ({
   pollWithProgress: vi.fn(),
@@ -27,7 +30,7 @@ describe('pollCrawlProgress', () => {
       data: [],
     };
 
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
     vi.mocked(pollWithProgress).mockResolvedValue(mockResult as never);
 
     const result = await pollCrawlProgress(container, 'job-123', {
@@ -51,7 +54,7 @@ describe('pollCrawlProgress', () => {
       getCrawlStatus: vi.fn(),
     };
 
-    const container = createTestContainer(mockClient, { apiKey: 'test-key' });
+    const container = createContainer(mockClient, { apiKey: 'test-key' });
     vi.mocked(pollWithProgress).mockResolvedValue({} as never);
 
     await pollCrawlProgress(container, 'job-123', {
@@ -73,7 +76,7 @@ describe('pollCrawlProgress', () => {
 
     let capturedStatusFetcher: ((id: string) => Promise<unknown>) | undefined;
 
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
     vi.mocked(pollWithProgress).mockImplementation(async (config) => {
       capturedStatusFetcher = config.statusFetcher;
       return {} as never;
@@ -85,9 +88,11 @@ describe('pollCrawlProgress', () => {
 
     expect(capturedStatusFetcher).toBeDefined();
 
-    // Call the statusFetcher to verify it works
-    await capturedStatusFetcher!('job-123');
-    expect(mockClient.getCrawlStatus).toHaveBeenCalledWith('job-123');
+    // Call the statusFetcher to verify it works (should use noPagination)
+    await capturedStatusFetcher?.('job-123');
+    expect(mockClient.getCrawlStatus).toHaveBeenCalledWith('job-123', {
+      autoPaginate: false,
+    });
   });
 
   it('should configure isComplete to check for terminal states', async () => {
@@ -100,7 +105,7 @@ describe('pollCrawlProgress', () => {
       | undefined;
 
     const mockClient = { getCrawlStatus: vi.fn() };
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
     vi.mocked(pollWithProgress).mockImplementation(async (config) => {
       capturedIsComplete = config.isComplete;
       return {} as never;
@@ -114,19 +119,19 @@ describe('pollCrawlProgress', () => {
 
     // Test various completion scenarios
     expect(
-      capturedIsComplete!({ status: 'completed', total: 10, completed: 10 })
+      capturedIsComplete?.({ status: 'completed', total: 10, completed: 10 })
     ).toBe(true);
     expect(
-      capturedIsComplete!({ status: 'failed', total: 10, completed: 5 })
+      capturedIsComplete?.({ status: 'failed', total: 10, completed: 5 })
     ).toBe(true);
     expect(
-      capturedIsComplete!({ status: 'cancelled', total: 10, completed: 3 })
+      capturedIsComplete?.({ status: 'cancelled', total: 10, completed: 3 })
     ).toBe(true);
     expect(
-      capturedIsComplete!({ status: 'processing', total: 10, completed: 10 })
+      capturedIsComplete?.({ status: 'processing', total: 10, completed: 10 })
     ).toBe(true);
     expect(
-      capturedIsComplete!({ status: 'processing', total: 10, completed: 5 })
+      capturedIsComplete?.({ status: 'processing', total: 10, completed: 5 })
     ).toBe(false);
   });
 
@@ -140,7 +145,7 @@ describe('pollCrawlProgress', () => {
       | undefined;
 
     const mockClient = { getCrawlStatus: vi.fn() };
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
     vi.mocked(pollWithProgress).mockImplementation(async (config) => {
       capturedFormatProgress = config.formatProgress;
       return {} as never;
@@ -152,7 +157,7 @@ describe('pollCrawlProgress', () => {
 
     expect(capturedFormatProgress).toBeDefined();
 
-    const progressText = capturedFormatProgress!({
+    const progressText = capturedFormatProgress?.({
       status: 'processing',
       total: 100,
       completed: 50,
@@ -166,7 +171,7 @@ describe('pollCrawlProgress', () => {
       getCrawlStatus: vi.fn(),
     };
 
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
     vi.mocked(pollWithProgress).mockResolvedValue({} as never);
 
     await pollCrawlProgress(container, 'job-123', {
@@ -185,7 +190,7 @@ describe('pollCrawlProgress', () => {
       getCrawlStatus: vi.fn(),
     };
 
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
     vi.mocked(pollWithProgress).mockResolvedValue({} as never);
 
     await pollCrawlProgress(container, 'job-123', {
@@ -200,7 +205,7 @@ describe('pollCrawlProgress', () => {
       getCrawlStatus: vi.fn(),
     };
 
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
     vi.mocked(pollWithProgress).mockRejectedValue(
       new Error('Timeout after 60 seconds')
     );
@@ -211,5 +216,61 @@ describe('pollCrawlProgress', () => {
         timeout: 60000,
       })
     ).rejects.toThrow('Timeout after 60 seconds');
+  });
+
+  it('should throw error for invalid pollInterval (< 100ms)', async () => {
+    const mockClient = {
+      getCrawlStatus: vi.fn(),
+    };
+
+    const container = createContainer(mockClient);
+
+    await expect(
+      pollCrawlProgress(container, 'job-123', {
+        pollInterval: 50,
+      })
+    ).rejects.toThrow('Invalid pollInterval: 50. Must be >= 100ms');
+  });
+
+  it('should throw error for zero pollInterval', async () => {
+    const mockClient = {
+      getCrawlStatus: vi.fn(),
+    };
+
+    const container = createContainer(mockClient);
+
+    await expect(
+      pollCrawlProgress(container, 'job-123', {
+        pollInterval: 0,
+      })
+    ).rejects.toThrow('Invalid pollInterval: 0. Must be >= 100ms');
+  });
+
+  it('should throw error for negative pollInterval', async () => {
+    const mockClient = {
+      getCrawlStatus: vi.fn(),
+    };
+
+    const container = createContainer(mockClient);
+
+    await expect(
+      pollCrawlProgress(container, 'job-123', {
+        pollInterval: -1000,
+      })
+    ).rejects.toThrow('Invalid pollInterval: -1000. Must be >= 100ms');
+  });
+
+  it('should throw error for non-finite pollInterval', async () => {
+    const mockClient = {
+      getCrawlStatus: vi.fn(),
+    };
+
+    const container = createContainer(mockClient);
+
+    await expect(
+      pollCrawlProgress(container, 'job-123', {
+        pollInterval: Number.NaN,
+      })
+    ).rejects.toThrow('Invalid pollInterval: NaN. Must be >= 100ms');
   });
 });

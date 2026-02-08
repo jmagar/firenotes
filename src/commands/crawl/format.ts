@@ -43,18 +43,34 @@ export function formatCrawlStatus(data: CrawlStatusResult['data']): string {
       const langPart = langEnv.split('.')[0];
       // Only use if it looks like a valid locale (contains underscore or hyphen)
       if (langPart && (langPart.includes('_') || langPart.includes('-'))) {
-        locale = langPart.replace('_', '-');
+        const candidateLocale = langPart.replace('_', '-');
+        // Validate locale using try-catch to handle RangeError
+        try {
+          // Test the locale by attempting to use it
+          new Intl.DateTimeFormat(candidateLocale);
+          locale = candidateLocale;
+        } catch (_error) {
+          // Fall back to 'en-US' if locale is invalid
+          // No need to log - silent fallback is acceptable for locale formatting
+        }
       }
     }
-    lines.push(
-      `Expires: ${expiresDate.toLocaleString(locale, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })}`
-    );
+
+    // Wrap toLocaleString in try-catch as additional safety
+    try {
+      lines.push(
+        `Expires: ${expiresDate.toLocaleString(locale, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })}`
+      );
+    } catch (_error) {
+      // Fall back to ISO string if locale formatting fails
+      lines.push(`Expires: ${expiresDate.toISOString()}`);
+    }
   }
 
   return `${lines.join('\n')}\n`;
