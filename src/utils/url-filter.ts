@@ -22,6 +22,7 @@ export interface FilterResult<T> {
 /**
  * Tests if a URL matches an exclude pattern
  * - Patterns ending with $ or containing regex metacharacters are treated as regex
+ * - Glob patterns (e.g., `**\/*.pdf`) are converted to regex before matching
  * - Other patterns use substring matching (e.g., /blog/ matches any URL containing "/blog/")
  *
  * @param url - URL to test
@@ -29,12 +30,23 @@ export interface FilterResult<T> {
  * @returns true if URL matches pattern
  */
 export function matchesPattern(url: string, pattern: string): boolean {
+  // Detect glob patterns first so values like **/*.pdf are not treated as raw regex.
+  // Glob support here intentionally focuses on *, **, and ? wildcards.
+  const looksLikeGlob =
+    (pattern.includes('*') || pattern.includes('?')) &&
+    !/[\\^$(){}|]/.test(pattern);
+
+  if (looksLikeGlob) {
+    const globRegex = globToRegex(pattern);
+    return globRegex.test(url);
+  }
+
   // Check if pattern looks like regex:
   // - Ends with $ (anchor)
   // - Starts with ^ (anchor)
-  // - Contains regex metacharacters: \, (, ), [, ], {, }, |, *, +, ., ?
+  // - Contains regex metacharacters: \, (, ), [, ], {, }, |, +, .
   // Note: / is NOT a regex metacharacter in JavaScript
-  const regexMetaChars = /[\^$\\()[\]{}|*+.?]/;
+  const regexMetaChars = /[\^$\\()[\]{}|+.]/;
   const looksLikeRegex = regexMetaChars.test(pattern);
 
   if (looksLikeRegex) {
@@ -52,6 +64,22 @@ export function matchesPattern(url: string, pattern: string): boolean {
 
   // Literal substring matching
   return url.includes(pattern);
+}
+
+function globToRegex(pattern: string): RegExp {
+  // Use a placeholder string instead of control character
+  const DOUBLE_STAR_PLACEHOLDER = '__DOUBLE_STAR__';
+
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, DOUBLE_STAR_PLACEHOLDER);
+
+  const regexBody = escaped
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '[^/]')
+    .replace(new RegExp(DOUBLE_STAR_PLACEHOLDER, 'g'), '.*');
+
+  return new RegExp(regexBody);
 }
 
 /**

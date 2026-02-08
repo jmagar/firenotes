@@ -52,6 +52,18 @@ function createMockMapClient(
   };
 }
 
+function createMockCrawlJob(urls: string[]) {
+  return {
+    id: 'crawl-job-1',
+    status: 'completed',
+    total: urls.length,
+    completed: urls.length,
+    data: urls.map((url) => ({
+      metadata: { sourceURL: url },
+    })),
+  };
+}
+
 describe('executeMap', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -179,6 +191,86 @@ describe('executeMap', () => {
         timeout: 120000,
         sitemap: 'include',
       });
+    });
+
+    it('should fallback to crawl discovery on ReadTheDocs when map returns empty', async () => {
+      const mockClient = createMockMapClient([]);
+      mockClient.crawl = vi
+        .fn()
+        .mockResolvedValue(
+          createMockCrawlJob([
+            'https://fail2ban.readthedocs.io/en/latest/',
+            'https://fail2ban.readthedocs.io/en/latest/filters.html',
+          ])
+        ) as Mock;
+      const container = createContainer(mockClient);
+
+      const result = await executeMap(container, {
+        urlOrJobId: 'https://fail2ban.readthedocs.io/en/latest/',
+        sitemap: 'skip',
+      });
+
+      expect(mockClient.map).toHaveBeenCalledTimes(1);
+      expect(mockClient.crawl).toHaveBeenCalledTimes(1);
+      expect(result.success).toBe(true);
+      expect(result.data?.links).toEqual([
+        { url: 'https://fail2ban.readthedocs.io/en/latest/' },
+        {
+          url: 'https://fail2ban.readthedocs.io/en/latest/filters.html',
+        },
+      ]);
+    });
+
+    it('should not fallback to crawl discovery on non-ReadTheDocs hosts', async () => {
+      const mockClient = createMockMapClient([]);
+      mockClient.crawl = vi
+        .fn()
+        .mockResolvedValue(createMockCrawlJob([])) as Mock;
+      const container = createContainer(mockClient);
+
+      const result = await executeMap(container, {
+        urlOrJobId: 'https://example.com/docs',
+        sitemap: 'skip',
+      });
+
+      expect(mockClient.map).toHaveBeenCalledTimes(1);
+      expect(mockClient.crawl).not.toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      expect(result.data?.links).toEqual([]);
+    });
+
+    it('should use /en/latest/ for ReadTheDocs root fallback', async () => {
+      const mockClient = createMockMapClient([
+        'https://fail2ban.readthedocs.io/develop.html',
+      ]);
+      mockClient.crawl = vi
+        .fn()
+        .mockResolvedValue(
+          createMockCrawlJob([
+            'https://fail2ban.readthedocs.io/en/latest/',
+            'https://fail2ban.readthedocs.io/en/latest/filters.html',
+          ])
+        ) as Mock;
+      const container = createContainer(mockClient);
+
+      const result = await executeMap(container, {
+        urlOrJobId: 'https://fail2ban.readthedocs.io',
+        sitemap: 'skip',
+      });
+
+      expect(mockClient.map).toHaveBeenCalledTimes(1);
+      expect(mockClient.crawl).toHaveBeenCalledTimes(1);
+      expect(mockClient.crawl).toHaveBeenCalledWith(
+        'https://fail2ban.readthedocs.io/en/latest/',
+        expect.objectContaining({ sitemap: 'skip' })
+      );
+      expect(result.success).toBe(true);
+      expect(result.data?.links).toEqual([
+        { url: 'https://fail2ban.readthedocs.io/en/latest/' },
+        {
+          url: 'https://fail2ban.readthedocs.io/en/latest/filters.html',
+        },
+      ]);
     });
   });
 
@@ -732,7 +824,7 @@ describe('executeMap', () => {
 
       expect(result.success).toBe(true);
       // No filter stats should be attached when filtering is disabled
-      expect((result as any).filterStats).toBeUndefined();
+      expect(result.filterStats).toBeUndefined();
     });
 
     it('should override noDefaultExcludes when noFiltering is true', async () => {
@@ -805,10 +897,10 @@ describe('executeMap', () => {
       });
 
       expect(result.success).toBe(true);
-      expect((result as any).filterStats).toBeDefined();
-      expect((result as any).filterStats.total).toBe(3);
-      expect((result as any).filterStats.excluded).toBeGreaterThan(0);
-      expect((result as any).filterStats.kept).toBeLessThan(3);
+      expect(result.filterStats).toBeDefined();
+      expect(result.filterStats?.total).toBe(3);
+      expect(result.filterStats?.excluded).toBeGreaterThan(0);
+      expect(result.filterStats?.kept).toBeLessThan(3);
     });
 
     it('should include excludedUrls when verbose is true', async () => {
@@ -824,8 +916,8 @@ describe('executeMap', () => {
       });
 
       expect(result.success).toBe(true);
-      expect((result as any).excludedUrls).toBeDefined();
-      expect(Array.isArray((result as any).excludedUrls)).toBe(true);
+      expect(result.excludedUrls).toBeDefined();
+      expect(Array.isArray(result.excludedUrls)).toBe(true);
     });
 
     it('should not include excludedUrls when verbose is false', async () => {
@@ -841,7 +933,7 @@ describe('executeMap', () => {
       });
 
       expect(result.success).toBe(true);
-      expect((result as any).excludedUrls).toBeUndefined();
+      expect(result.excludedUrls).toBeUndefined();
     });
 
     it('should not attach filter stats when no URLs are excluded', async () => {
@@ -857,7 +949,7 @@ describe('executeMap', () => {
       });
 
       expect(result.success).toBe(true);
-      expect((result as any).filterStats).toBeUndefined();
+      expect(result.filterStats).toBeUndefined();
     });
 
     it('should handle empty results after filtering', async () => {

@@ -15,6 +15,123 @@ import { requireContainer } from './shared';
 
 /** HTTP timeout for map API requests (60 seconds) */
 const MAP_TIMEOUT_MS = 60000;
+const MAP_CRAWL_FALLBACK_MAX_DISCOVERY_DEPTH = 10;
+
+function parseUrl(url: string): URL | null {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+function isReadTheDocsHost(url: string): boolean {
+  const parsed = parseUrl(url);
+  if (!parsed) {
+    return false;
+  }
+  const host = parsed.hostname.toLowerCase();
+  return host === 'readthedocs.io' || host.endsWith('.readthedocs.io');
+}
+
+function shouldUseCrawlFallback(url: string, options: MapOptions): boolean {
+  if (options.search) {
+    return false;
+  }
+  return isReadTheDocsHost(url);
+}
+
+function isReadTheDocsRootUrl(url: string): boolean {
+  const parsed = parseUrl(url);
+  if (!parsed || !isReadTheDocsHost(url)) {
+    return false;
+  }
+  return parsed.pathname === '/' || parsed.pathname === '';
+}
+
+function getReadTheDocsLatestUrl(url: string): string | null {
+  const parsed = parseUrl(url);
+  if (!parsed || !isReadTheDocsHost(url)) {
+    return null;
+  }
+  if (parsed.pathname === '/' || parsed.pathname === '') {
+    return new URL('/en/latest/', parsed).toString();
+  }
+  return null;
+}
+
+function extractCrawlDiscoveredLinks(
+  crawlData: Array<{
+    metadata?: Record<string, unknown>;
+  }>
+): Array<{ url: string; title?: string; description?: string }> {
+  const seen = new Set<string>();
+  const links: Array<{ url: string; title?: string; description?: string }> =
+    [];
+
+  for (const page of crawlData) {
+    const metadata = page.metadata;
+    const sourceUrl =
+      typeof metadata?.sourceURL === 'string'
+        ? metadata.sourceURL
+        : typeof metadata?.url === 'string'
+          ? metadata.url
+          : undefined;
+
+    if (!sourceUrl || seen.has(sourceUrl)) {
+      continue;
+    }
+
+    seen.add(sourceUrl);
+    links.push({
+      url: sourceUrl,
+      title: typeof metadata?.title === 'string' ? metadata.title : undefined,
+      description:
+        typeof metadata?.description === 'string'
+          ? metadata.description
+          : undefined,
+    });
+  }
+
+  return links;
+}
+
+async function executeMapViaCrawlFallback(
+  container: IContainer,
+  url: string,
+  options: MapOptions
+): Promise<MapResult> {
+  const client = container.getFirecrawlClient();
+  const crawlUrl = getReadTheDocsLatestUrl(url) ?? url;
+  const crawlOptions: Record<string, unknown> = {
+    limit: options.limit,
+    maxDiscoveryDepth: MAP_CRAWL_FALLBACK_MAX_DISCOVERY_DEPTH,
+    sitemap: 'skip',
+  };
+
+  if (options.includeSubdomains !== undefined) {
+    crawlOptions.allowSubdomains = options.includeSubdomains;
+  }
+  if (!options.noFiltering && options.ignoreQueryParameters !== undefined) {
+    crawlOptions.ignoreQueryParameters = options.ignoreQueryParameters;
+  } else if (options.noFiltering) {
+    crawlOptions.ignoreQueryParameters = false;
+  }
+  if (options.timeout !== undefined) {
+    crawlOptions.timeout = options.timeout;
+  }
+
+  const crawlResult = await client.crawl(
+    crawlUrl,
+    crawlOptions as Parameters<typeof client.crawl>[1]
+  );
+  const links = extractCrawlDiscoveredLinks(crawlResult.data ?? []);
+
+  return {
+    success: true,
+    data: { links },
+  };
+}
 
 /**
  * Build exclude patterns from map options
@@ -189,6 +306,7 @@ export async function executeMap(
     const { urlOrJobId } = options;
 
     let result: MapResult;
+    let usedCrawlFallback = false;
 
     // When User-Agent is configured, use direct HTTP (SDK limitation)
     // Otherwise, use the SDK for better error handling and retry logic
@@ -217,8 +335,23 @@ export async function executeMap(
       result = await executeMapViaSdk(container, urlOrJobId, options);
     }
 
+    const shouldFallback =
+      shouldUseCrawlFallback(urlOrJobId, options) &&
+      (isReadTheDocsRootUrl(urlOrJobId) ||
+        (result.success && (result.data?.links.length ?? 0) === 0));
+
+    if (shouldFallback) {
+      result = await executeMapViaCrawlFallback(container, urlOrJobId, options);
+      usedCrawlFallback = true;
+    }
+
     // Apply client-side filtering if result succeeded (unless --no-filtering flag set)
-    if (result.success && result.data?.links && !options.noFiltering) {
+    if (
+      result.success &&
+      result.data?.links &&
+      !options.noFiltering &&
+      !usedCrawlFallback
+    ) {
       const excludePatterns = buildExcludePatterns(options);
 
       if (excludePatterns.length > 0) {
@@ -227,8 +360,8 @@ export async function executeMap(
 
         // Store stats for display
         if (options.verbose || filterResult.stats.excluded > 0) {
-          (result as any).filterStats = filterResult.stats;
-          (result as any).excludedUrls = options.verbose
+          result.filterStats = filterResult.stats;
+          result.excludedUrls = options.verbose
             ? filterResult.excluded
             : undefined;
         }
@@ -269,13 +402,13 @@ function formatMapReadable(
 
   // Show excluded URLs if verbose
   if (excludedUrls && excludedUrls.length > 0) {
-    output += '\n\n' + fmt.dim('Excluded URLs:\n');
+    output += `\n\n${fmt.dim('Excluded URLs:\n')}`;
     excludedUrls.forEach((item) => {
       output += fmt.dim(`  ${item.url} (matched: ${item.matchedPattern})\n`);
     });
   }
 
-  return output + '\n';
+  return `${output}\n`;
 }
 
 /**
@@ -297,11 +430,7 @@ export async function handleMapCommand(
 
   const result = await executeMap(container, options);
   processCommandResult(result, options, (data) =>
-    formatMapReadable(
-      data,
-      (result as any).filterStats,
-      (result as any).excludedUrls
-    )
+    formatMapReadable(data, result.filterStats, result.excludedUrls)
   );
 }
 

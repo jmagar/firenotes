@@ -46,6 +46,7 @@ import {
 } from './container/ContainerFactory';
 import type { IContainer } from './container/types';
 import { ensureAuthenticated, printBanner } from './utils/auth';
+import { loadCredentials } from './utils/credentials';
 import { fmt, icons, isTTY } from './utils/theme';
 import { isUrl, normalizeUrl } from './utils/url';
 
@@ -320,7 +321,7 @@ program
   .hook('preAction', async (thisCommand, actionCommand) => {
     // Create container with optional API key override
     const globalOptions = thisCommand.opts();
-    const commandContainer = globalOptions.apiKey
+    let commandContainer = globalOptions.apiKey
       ? createContainerWithOverride(baseContainer, {
           apiKey: globalOptions.apiKey,
         })
@@ -333,7 +334,15 @@ program
     const commandName = actionCommand.name();
     if (AUTH_REQUIRED_COMMANDS.includes(commandName)) {
       // Ensure user is authenticated (prompts for login if needed)
-      await ensureAuthenticated(commandContainer.config.apiKey);
+      const apiKey = await ensureAuthenticated(commandContainer.config.apiKey);
+      if (apiKey !== commandContainer.config.apiKey) {
+        const storedCredentials = loadCredentials();
+        commandContainer = createContainerWithOverride(commandContainer, {
+          apiKey,
+          apiUrl: storedCredentials?.apiUrl ?? commandContainer.config.apiUrl,
+        });
+        actionCommand._container = commandContainer;
+      }
     }
   });
 

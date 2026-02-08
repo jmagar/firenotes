@@ -372,14 +372,18 @@ describe('tryClaimJob', () => {
 
     await enqueueEmbedJob('job-timestamp-test', 'https://example.com');
     const before = await getEmbedJob('job-timestamp-test');
-    const beforeTime = new Date(before!.updatedAt).getTime();
+    const beforeTime = before?.updatedAt
+      ? new Date(before.updatedAt).getTime()
+      : 0;
 
     // Small delay to ensure timestamp changes
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     await tryClaimJob('job-timestamp-test');
     const after = await getEmbedJob('job-timestamp-test');
-    const afterTime = new Date(after!.updatedAt).getTime();
+    const afterTime = after?.updatedAt
+      ? new Date(after.updatedAt).getTime()
+      : 0;
 
     expect(afterTime).toBeGreaterThanOrEqual(beforeTime);
   });

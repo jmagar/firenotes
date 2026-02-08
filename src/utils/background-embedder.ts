@@ -25,7 +25,6 @@ import {
   markJobConfigError,
   markJobFailed,
   markJobProcessing,
-  tryClaimJob,
   updateEmbedJob,
   updateJobProgress,
 } from './embed-queue';
@@ -184,7 +183,7 @@ async function processEmbedJob(
     const THROTTLE_INTERVAL = 10; // Update disk every 10 documents
 
     const result = await pipeline.batchEmbed(embedItems, {
-      onProgress: async (current, total) => {
+      onProgress: async (current, _total) => {
         updateCounter++;
         const shouldPersist = updateCounter % THROTTLE_INTERVAL === 0;
 

@@ -50,4 +50,14 @@ export type MapResult = CommandResult<{
     title?: string;
     description?: string;
   }>;
-}>;
+}> & {
+  filterStats?: {
+    total: number;
+    excluded: number;
+    kept: number;
+  };
+  excludedUrls?: Array<{
+    url: string;
+    matchedPattern: string;
+  }>;
+};

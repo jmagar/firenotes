@@ -383,7 +383,7 @@ describe('TeiService', () => {
       vi.useFakeTimers();
 
       vi.mocked(mockHttpClient.fetchWithRetry).mockImplementation(
-        async (_url, _init, options) => {
+        async (_url, _init, _options) => {
           // Simulate slow TEI response (60s)
           await new Promise((resolve) => setTimeout(resolve, 60000));
           return {

@@ -180,7 +180,9 @@ export async function handleEmbedCommand(
 }
 
 import { Command } from 'commander';
+import { createContainerWithOverride } from '../container/ContainerFactory';
 import { ensureAuthenticated } from '../utils/auth';
+import { loadCredentials } from '../utils/credentials';
 import { getEmbedJob, removeEmbedJob } from '../utils/embed-queue';
 import { normalizeUrl } from '../utils/url';
 
@@ -247,7 +249,7 @@ export function createEmbedCommand(): Command {
         return;
       }
 
-      const container = requireContainer(command);
+      let container = requireContainer(command);
 
       // Normalize URL input (but not file paths or stdin "-")
       const normalizedInput = isUrl(input) ? normalizeUrl(input) : input;
@@ -257,7 +259,14 @@ export function createEmbedCommand(): Command {
         normalizedInput.startsWith('http://') ||
         normalizedInput.startsWith('https://')
       ) {
-        await ensureAuthenticated(container.config.apiKey);
+        const apiKey = await ensureAuthenticated(container.config.apiKey);
+        if (apiKey !== container.config.apiKey) {
+          const storedCredentials = loadCredentials();
+          container = createContainerWithOverride(container, {
+            apiKey,
+            apiUrl: storedCredentials?.apiUrl ?? container.config.apiUrl,
+          });
+        }
       }
 
       await handleEmbedCommand(container, {

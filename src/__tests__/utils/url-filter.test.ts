@@ -69,6 +69,26 @@ describe('matchesPattern', () => {
     });
   });
 
+  describe('glob pattern matching', () => {
+    it('matches recursive extension globs', () => {
+      expect(
+        matchesPattern('https://example.com/docs/file.pdf', '**/*.pdf')
+      ).toBe(true);
+      expect(matchesPattern('https://example.com/file.txt', '**/*.pdf')).toBe(
+        false
+      );
+    });
+
+    it('matches single-segment wildcards', () => {
+      expect(
+        matchesPattern('https://example.com/blog/post-1', '/blog/?ost-*')
+      ).toBe(true);
+      expect(
+        matchesPattern('https://example.com/blog/deep/post-1', '/blog/?ost-*')
+      ).toBe(false);
+    });
+  });
+
   describe('edge cases', () => {
     it('handles invalid regex patterns gracefully', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -146,6 +166,18 @@ describe('filterUrls', () => {
       expect(result.excluded.map((e) => e.url)).toEqual([
         'https://example.com/en/home',
         'https://example.com/fr/accueil',
+        'https://example.com/page.pdf',
+      ]);
+    });
+
+    it('filters with glob patterns', () => {
+      const result = filterUrls(urls, ['**/*.pdf', '**/blog/*']);
+
+      expect(result.filtered).toHaveLength(5);
+      expect(result.stats.excluded).toBe(3);
+      expect(result.excluded.map((e) => e.url)).toEqual([
+        'https://example.com/blog/post-1',
+        'https://example.com/blog/post-2',
         'https://example.com/page.pdf',
       ]);
     });
