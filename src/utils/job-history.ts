@@ -24,15 +24,28 @@ const MAX_ENTRIES = 20;
 /**
  * Get the data directory following XDG Base Directory spec
  * Primary: $XDG_DATA_HOME/firecrawl-cli/ (usually ~/.local/share/firecrawl-cli/)
- * Fallback: ~/.config/firecrawl-cli/
+ * Fallback: Platform-specific paths (Linux/Mac: ~/.local/share, Windows: %APPDATA%)
  */
 function getDataDir(): string {
   const xdgDataHome = process.env.XDG_DATA_HOME;
   if (xdgDataHome) {
     return join(xdgDataHome, 'firecrawl-cli');
   }
-  // Fallback to ~/.local/share on Linux/Mac, ~/.config on others
+
   const home = homedir();
+  const platform = process.platform;
+
+  // Platform-specific data directory
+  if (platform === 'win32') {
+    // Windows: %APPDATA%/firecrawl-cli
+    const appData = process.env.APPDATA || join(home, 'AppData', 'Roaming');
+    return join(appData, 'firecrawl-cli');
+  }
+  if (platform === 'darwin') {
+    // macOS: ~/Library/Application Support/firecrawl-cli
+    return join(home, 'Library', 'Application Support', 'firecrawl-cli');
+  }
+  // Linux and others: ~/.local/share/firecrawl-cli (XDG spec)
   return join(home, '.local', 'share', 'firecrawl-cli');
 }
 

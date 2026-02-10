@@ -39,6 +39,7 @@ __pycache__/
 *.tmp
 *.temp
 .cache/
+.full-review/
 
 .firecrawl/
 

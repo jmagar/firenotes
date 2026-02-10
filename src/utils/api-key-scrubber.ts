@@ -94,10 +94,15 @@ export function scrubErrorApiKeys(error: Error): Error {
 
   // Preserve other error properties
   if (error.cause) {
-    scrubbed.cause =
-      error.cause instanceof Error
-        ? scrubErrorApiKeys(error.cause)
-        : error.cause;
+    if (error.cause instanceof Error) {
+      scrubbed.cause = scrubErrorApiKeys(error.cause);
+    } else if (typeof error.cause === 'string') {
+      scrubbed.cause = scrubApiKeys(error.cause);
+    } else if (typeof error.cause === 'object' && error.cause !== null) {
+      scrubbed.cause = scrubObjectApiKeys(error.cause);
+    } else {
+      scrubbed.cause = error.cause;
+    }
   }
 
   return scrubbed;
@@ -160,8 +165,8 @@ export function scrubHeaderApiKeys(
   const scrubbed: Record<string, string | string[]> = {};
 
   for (const [key, value] of Object.entries(headers)) {
-    // Scrub sensitive header values entirely
-    if (/authorization|api[_-]?key|apikey|token|auth/i.test(key)) {
+    // Scrub sensitive header values entirely (use word boundaries to avoid false positives)
+    if (/\b(authorization|api[_-]?key|apikey|token)\b/i.test(key)) {
       scrubbed[key] = Array.isArray(value)
         ? value.map(() => '[REDACTED]')
         : '[REDACTED]';
@@ -209,8 +214,10 @@ export function scrubObjectApiKeys<T>(obj: T, maxDepth: number = 10): T {
   const scrubbed: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(obj)) {
-    // Scrub sensitive keys entirely
-    if (/api[_-]?key|apikey|password|secret|token|auth/i.test(key)) {
+    // Scrub sensitive keys entirely (use word boundaries to avoid false positives)
+    if (
+      /\b(api[_-]?key|apikey|password|secret|token|authorization)\b/i.test(key)
+    ) {
       scrubbed[key] = '[REDACTED]';
     } else if (typeof value === 'string') {
       scrubbed[key] = scrubApiKeys(value);

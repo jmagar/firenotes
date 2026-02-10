@@ -70,11 +70,12 @@ def main():
                     "line": None
                 })
 
-    # Get review comments (line-specific comments)
+    # Get review comments (line-specific comments) - paginate to get all pages
     review_comments = run_gh_command([
         "api",
+        "--paginate",
         f"repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments",
-        "--jq", "."
+        "--jq", ".[]"  # Flatten paginated results
     ])
 
     if review_comments:
