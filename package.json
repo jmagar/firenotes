@@ -70,7 +70,7 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@mendable/firecrawl-js": "^4.12.0",
+    "@mendable/firecrawl-js": "^4.12.1",
     "@types/proper-lockfile": "^4.1.4",
     "commander": "^14.0.3",
     "dotenv": "^17.2.3",

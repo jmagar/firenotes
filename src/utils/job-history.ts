@@ -3,6 +3,7 @@
  */
 
 import { promises as fs } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 export type JobType = 'crawl' | 'batch' | 'extract';
@@ -18,19 +19,81 @@ interface JobHistoryData {
   extract: JobHistoryEntry[];
 }
 
-const HISTORY_DIR = join(process.cwd(), '.cache');
-const HISTORY_PATH = join(HISTORY_DIR, 'job-history.json');
 const MAX_ENTRIES = 20;
+
+/**
+ * Get the data directory following XDG Base Directory spec
+ * Primary: $XDG_DATA_HOME/firecrawl-cli/ (usually ~/.local/share/firecrawl-cli/)
+ * Fallback: ~/.config/firecrawl-cli/
+ */
+function getDataDir(): string {
+  const xdgDataHome = process.env.XDG_DATA_HOME;
+  if (xdgDataHome) {
+    return join(xdgDataHome, 'firecrawl-cli');
+  }
+  // Fallback to ~/.local/share on Linux/Mac, ~/.config on others
+  const home = homedir();
+  return join(home, '.local', 'share', 'firecrawl-cli');
+}
+
+/**
+ * Get legacy cache directory path for migration
+ */
+function getLegacyCachePath(): string {
+  return join(process.cwd(), '.cache', 'job-history.json');
+}
+
+const HISTORY_DIR = getDataDir();
+const HISTORY_PATH = join(HISTORY_DIR, 'job-history.json');
 
 async function ensureHistoryDir(): Promise<void> {
   try {
     await fs.access(HISTORY_DIR);
   } catch {
-    await fs.mkdir(HISTORY_DIR, { recursive: true });
+    await fs.mkdir(HISTORY_DIR, { recursive: true, mode: 0o700 });
+  }
+}
+
+/**
+ * Migrate job history from legacy cache directory if it exists
+ */
+async function migrateLegacyHistory(): Promise<void> {
+  const legacyPath = getLegacyCachePath();
+  try {
+    // Check if legacy file exists
+    await fs.access(legacyPath);
+
+    // Check if new file already exists
+    try {
+      await fs.access(HISTORY_PATH);
+      // New file exists, no migration needed
+      return;
+    } catch {
+      // New file doesn't exist, proceed with migration
+    }
+
+    // Read legacy data
+    const legacyData = await fs.readFile(legacyPath, 'utf-8');
+    const _parsed = JSON.parse(legacyData) as Partial<JobHistoryData>;
+
+    // Ensure new directory exists
+    await ensureHistoryDir();
+
+    // Write to new location
+    await fs.writeFile(HISTORY_PATH, legacyData);
+
+    console.error(
+      `[Job History] Migrated from ${legacyPath} to ${HISTORY_PATH}`
+    );
+  } catch {
+    // No legacy file or migration failed silently - not critical
   }
 }
 
 async function loadHistory(): Promise<JobHistoryData> {
+  // Attempt migration first (idempotent)
+  await migrateLegacyHistory();
+
   try {
     await fs.access(HISTORY_PATH);
   } catch {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { filterUrls, matchesPattern } from '../../utils/url-filter';
 
 describe('matchesPattern', () => {
@@ -116,7 +116,7 @@ describe('matchesPattern', () => {
     it('completes complex glob matching within reasonable time', () => {
       // Test that a pattern with 50 wildcards completes quickly (< 100ms)
       const pattern = '/*'.repeat(50);
-      const url = 'https://example.com/' + 'a/'.repeat(100);
+      const url = `https://example.com/${'a/'.repeat(100)}`;
 
       const startTime = performance.now();
       try {
@@ -146,7 +146,7 @@ describe('matchesPattern', () => {
 
     it('counts both single and double wildcards correctly', () => {
       // Mix of * and ** should count all wildcards
-      const pattern = '**/*'.repeat(17) + '**'; // 17*3 + 2 = 53 wildcards
+      const pattern = `${'**/*'.repeat(17)}**`; // 17*3 + 2 = 53 wildcards
       expect(() => matchesPattern('https://example.com/test', pattern)).toThrow(
         'Glob pattern too complex: 53 wildcards (max 50)'
       );

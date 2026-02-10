@@ -10,14 +10,10 @@
 
 import pLimit from 'p-limit';
 import { chunkText } from '../../utils/chunker';
+import { MAX_CONCURRENT_EMBEDS } from '../../utils/constants';
 import { buildEmbeddingPoints, runEmbedSafely } from '../../utils/embed-core';
 import { fmt, icons } from '../../utils/theme';
 import type { IEmbedPipeline, IQdrantService, ITeiService } from '../types';
-
-/**
- * Maximum concurrent embedding operations to prevent resource exhaustion
- */
-const MAX_CONCURRENT_EMBEDS = 10;
 
 /**
  * EmbedPipeline implementation

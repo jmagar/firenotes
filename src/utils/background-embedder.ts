@@ -38,6 +38,7 @@ import { fmt } from './theme';
 const POLL_INTERVAL_MS = 10000; // 10 seconds (retry base)
 const BACKOFF_MULTIPLIER = 2;
 const MAX_BACKOFF_MS = 60000; // 1 minute
+const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB request body limit
 
 /**
  * Log embedder configuration for debugging
@@ -295,9 +296,21 @@ export async function processStaleJobsOnce(
 
 async function readJsonBody(req: NodeJS.ReadableStream): Promise<unknown> {
   const chunks: Buffer[] = [];
+  let totalSize = 0;
+
   for await (const chunk of req) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+    totalSize += buffer.length;
+
+    if (totalSize > MAX_BODY_SIZE) {
+      throw new Error(
+        `Request body too large (${totalSize} bytes exceeds ${MAX_BODY_SIZE} bytes)`
+      );
+    }
+
+    chunks.push(buffer);
   }
+
   const raw = Buffer.concat(chunks).toString('utf-8');
   if (!raw) {
     return null;

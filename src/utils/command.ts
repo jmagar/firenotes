@@ -11,18 +11,15 @@
  * @module utils/command
  */
 
+import type { CommandResult } from '../types/common';
 import { validateOutputPath, writeOutput } from './output';
 import { fmt } from './theme';
 
 /**
- * Standard result type for all command executions.
- * All execute* functions should return this type.
+ * Re-export CommandResult from types/common for backward compatibility.
+ * This is the standard result type for all command executions.
  */
-export interface CommandResult<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}
+export type { CommandResult };
 
 /**
  * Common options shared across multiple commands

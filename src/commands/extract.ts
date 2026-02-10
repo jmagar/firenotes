@@ -10,15 +10,11 @@ import {
   handleCommandError,
   writeCommandOutput,
 } from '../utils/command';
+import { MAX_CONCURRENT_EMBEDS } from '../utils/constants';
 import { normalizeJobId } from '../utils/job';
 import { recordJob } from '../utils/job-history';
 import { fmt } from '../utils/theme';
 import { requireContainer, requireContainerFromCommandTree } from './shared';
-
-/**
- * Maximum concurrent embedding operations to prevent resource exhaustion
- */
-const MAX_CONCURRENT_EMBEDS = 10;
 
 /**
  * Convert extracted data to human-readable text for embedding

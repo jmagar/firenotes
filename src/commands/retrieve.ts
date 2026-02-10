@@ -106,7 +106,7 @@ export async function handleRetrieveCommand(
   processCommandResult(
     await executeRetrieve(container, options),
     options,
-    (data) => {
+    (data: { url: string; totalChunks: number; content: string }) => {
       if (!options.output && isTTY()) {
         return [
           `  ${fmt.primary('Retrieved document')}`,

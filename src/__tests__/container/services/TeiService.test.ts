@@ -141,8 +141,8 @@ describe('TeiService', () => {
           body: JSON.stringify({ inputs }),
         }),
         expect.objectContaining({
-          // Dynamic timeout for 2 texts: (10 + 2×2) × 1.5 = 21s
-          timeoutMs: 21000,
+          // Dynamic timeout for 2 texts: 30 + 2 = 32s
+          timeoutMs: 32000,
           maxRetries: 3,
         })
       );
@@ -338,8 +338,8 @@ describe('TeiService', () => {
       const texts = Array.from({ length: 3 }, (_, i) => `text ${i}`);
       await service.embedBatch(texts);
 
-      // Formula: (10s + (3 × 2s)) × 1.5 = 24s = 24000ms
-      expect(capturedTimeout).toBe(24000);
+      // Formula: 30s + 3 = 33s = 33000ms
+      expect(capturedTimeout).toBe(33000);
     });
 
     it('should use calculated timeout for full batch (24 texts)', async () => {
@@ -357,8 +357,8 @@ describe('TeiService', () => {
       const texts = Array.from({ length: 24 }, (_, i) => `text ${i}`);
       await service.embedBatch(texts);
 
-      // Formula: (10s + (24 × 2s)) × 1.5 = 87s = 87000ms
-      expect(capturedTimeout).toBe(87000);
+      // Formula: 30s + 24 = 54s = 54000ms
+      expect(capturedTimeout).toBe(54000);
     });
 
     it('should never return timeout less than base for empty batch', async () => {
@@ -375,8 +375,8 @@ describe('TeiService', () => {
 
       await service.embedBatch([]);
 
-      // Formula: (10s + (0 × 2s)) × 1.5 = 15s = 15000ms
-      expect(capturedTimeout).toBeGreaterThanOrEqual(15000);
+      // Formula: 30s + 0 = 30s = 30000ms
+      expect(capturedTimeout).toBeGreaterThanOrEqual(30000);
     });
 
     it('should not timeout on large batches processed slowly', async () => {

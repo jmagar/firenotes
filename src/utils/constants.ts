@@ -143,3 +143,17 @@ export const DEFAULT_EXCLUDE_PATHS = [
   '/members/',
   '/profile/',
 ];
+
+/**
+ * Maximum concurrent embedding operations to prevent resource exhaustion.
+ *
+ * This limit controls parallelism when processing multiple documents/URLs
+ * through the embedding pipeline. The value balances throughput against
+ * memory and network resource consumption.
+ *
+ * Used by:
+ * - EmbedPipeline service (batch embedding orchestration)
+ * - extract command (structured data embedding)
+ * - search command (search result embedding)
+ */
+export const MAX_CONCURRENT_EMBEDS = 10;

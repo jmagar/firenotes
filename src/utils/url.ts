@@ -12,7 +12,7 @@ export function isUrl(str: string): boolean {
       const url = new URL(str);
       return url.protocol === 'http:' || url.protocol === 'https:';
     } catch {
-      return true;
+      return false;
     }
   }
 

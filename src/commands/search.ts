@@ -22,14 +22,10 @@ import {
   handleCommandError,
   writeCommandOutput,
 } from '../utils/command';
+import { MAX_CONCURRENT_EMBEDS } from '../utils/constants';
 import { displayCommandInfo } from '../utils/display';
 import { fmt, icons } from '../utils/theme';
 import { requireContainer } from './shared';
-
-/**
- * Maximum concurrent embedding operations to prevent resource exhaustion
- */
-const MAX_CONCURRENT_EMBEDS = 10;
 
 /** Extended search request that includes additional CLI options not in the SDK type */
 interface ExtendedSearchRequest extends Omit<SearchRequest, 'query'> {

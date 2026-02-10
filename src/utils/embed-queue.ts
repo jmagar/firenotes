@@ -189,7 +189,6 @@ export async function tryClaimJob(jobId: string): Promise<boolean> {
 
     // Check status while holding lock
     if (!job || job.status !== 'pending') {
-      await release();
       return false;
     }
 
@@ -198,8 +197,6 @@ export async function tryClaimJob(jobId: string): Promise<boolean> {
     job.updatedAt = new Date().toISOString();
     await writeSecureFile(jobPath, JSON.stringify(job, null, 2));
 
-    // Release lock after update
-    await release();
     return true;
   } catch (error) {
     // Log specific error details for debugging

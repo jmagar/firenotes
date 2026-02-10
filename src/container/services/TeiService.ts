@@ -34,27 +34,23 @@ const BATCH_RETRY_DELAY_MS = 30000;
 /**
  * Calculate dynamic timeout based on batch size
  *
- * Formula: (BASE + size × PER_TEXT) × BUFFER
- * - BASE: 10s for overhead (network, tokenization)
- * - PER_TEXT: 2s empirical average per text
- * - BUFFER: 1.5x (50% safety margin)
+ * Formula: BASE + size × PER_TEXT
+ * - BASE: 30s for overhead (network, tokenization, queue wait)
+ * - PER_TEXT: 1s per text (empirical testing shows ~500ms actual)
  *
  * Examples:
- * - 3 texts: (10 + 3×2) × 1.5 = 24s
- * - 24 texts: (10 + 24×2) × 1.5 = 87s
+ * - 3 texts: 30 + 3 = 33s
+ * - 24 texts: 30 + 24 = 54s
  *
  * @param batchSize Number of texts in batch
  * @returns Timeout in milliseconds
  */
 function calculateBatchTimeout(batchSize: number): number {
-  const BASE_TIMEOUT_MS = 10000;
-  const PER_TEXT_MS = 2000;
-  const BUFFER_MULTIPLIER = 1.5;
+  const BASE_TIMEOUT_MS = 30000;
+  const PER_TEXT_MS = 1000;
   const safeBatchSize = Math.max(0, batchSize);
 
-  return Math.ceil(
-    (BASE_TIMEOUT_MS + safeBatchSize * PER_TEXT_MS) * BUFFER_MULTIPLIER
-  );
+  return BASE_TIMEOUT_MS + safeBatchSize * PER_TEXT_MS;
 }
 
 /**

@@ -141,6 +141,20 @@ function shouldPruneError(error: string | undefined): boolean {
   );
 }
 
+/**
+ * Extract job IDs that should be pruned from a list of statuses
+ * @param statuses Array of status objects that may contain errors
+ * @returns Array of string job IDs that should be removed from history
+ */
+function extractPruneIds<T extends { id?: string; error?: string }>(
+  statuses: T[]
+): string[] {
+  return statuses
+    .filter((status) => shouldPruneError(status.error))
+    .map((status) => status.id)
+    .filter((id): id is string => Boolean(id));
+}
+
 async function summarizeEmbedQueue(): Promise<{
   summary: EmbedQueueSummary;
   jobs: Array<{
@@ -175,6 +189,230 @@ async function summarizeEmbedQueue(): Promise<{
   }
 
   return { summary, jobs };
+}
+
+/**
+ * Fetches job statuses from the Firecrawl API in parallel
+ *
+ * @param client - Firecrawl client instance
+ * @param resolvedIds - Resolved job IDs to fetch
+ * @returns Promise containing active crawls and all job statuses
+ */
+async function fetchJobStatuses(
+  client: ReturnType<IContainer['getFirecrawlClient']>,
+  resolvedIds: {
+    crawls: string[];
+    batches: string[];
+    extracts: string[];
+  }
+) {
+  const STATUS_TIMEOUT_MS = 10000; // 10 second timeout per API call
+  const noPagination = { autoPaginate: false };
+
+  const activeCrawlsPromise = withTimeout(
+    client.getActiveCrawls(),
+    STATUS_TIMEOUT_MS,
+    'getActiveCrawls timed out'
+  ).catch(() => ({ success: false, crawls: [] }));
+
+  const crawlStatusesPromise = Promise.all(
+    resolvedIds.crawls.map(async (id) => {
+      try {
+        return await withTimeout(
+          client.getCrawlStatus(id, noPagination),
+          STATUS_TIMEOUT_MS,
+          `getCrawlStatus(${id}) timed out`
+        );
+      } catch (error) {
+        return {
+          id,
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    })
+  );
+
+  const batchStatusesPromise = Promise.all(
+    resolvedIds.batches.map(async (id) => {
+      try {
+        return await withTimeout(
+          client.getBatchScrapeStatus(id, noPagination),
+          STATUS_TIMEOUT_MS,
+          `getBatchScrapeStatus(${id}) timed out`
+        );
+      } catch (error) {
+        return {
+          id,
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    })
+  );
+
+  const extractStatusesPromise = Promise.all(
+    resolvedIds.extracts.map(async (id) => {
+      try {
+        return await withTimeout(
+          client.getExtractStatus(id),
+          STATUS_TIMEOUT_MS,
+          `getExtractStatus(${id}) timed out`
+        );
+      } catch (error) {
+        return {
+          id,
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    })
+  );
+
+  const [activeCrawls, crawlStatuses, batchStatuses, extractStatuses] =
+    await Promise.all([
+      activeCrawlsPromise,
+      crawlStatusesPromise,
+      batchStatusesPromise,
+      extractStatusesPromise,
+    ]);
+
+  return {
+    activeCrawls,
+    crawlStatuses,
+    batchStatuses,
+    extractStatuses,
+  };
+}
+
+/**
+ * Builds a map of crawl IDs to their source URLs
+ *
+ * @param activeCrawls - Active crawls from the API
+ * @param crawlStatuses - Crawl status responses
+ * @returns Map of crawl ID to source URL
+ */
+function buildCrawlSourceMap(
+  activeCrawls: { crawls: Array<{ id: string; url: string }> },
+  crawlStatuses: Array<{
+    id: string;
+    status?: string;
+    data?: Array<{ metadata?: { sourceURL?: string; url?: string } }>;
+  }>
+): Map<string, string> {
+  const activeUrlById = new Map(
+    activeCrawls.crawls.map((crawl) => [crawl.id, crawl.url])
+  );
+  const crawlSourceById = new Map<string, string>();
+
+  for (const crawl of crawlStatuses) {
+    const maybeData = (
+      crawl as {
+        data?: Array<{ metadata?: { sourceURL?: string; url?: string } }>;
+      }
+    ).data;
+    const sourceUrl = Array.isArray(maybeData)
+      ? (maybeData[0]?.metadata?.sourceURL ?? maybeData[0]?.metadata?.url)
+      : undefined;
+    const displayUrl = sourceUrl ?? activeUrlById.get(crawl.id);
+    if (displayUrl && crawl.id) {
+      crawlSourceById.set(crawl.id, displayUrl);
+      (crawl as { url?: string }).url = displayUrl;
+    }
+  }
+
+  return crawlSourceById;
+}
+
+/**
+ * Updates embed job URLs in batch (not in a loop) to fix N+1 query pattern
+ *
+ * @param jobs - Embed jobs to update
+ * @param crawlSourceById - Map of crawl IDs to source URLs
+ */
+async function updateEmbedJobUrls(
+  jobs: Array<{
+    id: string;
+    jobId: string;
+    url: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    retries: number;
+    maxRetries: number;
+    createdAt: string;
+    updatedAt: string;
+    lastError?: string;
+    apiKey?: string;
+    totalDocuments?: number;
+    processedDocuments?: number;
+    failedDocuments?: number;
+    progressUpdatedAt?: string;
+  }>,
+  crawlSourceById: Map<string, string>
+): Promise<void> {
+  // Batch collect all jobs that need updating
+  const jobsToUpdate = jobs.filter((job) => {
+    const sourceUrl = crawlSourceById.get(job.jobId);
+    return sourceUrl && job.url.includes('/v2/crawl/');
+  });
+
+  // Batch update all jobs in parallel
+  await Promise.all(
+    jobsToUpdate.map(async (job) => {
+      const sourceUrl = crawlSourceById.get(job.jobId);
+      if (sourceUrl) {
+        job.url = sourceUrl;
+        await updateEmbedJob(job);
+      }
+    })
+  );
+}
+
+/**
+ * Filters and sorts embed jobs by status, returning top 10
+ *
+ * @param jobs - All embed jobs
+ * @param status - Status to filter by
+ * @returns Filtered and sorted job list (top 10, newest first)
+ */
+function filterAndSortEmbeds<T extends { status: string; updatedAt: string }>(
+  jobs: T[],
+  status: string
+): T[] {
+  return jobs
+    .filter((job) => job.status === status)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 10);
+}
+
+/**
+ * Formats job lists for output (sorts by ID descending, takes top 10)
+ *
+ * @param crawlStatuses - Crawl status responses
+ * @param batchStatuses - Batch status responses
+ * @param extractStatuses - Extract status responses
+ * @returns Sorted and sliced job lists
+ */
+function formatJobsForDisplay<
+  T extends { id?: string; status?: string },
+  U extends { id?: string; status?: string },
+  V extends { id?: string; status?: string },
+>(crawlStatuses: Array<T>, batchStatuses: Array<U>, extractStatuses: Array<V>) {
+  // Sort by ID descending (ULIDs are lexicographically sortable by timestamp)
+  const sortedCrawls = crawlStatuses
+    .sort((a, b) => (b.id ?? '').localeCompare(a.id ?? ''))
+    .slice(0, 10);
+  const sortedBatches = batchStatuses
+    .sort((a, b) => (b.id ?? '').localeCompare(a.id ?? ''))
+    .slice(0, 10);
+  const sortedExtracts = extractStatuses
+    .sort((a, b) => (b.id ?? '').localeCompare(a.id ?? ''))
+    .slice(0, 10);
+
+  return {
+    crawls: sortedCrawls,
+    batches: sortedBatches,
+    extracts: sortedExtracts,
+  };
 }
 
 interface EmbedContext {
@@ -342,129 +580,55 @@ async function executeJobStatus(
     extractIds.length > 0 ? extractIds : recentExtractIds
   );
 
-  const STATUS_TIMEOUT_MS = 10000; // 10 second timeout per API call
+  // Fetch all job statuses in parallel
+  const { activeCrawls, crawlStatuses, batchStatuses, extractStatuses } =
+    await fetchJobStatuses(client, {
+      crawls: resolvedCrawlIds,
+      batches: resolvedBatchIds,
+      extracts: resolvedExtractIds,
+    });
 
-  const activeCrawlsPromise = withTimeout(
-    client.getActiveCrawls(),
-    STATUS_TIMEOUT_MS,
-    'getActiveCrawls timed out'
-  ).catch(() => ({ success: false, crawls: [] }));
-
-  // Disable auto-pagination for status checks - we only need summary, not all data
-  const noPagination = { autoPaginate: false };
-
-  const crawlStatusesPromise = Promise.all(
-    resolvedCrawlIds.map(async (id) => {
-      try {
-        return await withTimeout(
-          client.getCrawlStatus(id, noPagination),
-          STATUS_TIMEOUT_MS,
-          `getCrawlStatus(${id}) timed out`
-        );
-      } catch (error) {
-        return {
-          id,
-          status: 'failed',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
-      }
-    })
-  );
-  const batchStatusesPromise = Promise.all(
-    resolvedBatchIds.map(async (id) => {
-      try {
-        return await withTimeout(
-          client.getBatchScrapeStatus(id, noPagination),
-          STATUS_TIMEOUT_MS,
-          `getBatchScrapeStatus(${id}) timed out`
-        );
-      } catch (error) {
-        return {
-          id,
-          status: 'failed',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
-      }
-    })
-  );
-  const extractStatusesPromise = Promise.all(
-    resolvedExtractIds.map(async (id) => {
-      try {
-        return await withTimeout(
-          client.getExtractStatus(id),
-          STATUS_TIMEOUT_MS,
-          `getExtractStatus(${id}) timed out`
-        );
-      } catch (error) {
-        return {
-          id,
-          status: 'failed',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
-      }
-    })
-  );
-
-  const [activeCrawls, crawlStatuses, batchStatuses, extractStatuses] =
-    await Promise.all([
-      activeCrawlsPromise,
-      crawlStatusesPromise,
-      batchStatusesPromise,
-      extractStatusesPromise,
-    ]);
-
-  const crawlPruneIds = crawlStatuses
-    .filter((status) => shouldPruneError((status as { error?: string }).error))
-    .map((status) => status.id)
-    .filter((id): id is string => Boolean(id));
-  const batchPruneIds = batchStatuses
-    .filter((status) => shouldPruneError((status as { error?: string }).error))
-    .map((status) => status.id)
-    .filter((id): id is string => Boolean(id));
-  const extractPruneIds = extractStatuses
-    .filter((status) => shouldPruneError((status as { error?: string }).error))
-    .map((status) => status.id)
-    .filter((id): id is string => Boolean(id));
+  // Prune invalid job IDs from history
+  const crawlPruneIds = extractPruneIds(crawlStatuses);
+  const batchPruneIds = extractPruneIds(batchStatuses);
+  const extractStatusPruneIds = extractPruneIds(extractStatuses);
 
   await removeJobIds('crawl', crawlPruneIds);
   await removeJobIds('batch', batchPruneIds);
-  await removeJobIds('extract', extractPruneIds);
+  await removeJobIds('extract', extractStatusPruneIds);
 
-  const activeUrlById = new Map(
-    activeCrawls.crawls.map((crawl) => [crawl.id, crawl.url])
-  );
-  const crawlSourceById = new Map<string, string>();
-  for (const crawl of crawlStatuses) {
-    const maybeData = (
-      crawl as {
-        data?: Array<{ metadata?: { sourceURL?: string; url?: string } }>;
-      }
-    ).data;
-    const sourceUrl = Array.isArray(maybeData)
-      ? (maybeData[0]?.metadata?.sourceURL ?? maybeData[0]?.metadata?.url)
-      : undefined;
-    const displayUrl = sourceUrl ?? activeUrlById.get(crawl.id);
-    if (displayUrl && crawl.id) {
-      crawlSourceById.set(crawl.id, displayUrl);
-      (crawl as { url?: string }).url = displayUrl;
-    }
-  }
+  // Build source URL mapping and update embed job URLs in batch
+  const crawlSourceById = buildCrawlSourceMap(activeCrawls, crawlStatuses);
+  await updateEmbedJobUrls(embedQueue.jobs, crawlSourceById);
 
-  for (const job of embedQueue.jobs) {
-    const sourceUrl = crawlSourceById.get(job.jobId);
-    if (sourceUrl && job.url.includes('/v2/crawl/')) {
-      job.url = sourceUrl;
-      await updateEmbedJob(job);
-    }
-  }
-
+  // Find specific embed job if requested
   const embedJobId = typeof options.embed === 'string' ? options.embed : null;
   const embedJob = embedJobId
     ? embedQueue.jobs.find((job) => job.jobId === embedJobId)
     : null;
-  const failedEmbeds = embedQueue.jobs
-    .filter((job) => job.status === 'failed')
-    .map((job) => ({
+
+  // Filter and sort embed jobs by status (uses common helper to avoid duplication)
+  type EmbedJobBase = {
+    jobId: string;
+    url: string;
+    maxRetries: number;
+    updatedAt: string;
+    totalDocuments?: number;
+    processedDocuments?: number;
+    failedDocuments?: number;
+  };
+
+  type FailedEmbed = EmbedJobBase & {
+    retries: number;
+    lastError?: string;
+  };
+
+  type PendingEmbed = EmbedJobBase & {
+    retries: number;
+  };
+
+  const failedEmbeds = filterAndSortEmbeds(embedQueue.jobs, 'failed').map(
+    (job): FailedEmbed => ({
       jobId: job.jobId,
       url: job.url,
       retries: job.retries,
@@ -474,12 +638,11 @@ async function executeJobStatus(
       totalDocuments: job.totalDocuments,
       processedDocuments: job.processedDocuments,
       failedDocuments: job.failedDocuments,
-    }))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, 10);
-  const pendingEmbeds = embedQueue.jobs
-    .filter((job) => job.status === 'pending')
-    .map((job) => ({
+    })
+  );
+
+  const pendingEmbeds = filterAndSortEmbeds(embedQueue.jobs, 'pending').map(
+    (job): PendingEmbed => ({
       jobId: job.jobId,
       url: job.url,
       retries: job.retries,
@@ -488,12 +651,11 @@ async function executeJobStatus(
       totalDocuments: job.totalDocuments,
       processedDocuments: job.processedDocuments,
       failedDocuments: job.failedDocuments,
-    }))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, 10);
-  const completedEmbeds = embedQueue.jobs
-    .filter((job) => job.status === 'completed')
-    .map((job) => ({
+    })
+  );
+
+  const completedEmbeds = filterAndSortEmbeds(embedQueue.jobs, 'completed').map(
+    (job): EmbedJobBase => ({
       jobId: job.jobId,
       url: job.url,
       maxRetries: job.maxRetries,
@@ -501,26 +663,21 @@ async function executeJobStatus(
       totalDocuments: job.totalDocuments,
       processedDocuments: job.processedDocuments,
       failedDocuments: job.failedDocuments,
-    }))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, 10);
+    })
+  );
 
-  // Sort by ID descending (ULIDs are lexicographically sortable by timestamp)
-  const sortedCrawls = crawlStatuses
-    .sort((a, b) => (b.id ?? '').localeCompare(a.id ?? ''))
-    .slice(0, 10);
-  const sortedBatches = batchStatuses
-    .sort((a, b) => (b.id ?? '').localeCompare(a.id ?? ''))
-    .slice(0, 10);
-  const sortedExtracts = extractStatuses
-    .sort((a, b) => (b.id ?? '').localeCompare(a.id ?? ''))
-    .slice(0, 10);
+  // Format job lists for display
+  const formattedJobs = formatJobsForDisplay(
+    crawlStatuses,
+    batchStatuses,
+    extractStatuses
+  );
 
   return {
     activeCrawls,
-    crawls: sortedCrawls,
-    batches: sortedBatches,
-    extracts: sortedExtracts,
+    crawls: formattedJobs.crawls,
+    batches: formattedJobs.batches,
+    extracts: formattedJobs.extracts,
     resolvedIds: {
       crawls: resolvedCrawlIds,
       batches: resolvedBatchIds,
