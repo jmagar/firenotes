@@ -394,7 +394,7 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
     }
 
     if (req.method !== 'POST' || requestUrl.pathname !== settings.path) {
-      res.statusCode = req.method === 'POST' ? 404 : 405;
+      res.statusCode = req.method === 'POST' ? 404 : 405; // 404 for wrong path, 405 for wrong method
       res.end();
       return;
     }

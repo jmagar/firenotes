@@ -45,22 +45,6 @@ function isStatusOnlyResult(data: unknown): boolean {
   );
 }
 
-function writeOutputOrExit(
-  outputContent: string,
-  options: { output?: string; pretty?: boolean; json?: boolean }
-): boolean {
-  try {
-    writeCommandOutput(outputContent, options);
-    return true;
-  } catch (error) {
-    console.error(
-      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
-    );
-    process.exitCode = 1;
-    return false;
-  }
-}
-
 /**
  * Handle crawl command execution
  *
@@ -125,7 +109,15 @@ export async function handleCrawlCommand(
               { success: true, data: statusResult.data },
               options.pretty
             );
-      if (!writeOutputOrExit(outputContent, options)) {
+      try {
+        writeCommandOutput(outputContent, options);
+      } catch (error) {
+        console.error(
+          fmt.error(
+            error instanceof Error ? error.message : 'Invalid output path'
+          )
+        );
+        process.exitCode = 1;
         return;
       }
       return;
@@ -181,7 +173,13 @@ export async function handleCrawlCommand(
     outputContent = formatJson(crawlResult.data, options.pretty);
   }
 
-  if (!writeOutputOrExit(outputContent, options)) {
+  try {
+    writeCommandOutput(outputContent, options);
+  } catch (error) {
+    console.error(
+      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
+    );
+    process.exitCode = 1;
     return;
   }
 }
@@ -210,7 +208,13 @@ async function handleCrawlStatusCommand(
     options.pretty || !options.output
       ? formatCrawlStatus(result.data)
       : formatJson({ success: true, data: result.data }, options.pretty);
-  if (!writeOutputOrExit(outputContent, options)) {
+  try {
+    writeCommandOutput(outputContent, options);
+  } catch (error) {
+    console.error(
+      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
+    );
+    process.exitCode = 1;
     return;
   }
 }
@@ -239,7 +243,13 @@ async function handleCrawlCancelCommand(
     { success: true, data: result.data },
     options.pretty
   );
-  if (!writeOutputOrExit(outputContent, options)) {
+  try {
+    writeCommandOutput(outputContent, options);
+  } catch (error) {
+    console.error(
+      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
+    );
+    process.exitCode = 1;
     return;
   }
 }
@@ -268,7 +278,13 @@ async function handleCrawlErrorsCommand(
     { success: true, data: result.data },
     options.pretty
   );
-  if (!writeOutputOrExit(outputContent, options)) {
+  try {
+    writeCommandOutput(outputContent, options);
+  } catch (error) {
+    console.error(
+      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
+    );
+    process.exitCode = 1;
     return;
   }
 }

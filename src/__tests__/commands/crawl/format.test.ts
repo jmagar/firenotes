@@ -1,8 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { formatCrawlStatus } from '../../../commands/crawl/format';
 import type { CrawlStatusResult } from '../../../types/crawl';
 
 describe('formatCrawlStatus', () => {
+  let originalLang: string | undefined;
+
+  beforeEach(() => {
+    originalLang = process.env.LANG;
+  });
+
+  afterEach(() => {
+    if (originalLang === undefined) {
+      delete process.env.LANG;
+    } else {
+      process.env.LANG = originalLang;
+    }
+  });
   it('should format complete crawl status', () => {
     const data: CrawlStatusResult['data'] = {
       id: 'test-job-123',
@@ -144,9 +157,6 @@ describe('formatCrawlStatus', () => {
   });
 
   it('should fallback to en-US for invalid locale', () => {
-    // Save original LANG
-    const originalLang = process.env.LANG;
-
     // Set invalid locale
     process.env.LANG = 'invalid_locale.UTF-8';
 
@@ -163,15 +173,9 @@ describe('formatCrawlStatus', () => {
     // Should still format successfully (fallback to en-US)
     expect(result).toContain('Expires:');
     expect(result).toMatch(/Dec/);
-
-    // Restore original LANG
-    process.env.LANG = originalLang;
   });
 
   it('should handle locale from LANG environment variable', () => {
-    // Save original LANG
-    const originalLang = process.env.LANG;
-
     // Set valid locale (de_DE = German)
     process.env.LANG = 'de_DE.UTF-8';
 
@@ -187,9 +191,6 @@ describe('formatCrawlStatus', () => {
 
     // Should format successfully
     expect(result).toContain('Expires:');
-
-    // Restore original LANG
-    process.env.LANG = originalLang;
   });
 
   it('should fallback to ISO string if toLocaleString throws', () => {
@@ -208,9 +209,6 @@ describe('formatCrawlStatus', () => {
   });
 
   it('should handle C locale gracefully', () => {
-    // Save original LANG
-    const originalLang = process.env.LANG;
-
     // Set C locale (no locale preferences)
     process.env.LANG = 'C';
 
@@ -227,8 +225,5 @@ describe('formatCrawlStatus', () => {
     // Should use default en-US locale
     expect(result).toContain('Expires:');
     expect(result).toMatch(/Dec/);
-
-    // Restore original LANG
-    process.env.LANG = originalLang;
   });
 });

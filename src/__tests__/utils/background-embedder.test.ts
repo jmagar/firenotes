@@ -2,7 +2,7 @@
  * Tests for background embedder stale job processing and daemon detection
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IContainer } from '../../container/types';
 
 vi.mock('../../utils/embed-queue', () => ({
@@ -49,6 +49,7 @@ function createMockContainer(options?: {
     config: {
       apiKey:
         hasConfig && 'apiKey' in hasConfig ? hasConfig.apiKey : 'test-key',
+      apiUrl: 'http://api.test',
       teiUrl:
         hasConfig && 'teiUrl' in hasConfig
           ? hasConfig.teiUrl
@@ -57,6 +58,7 @@ function createMockContainer(options?: {
         hasConfig && 'qdrantUrl' in hasConfig
           ? hasConfig.qdrantUrl
           : 'http://qdrant:6333',
+      qdrantCollection: 'test_collection',
     },
     getFirecrawlClient: vi.fn().mockReturnValue(options?.firecrawlClient),
     getHttpClient: vi.fn(),
@@ -64,7 +66,7 @@ function createMockContainer(options?: {
     getQdrantService: vi.fn(),
     getEmbedPipeline: vi.fn().mockReturnValue(options?.embedPipeline),
     dispose: vi.fn(),
-  };
+  } as IContainer;
 }
 
 describe('processStaleJobsOnce', () => {
@@ -402,8 +404,15 @@ describe('processEmbedJob - success logging', () => {
 });
 
 describe('isEmbedderRunning', () => {
+  let originalFetch: typeof global.fetch;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    originalFetch = global.fetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
   });
 
   it('should return true when daemon responds to health check', async () => {

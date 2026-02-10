@@ -59,7 +59,7 @@ export async function pollWithProgress<T>(
   } = config;
 
   // Validate timeout
-  if (timeout !== undefined && timeout <= 0) {
+  if (timeout !== undefined && (timeout <= 0 || !Number.isFinite(timeout))) {
     throw new Error('Timeout must be a positive number');
   }
 

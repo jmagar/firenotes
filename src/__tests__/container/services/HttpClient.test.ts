@@ -3,7 +3,7 @@
  * Verifies delegation to centralized utilities
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HttpClient } from '../../../container/services/HttpClient';
 import * as httpUtils from '../../../utils/http';
 
@@ -19,12 +19,8 @@ describe('HttpClient service', () => {
   const mockFetchWithTimeout = vi.mocked(httpUtils.fetchWithTimeout);
 
   beforeEach(() => {
+    vi.clearAllMocks();
     httpClient = new HttpClient();
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
   });
 
   describe('fetchWithRetry', () => {

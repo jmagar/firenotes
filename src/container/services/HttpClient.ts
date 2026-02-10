@@ -39,6 +39,7 @@ export class HttpClient implements IHttpClient {
     }
   ): Promise<Response> {
     // Map container options to utility options
+    // Note: backoffFactor not supported by utils/http.ts (uses hardcoded 2^attempt)
     return utilFetchWithRetry(url, init, {
       timeoutMs: options?.timeoutMs,
       maxRetries: options?.maxRetries,

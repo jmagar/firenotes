@@ -17,6 +17,8 @@ describe('executeQuery', () => {
   let mockQdrantService: IQdrantService;
 
   beforeEach(() => {
+    vi.clearAllMocks();
+
     // Create mock TEI service
     mockTeiService = {
       getTeiInfo: vi.fn().mockResolvedValue({
@@ -59,8 +61,6 @@ describe('executeQuery', () => {
     // Override service methods to return our mocks
     vi.spyOn(container, 'getTeiService').mockReturnValue(mockTeiService);
     vi.spyOn(container, 'getQdrantService').mockReturnValue(mockQdrantService);
-
-    vi.clearAllMocks();
   });
 
   afterEach(() => {
