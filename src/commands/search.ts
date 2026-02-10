@@ -7,6 +7,7 @@ import type {
   SearchData,
   SearchRequest,
 } from '@mendable/firecrawl-js';
+import pLimit from 'p-limit';
 import type { IContainer } from '../container/types';
 import type {
   ImageSearchResult,
@@ -16,8 +17,15 @@ import type {
   SearchResultData,
   WebSearchResult,
 } from '../types/search';
-import { formatJson, handleCommandError } from '../utils/command';
-import { writeOutput } from '../utils/output';
+import {
+  formatJson,
+  handleCommandError,
+  writeCommandOutput,
+} from '../utils/command';
+import { MAX_CONCURRENT_EMBEDS } from '../utils/constants';
+import { displayCommandInfo } from '../utils/display';
+import { fmt, icons } from '../utils/theme';
+import { requireContainer } from './shared';
 
 /** Extended search request that includes additional CLI options not in the SDK type */
 interface ExtendedSearchRequest extends Omit<SearchRequest, 'query'> {
@@ -29,7 +37,7 @@ interface ExtendedSearchData extends SearchData {
   warning?: string;
   id?: string;
   creditsUsed?: number;
-  /** Legacy nested data format */
+  /** Nested data format observed in some API responses */
   data?: SearchData;
 }
 
@@ -117,7 +125,7 @@ export async function executeSearch(
       searchParams
     )) as ExtendedSearchData;
 
-    // Handle the response - the SDK returns SearchData or legacy formats
+    // Handle the response - the SDK returns SearchData plus metadata fields
     const data: SearchResultData = {};
 
     // Check if result has the expected structure
@@ -142,11 +150,6 @@ export async function executeSearch(
       } else if (result.data?.news) {
         data.news = result.data.news as NewsSearchResult[];
       }
-
-      // Handle legacy array response format (treat as web results)
-      if (Array.isArray(result)) {
-        data.web = result as unknown as WebSearchResult[];
-      }
     }
 
     return {
@@ -169,36 +172,32 @@ export async function executeSearch(
  */
 function formatSearchReadable(
   data: SearchResultData,
-  options: SearchOptions
+  _options: SearchOptions
 ): string {
   const lines: string[] = [];
 
   // Format web results
   if (data.web && data.web.length > 0) {
-    if (options.sources && options.sources.length > 1) {
-      lines.push('=== Web Results ===');
-      lines.push('');
-    }
+    lines.push(`  ${fmt.primary('Web results')}`);
+    lines.push('');
 
     for (const result of data.web) {
-      lines.push(`${result.title || 'Untitled'}`);
-      lines.push(`  URL: ${result.url}`);
+      lines.push(`    ${fmt.info(icons.bullet)} ${result.title || 'Untitled'}`);
+      lines.push(`      ${fmt.dim('URL:')} ${result.url}`);
       if (result.description) {
-        lines.push(`  ${result.description}`);
+        lines.push(`      ${result.description}`);
       }
       if (result.category) {
-        lines.push(`  Category: ${result.category}`);
+        lines.push(`      ${fmt.dim('Category:')} ${result.category}`);
       }
       if (result.markdown) {
-        lines.push('');
-        lines.push('  --- Content ---');
         // Indent markdown content
         const indentedMarkdown = result.markdown
           .split('\n')
-          .map((line) => `  ${line}`)
+          .map((line) => `      ${line}`)
           .join('\n');
+        lines.push(`      ${fmt.dim('Content:')}`);
         lines.push(indentedMarkdown);
-        lines.push('  --- End Content ---');
       }
       lines.push('');
     }
@@ -209,15 +208,17 @@ function formatSearchReadable(
     if (lines.length > 0) {
       lines.push('');
     }
-    lines.push('=== Image Results ===');
+    lines.push(`  ${fmt.primary('Image results')}`);
     lines.push('');
 
     for (const result of data.images) {
-      lines.push(`${result.title || 'Untitled'}`);
-      lines.push(`  Image URL: ${result.imageUrl}`);
-      lines.push(`  Source: ${result.url}`);
+      lines.push(`    ${fmt.info(icons.bullet)} ${result.title || 'Untitled'}`);
+      lines.push(`      ${fmt.dim('Image URL:')} ${result.imageUrl}`);
+      lines.push(`      ${fmt.dim('Source:')} ${result.url}`);
       if (result.imageWidth && result.imageHeight) {
-        lines.push(`  Size: ${result.imageWidth}x${result.imageHeight}`);
+        lines.push(
+          `      ${fmt.dim('Size:')} ${result.imageWidth}x${result.imageHeight}`
+        );
       }
       lines.push('');
     }
@@ -228,27 +229,25 @@ function formatSearchReadable(
     if (lines.length > 0) {
       lines.push('');
     }
-    lines.push('=== News Results ===');
+    lines.push(`  ${fmt.primary('News results')}`);
     lines.push('');
 
     for (const result of data.news) {
-      lines.push(`${result.title || 'Untitled'}`);
-      lines.push(`  URL: ${result.url}`);
+      lines.push(`    ${fmt.info(icons.bullet)} ${result.title || 'Untitled'}`);
+      lines.push(`      ${fmt.dim('URL:')} ${result.url}`);
       if (result.date) {
-        lines.push(`  Date: ${result.date}`);
+        lines.push(`      ${fmt.dim('Date:')} ${result.date}`);
       }
       if (result.snippet) {
-        lines.push(`  ${result.snippet}`);
+        lines.push(`      ${result.snippet}`);
       }
       if (result.markdown) {
-        lines.push('');
-        lines.push('  --- Content ---');
         const indentedMarkdown = result.markdown
           .split('\n')
-          .map((line) => `  ${line}`)
+          .map((line) => `      ${line}`)
           .join('\n');
+        lines.push(`      ${fmt.dim('Content:')}`);
         lines.push(indentedMarkdown);
-        lines.push('  --- End Content ---');
       }
       lines.push('');
     }
@@ -264,6 +263,16 @@ export async function handleSearchCommand(
   container: IContainer,
   options: SearchOptions
 ): Promise<void> {
+  // Display command info
+  displayCommandInfo('Searching', options.query, {
+    scrape: options.scrape,
+    onlyMainContent: options.onlyMainContent,
+    ignoreInvalidUrls: options.ignoreInvalidUrls,
+    limit: options.limit,
+    sources: options.sources,
+    timeout: options.timeout,
+  });
+
   const result = await executeSearch(container, options);
 
   // Use shared error handler
@@ -282,7 +291,7 @@ export async function handleSearchCommand(
     (result.data.news && result.data.news.length > 0);
 
   if (!hasResults) {
-    console.log('No results found.');
+    console.log(fmt.dim('No results found.'));
     return;
   }
 
@@ -314,23 +323,36 @@ export async function handleSearchCommand(
     outputContent = formatSearchReadable(result.data, options);
   }
 
-  writeOutput(outputContent, options.output, !!options.output);
+  try {
+    writeCommandOutput(outputContent, options);
+  } catch (error) {
+    console.error(
+      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
+    );
+    process.exit(1);
+    return;
+  }
 
   // Auto-embed only when --scrape was used (snippets are too noisy)
   if (options.embed !== false && options.scrape && result.data?.web) {
     const pipeline = container.getEmbedPipeline();
 
-    // Embed each search result
-    for (const item of result.data.web) {
-      if (item.markdown || item.html) {
-        await pipeline.autoEmbed(item.markdown || item.html || '', {
-          url: item.url,
-          title: item.title,
-          sourceCommand: 'search',
-          contentType: item.markdown ? 'markdown' : 'html',
-        });
-      }
-    }
+    // Use p-limit for concurrency control
+    const limit = pLimit(MAX_CONCURRENT_EMBEDS);
+    const embedTasks = result.data.web
+      .filter((item) => item.markdown || item.html)
+      .map((item) =>
+        limit(() =>
+          pipeline.autoEmbed(item.markdown || item.html || '', {
+            url: item.url,
+            title: item.title,
+            sourceCommand: 'search',
+            contentType: item.markdown ? 'markdown' : 'html',
+          })
+        )
+      );
+
+    await Promise.all(embedTasks);
   }
 }
 
@@ -348,7 +370,8 @@ export function createSearchCommand(): Command {
     .option(
       '--limit <number>',
       'Maximum number of results (default: 5, max: 100)',
-      parseInt
+      parseInt,
+      5
     )
     .option(
       '--sources <sources>',
@@ -373,21 +396,31 @@ export function createSearchCommand(): Command {
     .option(
       '--timeout <ms>',
       'Timeout in milliseconds (default: 60000)',
-      parseInt
+      parseInt,
+      60000
     )
     .option(
       '--ignore-invalid-urls',
-      'Exclude URLs invalid for other Firecrawl endpoints',
-      false
+      'Exclude URLs invalid for other Firecrawl endpoints (default: true)',
+      true
     )
-    .option('--scrape', 'Enable scraping of search results', false)
+    .option(
+      '--no-ignore-invalid-urls',
+      'Include all URLs including invalid ones'
+    )
+    .option(
+      '--scrape',
+      'Enable scraping of search results (default: true)',
+      true
+    )
+    .option('--no-scrape', 'Disable scraping of search results')
     .option(
       '--scrape-formats <formats>',
       'Comma-separated scrape formats when --scrape is enabled: markdown, html, rawHtml, links, etc. (default: markdown)'
     )
     .option(
       '--only-main-content',
-      'Include only main content when scraping',
+      'Include only main content when scraping (default: true)',
       true
     )
     .option('--no-embed', 'Skip auto-embedding of search results')
@@ -397,11 +430,13 @@ export function createSearchCommand(): Command {
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as compact JSON', false)
+    .option(
+      '--pretty',
+      'Output as formatted JSON (implies --json) (default: false)',
+      false
+    )
     .action(async (query, options, command: Command) => {
-      const container = command._container;
-      if (!container) {
-        throw new Error('Container not initialized');
-      }
+      const container = requireContainer(command);
 
       // Parse sources
       let sources: SearchSource[] | undefined;
@@ -415,7 +450,9 @@ export function createSearchCommand(): Command {
         for (const source of sources) {
           if (!validSources.includes(source)) {
             console.error(
-              `Error: Invalid source "${source}". Valid sources: ${validSources.join(', ')}`
+              fmt.error(
+                `Invalid source "${source}". Valid sources: ${validSources.join(', ')}`
+              )
             );
             process.exit(1);
           }
@@ -434,7 +471,9 @@ export function createSearchCommand(): Command {
         for (const category of categories) {
           if (!validCategories.includes(category)) {
             console.error(
-              `Error: Invalid category "${category}". Valid categories: ${validCategories.join(', ')}`
+              fmt.error(
+                `Invalid category "${category}". Valid categories: ${validCategories.join(', ')}`
+              )
             );
             process.exit(1);
           }

@@ -101,7 +101,7 @@ describe('Output Utilities', () => {
       writeOutput('Test content', './output/test.txt', false);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `Output written to: ${resolvePath('./output/test.txt')}`
+        expect.stringContaining(resolvePath('./output/test.txt'))
       );
     });
 
@@ -118,7 +118,9 @@ describe('Output Utilities', () => {
     it('should output error and exit when result is not successful', () => {
       handleScrapeOutput({ success: false, error: 'API Error' }, ['markdown']);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Error:', 'API Error');
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('API Error')
+      );
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 

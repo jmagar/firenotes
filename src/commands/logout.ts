@@ -3,8 +3,8 @@
  * Clears stored credentials
  */
 
-import { updateConfig } from '../utils/config';
 import { deleteCredentials, loadCredentials } from '../utils/credentials';
+import { fmt, icons } from '../utils/theme';
 
 /**
  * Main logout command handler
@@ -13,23 +13,19 @@ export async function handleLogoutCommand(): Promise<void> {
   const credentials = loadCredentials();
 
   if (!credentials || !credentials.apiKey) {
-    console.log('No credentials found. You are not logged in.');
+    console.log(fmt.dim('No credentials found. You are not logged in.'));
     return;
   }
 
   try {
     deleteCredentials();
-    // Clear the global config
-    updateConfig({
-      apiKey: '',
-      apiUrl: '',
-    });
 
-    console.log('✓ Logged out successfully');
+    console.log(fmt.success(`${icons.success} Logged out successfully`));
   } catch (error) {
     console.error(
-      'Error logging out:',
-      error instanceof Error ? error.message : 'Unknown error'
+      fmt.error(
+        `Error logging out: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     );
     process.exit(1);
   }

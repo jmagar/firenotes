@@ -5,15 +5,29 @@
  * Supports background processing with retries and exponential backoff.
  */
 
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
+import * as lockfile from 'proper-lockfile';
+import { fmt } from './theme';
+
+/**
+ * Check if a path exists
+ */
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await fs.access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Write file with secure permissions (owner-only read/write)
+ */
+async function writeSecureFile(filePath: string, data: string): Promise<void> {
+  await fs.writeFile(filePath, data, { mode: 0o600 });
+}
 
 export interface EmbedJob {
   id: string;
@@ -26,6 +40,11 @@ export interface EmbedJob {
   updatedAt: string;
   lastError?: string;
   apiKey?: string;
+  // Progress tracking for background processing and status reporting
+  totalDocuments?: number;
+  processedDocuments?: number;
+  failedDocuments?: number;
+  progressUpdatedAt?: string;
 }
 
 function resolveQueueDir(): string {
@@ -48,11 +67,18 @@ const QUEUE_DIR = resolveQueueDir();
 const MAX_RETRIES = 3;
 
 /**
- * Ensure queue directory exists
+ * Ensure queue directory exists with secure permissions
  */
-function ensureQueueDir(): void {
-  if (!existsSync(QUEUE_DIR)) {
-    mkdirSync(QUEUE_DIR, { recursive: true });
+async function ensureQueueDir(): Promise<void> {
+  if (!(await pathExists(QUEUE_DIR))) {
+    await fs.mkdir(QUEUE_DIR, { recursive: true, mode: 0o700 });
+    return;
+  }
+
+  try {
+    await fs.chmod(QUEUE_DIR, 0o700);
+  } catch {
+    // Ignore errors on Windows
   }
 }
 
@@ -66,12 +92,12 @@ function getJobPath(jobId: string): string {
 /**
  * Add a new embedding job to the queue
  */
-export function enqueueEmbedJob(
+export async function enqueueEmbedJob(
   jobId: string,
   url: string,
   apiKey?: string
-): EmbedJob {
-  ensureQueueDir();
+): Promise<EmbedJob> {
+  await ensureQueueDir();
 
   const job: EmbedJob = {
     id: jobId,
@@ -85,73 +111,222 @@ export function enqueueEmbedJob(
     apiKey,
   };
 
-  writeFileSync(getJobPath(jobId), JSON.stringify(job, null, 2));
+  await writeSecureFile(getJobPath(jobId), JSON.stringify(job, null, 2));
   return job;
 }
 
+export interface JobReadResult {
+  job: EmbedJob | null;
+  /** 'found' | 'not_found' | 'corrupted' */
+  status: 'found' | 'not_found' | 'corrupted';
+  error?: string;
+}
+
 /**
- * Get a job from the queue
+ * Get a job from the queue with detailed error reporting
+ *
+ * Distinguishes between "not found" and "corrupted" states, allowing callers
+ * to handle each case appropriately (e.g., warn about corruption, suggest repair).
  */
-export function getEmbedJob(jobId: string): EmbedJob | null {
+export async function getEmbedJobDetailed(
+  jobId: string
+): Promise<JobReadResult> {
   const path = getJobPath(jobId);
-  if (!existsSync(path)) {
-    return null;
+  if (!(await pathExists(path))) {
+    return { job: null, status: 'not_found' };
   }
 
   try {
-    const data = readFileSync(path, 'utf-8');
-    return JSON.parse(data);
+    const data = await fs.readFile(path, 'utf-8');
+    const job = JSON.parse(data);
+    return { job, status: 'found' };
   } catch (error) {
-    console.error(`Failed to read job ${jobId}:`, error);
-    return null;
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(fmt.error(`Failed to read job ${jobId}: ${errorMsg}`));
+    console.warn(
+      fmt.warning(`Job file may be corrupted. Consider removing: ${path}`)
+    );
+    return { job: null, status: 'corrupted', error: errorMsg };
   }
+}
+
+/**
+ * Get a job from the queue (legacy compatibility)
+ *
+ * @deprecated Use getEmbedJobDetailed() to distinguish "not found" from "corrupted"
+ */
+export async function getEmbedJob(jobId: string): Promise<EmbedJob | null> {
+  const result = await getEmbedJobDetailed(jobId);
+  return result.job;
 }
 
 /**
  * Update a job in the queue
  */
-export function updateEmbedJob(job: EmbedJob): void {
-  ensureQueueDir();
+export async function updateEmbedJob(job: EmbedJob): Promise<void> {
+  await ensureQueueDir();
   job.updatedAt = new Date().toISOString();
-  writeFileSync(getJobPath(job.jobId), JSON.stringify(job, null, 2));
+  await writeSecureFile(getJobPath(job.jobId), JSON.stringify(job, null, 2));
+}
+
+/**
+ * Atomically claim a job for processing using file locking.
+ * Only succeeds if job is in 'pending' status.
+ * @returns true if job was successfully claimed, false otherwise
+ */
+export async function tryClaimJob(jobId: string): Promise<boolean> {
+  const jobPath = getJobPath(jobId);
+  if (!(await pathExists(jobPath))) return false;
+
+  let release: (() => void) | undefined;
+  try {
+    // Acquire lock BEFORE reading job status to prevent TOCTOU race
+    release = await lockfile.lock(jobPath, { retries: 0, stale: 60000 });
+
+    // Read job file directly while holding lock (don't use getEmbedJob which doesn't know about our lock)
+    const data = await fs.readFile(jobPath, 'utf-8');
+    const job: EmbedJob = JSON.parse(data);
+
+    // Check status while holding lock
+    if (!job || job.status !== 'pending') {
+      return false;
+    }
+
+    // Update status while holding lock
+    job.status = 'processing';
+    job.updatedAt = new Date().toISOString();
+    await writeSecureFile(jobPath, JSON.stringify(job, null, 2));
+
+    return true;
+  } catch (error) {
+    // Log specific error details for debugging
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+
+    // Categorize error types for better diagnostics
+    if (errorMsg.includes('EACCES')) {
+      console.error(
+        fmt.error(`Failed to claim job ${jobId}: Permission denied (EACCES)`)
+      );
+    } else if (errorMsg.includes('ENOSPC')) {
+      console.error(
+        fmt.error(
+          `Failed to claim job ${jobId}: No space left on device (ENOSPC)`
+        )
+      );
+    } else if (errorMsg.includes('EIO')) {
+      console.error(fmt.error(`Failed to claim job ${jobId}: I/O error (EIO)`));
+    } else if (errorName === 'SyntaxError') {
+      console.error(
+        fmt.error(`Failed to claim job ${jobId}: Corrupted JSON in job file`)
+      );
+    } else if (errorMsg.includes('lock')) {
+      console.error(
+        fmt.error(
+          `Failed to claim job ${jobId}: Lock acquisition failed - ${errorMsg}`
+        )
+      );
+    } else {
+      console.error(
+        fmt.error(`Failed to claim job ${jobId}: ${errorName} - ${errorMsg}`)
+      );
+    }
+
+    return false;
+  } finally {
+    // Ensure lock is always released if acquired
+    if (release) {
+      try {
+        await release();
+      } catch (releaseError) {
+        // Log release errors separately to avoid masking the original error
+        const releaseMsg =
+          releaseError instanceof Error
+            ? releaseError.message
+            : String(releaseError);
+        console.error(
+          fmt.error(`Failed to release lock for job ${jobId}: ${releaseMsg}`)
+        );
+      }
+    }
+  }
 }
 
 /**
  * Remove a job from the queue
  */
-export function removeEmbedJob(jobId: string): void {
+export async function removeEmbedJob(jobId: string): Promise<void> {
   const path = getJobPath(jobId);
-  if (existsSync(path)) {
-    unlinkSync(path);
+  if (await pathExists(path)) {
+    await fs.unlink(path);
   }
 }
 
-/**
- * List all jobs in the queue
- */
-export function listEmbedJobs(): EmbedJob[] {
-  ensureQueueDir();
+export interface QueueListResult {
+  jobs: EmbedJob[];
+  skipped: number;
+  errors: Array<{ file: string; error: string }>;
+}
 
-  const files = readdirSync(QUEUE_DIR).filter((f) => f.endsWith('.json'));
+/**
+ * List all jobs in the queue with error tracking
+ *
+ * Returns structured data that distinguishes between valid jobs and corrupted files.
+ * Callers can display warnings when files are skipped due to corruption.
+ */
+export async function listEmbedJobsDetailed(): Promise<QueueListResult> {
+  await ensureQueueDir();
+
+  const files = (await fs.readdir(QUEUE_DIR)).filter((f) =>
+    f.endsWith('.json')
+  );
   const jobs: EmbedJob[] = [];
+  const errors: Array<{ file: string; error: string }> = [];
 
   for (const file of files) {
     try {
-      const data = readFileSync(join(QUEUE_DIR, file), 'utf-8');
+      const data = await fs.readFile(join(QUEUE_DIR, file), 'utf-8');
       jobs.push(JSON.parse(data));
     } catch (error) {
-      console.error(`Failed to read job file ${file}:`, error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      errors.push({ file, error: errorMsg });
+      console.error(fmt.error(`Failed to read job file ${file}: ${errorMsg}`));
     }
   }
 
-  return jobs;
+  // Display warning if files were skipped
+  if (errors.length > 0) {
+    console.warn(
+      fmt.warning(
+        `WARNING: Skipped ${errors.length} corrupted job file${errors.length > 1 ? 's' : ''}`
+      )
+    );
+    console.warn(
+      fmt.dim(
+        `  Run 'firecrawl cleanup-queue' to remove corrupted files (if available)`
+      )
+    );
+  }
+
+  return { jobs, skipped: errors.length, errors };
+}
+
+/**
+ * List all jobs in the queue (legacy compatibility)
+ *
+ * @deprecated Use listEmbedJobsDetailed() for better error visibility
+ */
+export async function listEmbedJobs(): Promise<EmbedJob[]> {
+  const result = await listEmbedJobsDetailed();
+  return result.jobs;
 }
 
 /**
  * Get all pending jobs (status: pending, not exceeded max retries)
  */
-export function getPendingJobs(): EmbedJob[] {
-  return listEmbedJobs()
+export async function getPendingJobs(): Promise<EmbedJob[]> {
+  const jobs = await listEmbedJobs();
+  return jobs
     .filter((job) => job.status === 'pending' && job.retries < job.maxRetries)
     .sort(
       (a, b) =>
@@ -162,10 +337,38 @@ export function getPendingJobs(): EmbedJob[] {
 /**
  * Get pending jobs that have been stale for at least maxAgeMs
  */
-export function getStalePendingJobs(maxAgeMs: number): EmbedJob[] {
+export async function getStalePendingJobs(
+  maxAgeMs: number
+): Promise<EmbedJob[]> {
   const cutoff = Date.now() - maxAgeMs;
-  return getPendingJobs()
+  const jobs = await getPendingJobs();
+  return jobs
     .filter((job) => new Date(job.updatedAt).getTime() <= cutoff)
+    .sort(
+      (a, b) =>
+        new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+    );
+}
+
+/**
+ * Get jobs stuck in processing state longer than maxProcessingMs
+ *
+ * Returns jobs with status === 'processing' that have been in that state
+ * longer than the specified threshold (default 5 minutes). This helps recover
+ * from daemon crashes where jobs get stuck in processing state forever.
+ */
+export async function getStuckProcessingJobs(
+  maxProcessingMs: number = 5 * 60 * 1000
+): Promise<EmbedJob[]> {
+  const cutoff = Date.now() - maxProcessingMs;
+  const jobs = await listEmbedJobs();
+  return jobs
+    .filter(
+      (job) =>
+        job.status === 'processing' &&
+        job.retries < job.maxRetries &&
+        new Date(job.updatedAt).getTime() <= cutoff
+    )
     .sort(
       (a, b) =>
         new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
@@ -175,22 +378,22 @@ export function getStalePendingJobs(maxAgeMs: number): EmbedJob[] {
 /**
  * Mark a job as processing
  */
-export function markJobProcessing(jobId: string): void {
-  const job = getEmbedJob(jobId);
+export async function markJobProcessing(jobId: string): Promise<void> {
+  const job = await getEmbedJob(jobId);
   if (job) {
     job.status = 'processing';
-    updateEmbedJob(job);
+    await updateEmbedJob(job);
   }
 }
 
 /**
  * Mark a job as completed and remove from queue
  */
-export function markJobCompleted(jobId: string): void {
-  const job = getEmbedJob(jobId);
+export async function markJobCompleted(jobId: string): Promise<void> {
+  const job = await getEmbedJob(jobId);
   if (job) {
     job.status = 'completed';
-    updateEmbedJob(job);
+    await updateEmbedJob(job);
     // Keep completed jobs for a short time for audit/debugging
     // They can be cleaned up later
   }
@@ -199,21 +402,77 @@ export function markJobCompleted(jobId: string): void {
 /**
  * Mark a job as failed and increment retry counter
  */
-export function markJobFailed(jobId: string, error: string): void {
-  const job = getEmbedJob(jobId);
+export async function markJobFailed(
+  jobId: string,
+  error: string
+): Promise<void> {
+  const job = await getEmbedJob(jobId);
   if (job) {
     job.status = job.retries + 1 >= job.maxRetries ? 'failed' : 'pending';
     job.retries += 1;
     job.lastError = error;
-    updateEmbedJob(job);
+    await updateEmbedJob(job);
   }
+}
+
+/**
+ * Mark a job as permanently failed due to configuration error
+ *
+ * Sets retries to maxRetries to prevent further retry attempts.
+ */
+export async function markJobConfigError(
+  jobId: string,
+  error: string
+): Promise<void> {
+  const job = await getEmbedJob(jobId);
+  if (job) {
+    job.status = 'failed';
+    job.retries = job.maxRetries;
+    job.lastError = `Configuration error: ${error}`;
+    await updateEmbedJob(job);
+  }
+}
+
+/**
+ * Get queue statistics for monitoring
+ */
+export async function getQueueStats(): Promise<{
+  pending: number;
+  processing: number;
+  completed: number;
+  failed: number;
+}> {
+  const jobs = await listEmbedJobs();
+
+  return jobs.reduce(
+    (acc, job) => {
+      switch (job.status) {
+        case 'pending':
+          acc.pending++;
+          break;
+        case 'processing':
+          acc.processing++;
+          break;
+        case 'completed':
+          acc.completed++;
+          break;
+        case 'failed':
+          acc.failed++;
+          break;
+      }
+      return acc;
+    },
+    { pending: 0, processing: 0, completed: 0, failed: 0 }
+  );
 }
 
 /**
  * Clean up completed and old failed jobs
  */
-export function cleanupOldJobs(maxAgeHours: number = 24): number {
-  const jobs = listEmbedJobs();
+export async function cleanupOldJobs(
+  maxAgeHours: number = 24
+): Promise<number> {
+  const jobs = await listEmbedJobs();
   const cutoff = Date.now() - maxAgeHours * 60 * 60 * 1000;
   let cleaned = 0;
 
@@ -224,10 +483,40 @@ export function cleanupOldJobs(maxAgeHours: number = 24): number {
       (job.status === 'completed' || job.status === 'failed') &&
       updatedAt < cutoff
     ) {
-      removeEmbedJob(job.jobId);
+      await removeEmbedJob(job.jobId);
       cleaned++;
     }
   }
 
   return cleaned;
+}
+
+/**
+ * Update job progress (throttled persistence)
+ *
+ * Updates progress counters in memory and optionally persists to disk.
+ * Used by background embedder to track embedding progress without
+ * excessive file I/O operations.
+ *
+ * @param jobId - Job identifier
+ * @param processedDocuments - Number of documents successfully embedded
+ * @param failedDocuments - Number of documents that failed embedding
+ * @param shouldPersist - If true, writes changes to disk immediately (default: true)
+ */
+export async function updateJobProgress(
+  jobId: string,
+  processedDocuments: number,
+  failedDocuments: number,
+  shouldPersist: boolean = true
+): Promise<void> {
+  const job = await getEmbedJob(jobId);
+  if (!job) return;
+
+  job.processedDocuments = processedDocuments;
+  job.failedDocuments = failedDocuments;
+  job.progressUpdatedAt = new Date().toISOString();
+
+  if (shouldPersist) {
+    await updateEmbedJob(job);
+  }
 }

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleCrawlCommand } from '../../../commands/crawl/command';
 import type { CrawlOptions } from '../../../types/crawl';
 import { createTestContainer } from '../../utils/test-container';
@@ -6,10 +6,12 @@ import { createTestContainer } from '../../utils/test-container';
 // Mock dependencies
 vi.mock('../../../utils/command', () => ({
   formatJson: vi.fn(),
+  writeCommandOutput: vi.fn(),
 }));
 
 vi.mock('../../../utils/output', () => ({
   writeOutput: vi.fn(),
+  validateOutputPath: vi.fn((path: string) => path),
 }));
 
 vi.mock('../../../utils/job', () => ({
@@ -17,16 +19,11 @@ vi.mock('../../../utils/job', () => ({
 }));
 
 vi.mock('../../../utils/job-history', () => ({
-  recordJob: vi.fn(),
+  recordJob: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../../commands/crawl/execute', () => ({
   executeCrawl: vi.fn(),
-}));
-
-vi.mock('../../../commands/crawl/status', () => ({
-  executeCrawlCancel: vi.fn(),
-  executeCrawlErrors: vi.fn(),
 }));
 
 vi.mock('../../../commands/crawl/embed', () => ({
@@ -46,25 +43,25 @@ import {
 } from '../../../commands/crawl/embed';
 import { executeCrawl } from '../../../commands/crawl/execute';
 import { formatCrawlStatus } from '../../../commands/crawl/format';
-import {
-  executeCrawlCancel,
-  executeCrawlErrors,
-} from '../../../commands/crawl/status';
-import { formatJson } from '../../../utils/command';
+import { formatJson, writeCommandOutput } from '../../../utils/command';
 import { isJobId } from '../../../utils/job';
 import { recordJob } from '../../../utils/job-history';
 import { writeOutput } from '../../../utils/output';
+
+vi.mocked(writeCommandOutput).mockImplementation((content, options) => {
+  writeOutput(String(content), options.output, !!options.output);
+});
 
 describe('handleCrawlCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {});
+
   it('should exit when URL or job ID is missing', async () => {
     const container = createTestContainer();
-    const mockExit = vi
-      .spyOn(process, 'exit')
-      .mockImplementation(() => undefined as never);
+    process.exitCode = 0; // Reset exit code before test
     const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const options: CrawlOptions = {
@@ -73,101 +70,13 @@ describe('handleCrawlCommand', () => {
 
     await handleCrawlCommand(container, options);
 
-    expect(mockError).toHaveBeenCalledWith('Error: URL or job ID is required.');
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(mockError).toHaveBeenCalledWith(
+      expect.stringContaining('URL or job ID is required')
+    );
+    expect(process.exitCode).toBe(1);
 
-    mockExit.mockRestore();
+    process.exitCode = 0; // Clean up after test
     mockError.mockRestore();
-  });
-
-  it('should handle cancel operation successfully', async () => {
-    const container = createTestContainer();
-    const mockCancelResult = {
-      success: true,
-      data: { status: 'cancelled' },
-    };
-
-    vi.mocked(executeCrawlCancel).mockResolvedValue(mockCancelResult as never);
-    vi.mocked(formatJson).mockReturnValue('{"success":true}');
-
-    const options: CrawlOptions = {
-      urlOrJobId: 'job-123',
-      cancel: true,
-    };
-
-    await handleCrawlCommand(container, options);
-
-    expect(executeCrawlCancel).toHaveBeenCalledWith(
-      expect.any(Object),
-      'job-123'
-    );
-    expect(formatJson).toHaveBeenCalledWith(
-      { success: true, data: { status: 'cancelled' } },
-      undefined
-    );
-    expect(writeOutput).toHaveBeenCalledWith(
-      '{"success":true}',
-      undefined,
-      false
-    );
-  });
-
-  it('should handle cancel operation failure', async () => {
-    const container = createTestContainer();
-    const mockExit = vi
-      .spyOn(process, 'exit')
-      .mockImplementation(() => undefined as never);
-    const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    vi.mocked(executeCrawlCancel).mockResolvedValue({
-      success: false,
-      error: 'Job not found',
-    } as never);
-
-    const options: CrawlOptions = {
-      urlOrJobId: 'job-123',
-      cancel: true,
-    };
-
-    await handleCrawlCommand(container, options);
-
-    expect(mockError).toHaveBeenCalledWith('Error:', 'Job not found');
-    expect(mockExit).toHaveBeenCalledWith(1);
-
-    mockExit.mockRestore();
-    mockError.mockRestore();
-  });
-
-  it('should handle errors operation successfully', async () => {
-    const container = createTestContainer();
-    const mockErrorsResult = {
-      success: true,
-      data: [{ url: 'https://example.com/404', error: '404 Not Found' }],
-    };
-
-    vi.mocked(executeCrawlErrors).mockResolvedValue(mockErrorsResult as never);
-    vi.mocked(formatJson).mockReturnValue('{"success":true}');
-
-    const options: CrawlOptions = {
-      urlOrJobId: 'job-456',
-      errors: true,
-    };
-
-    await handleCrawlCommand(container, options);
-
-    expect(executeCrawlErrors).toHaveBeenCalledWith(
-      expect.any(Object),
-      'job-456'
-    );
-    expect(formatJson).toHaveBeenCalledWith(
-      { success: true, data: mockErrorsResult.data },
-      undefined
-    );
-    expect(writeOutput).toHaveBeenCalledWith(
-      '{"success":true}',
-      undefined,
-      false
-    );
   });
 
   it('should handle manual embedding trigger', async () => {
@@ -192,9 +101,7 @@ describe('handleCrawlCommand', () => {
 
   it('should handle crawl execution failure', async () => {
     const container = createTestContainer();
-    const mockExit = vi
-      .spyOn(process, 'exit')
-      .mockImplementation(() => undefined as never);
+    process.exitCode = 0; // Reset exit code before test
     const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     vi.mocked(isJobId).mockReturnValue(false);
@@ -209,10 +116,12 @@ describe('handleCrawlCommand', () => {
 
     await handleCrawlCommand(container, options);
 
-    expect(mockError).toHaveBeenCalledWith('Error:', 'Network error');
-    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(mockError).toHaveBeenCalledWith(
+      expect.stringContaining('Network error')
+    );
+    expect(process.exitCode).toBe(1);
 
-    mockExit.mockRestore();
+    process.exitCode = 0; // Clean up after test
     mockError.mockRestore();
   });
 
@@ -273,15 +182,12 @@ describe('handleCrawlCommand', () => {
     expect(handleAsyncEmbedding).toHaveBeenCalledWith(
       'job-222',
       'https://example.com',
+      container.config,
       undefined
     );
     expect(recordJob).toHaveBeenCalledWith('crawl', 'job-222');
-    expect(formatJson).toHaveBeenCalledWith(
-      { success: true, data: mockJobResult },
-      undefined
-    );
     expect(writeOutput).toHaveBeenCalledWith(
-      '{"jobId":"job-222"}',
+      expect.stringContaining('Job ID:'),
       undefined,
       false
     );
@@ -396,12 +302,18 @@ describe('handleCrawlCommand', () => {
     const options: CrawlOptions = {
       urlOrJobId: 'https://example.com',
       pretty: true,
+      output: 'pretty-output.json',
     };
 
     await handleCrawlCommand(container, options);
 
     expect(formatJson).toHaveBeenCalledWith(
       { success: true, data: mockJobResult },
+      true
+    );
+    expect(writeOutput).toHaveBeenCalledWith(
+      '{\n  "jobId": "job-666"\n}',
+      'pretty-output.json',
       true
     );
   });
@@ -450,6 +362,7 @@ describe('handleCrawlCommand', () => {
     expect(handleAsyncEmbedding).toHaveBeenCalledWith(
       'job-777',
       'https://example.com',
+      container.config,
       'test-key'
     );
   });

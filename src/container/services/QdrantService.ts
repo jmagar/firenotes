@@ -3,7 +3,27 @@
  * Handles collection management, upsert, delete, query, and scroll operations
  */
 
-import type { IHttpClient, IQdrantService, QdrantPoint } from '../types';
+import { LRUCache } from 'lru-cache';
+import type {
+  CollectionInfo,
+  IHttpClient,
+  IQdrantService,
+  QdrantDistance,
+  QdrantPoint,
+  QdrantScrollPoint,
+} from '../types';
+
+const QDRANT_DISTANCE_VALUES: QdrantDistance[] = [
+  'Cosine',
+  'Dot',
+  'Euclid',
+  'Manhattan',
+  'unknown',
+];
+
+const isQdrantDistance = (value: unknown): value is QdrantDistance =>
+  typeof value === 'string' &&
+  QDRANT_DISTANCE_VALUES.includes(value as QdrantDistance);
 
 /** Scroll page size for pagination */
 const SCROLL_PAGE_SIZE = 100;
@@ -14,18 +34,36 @@ const QDRANT_TIMEOUT_MS = 60000;
 /** Number of retries for Qdrant requests */
 const QDRANT_MAX_RETRIES = 3;
 
+/** Maximum number of collections to cache (LRU eviction) */
+const COLLECTION_CACHE_MAX = 100;
+
 /**
  * QdrantService implementation
- * Provides vector database operations with instance-level caching
+ * Provides vector database operations with instance-level LRU caching
  */
 export class QdrantService implements IQdrantService {
-  private collectionCache = new Set<string>();
+  private collectionCache = new LRUCache<string, true>({
+    max: COLLECTION_CACHE_MAX,
+  });
 
   constructor(
     private readonly qdrantUrl: string,
-    private readonly defaultCollection: string,
     private readonly httpClient: IHttpClient
   ) {}
+
+  private async formatError(
+    response: Response,
+    baseMessage: string
+  ): Promise<string> {
+    try {
+      const body = await response.text();
+      return body
+        ? `${baseMessage}: ${response.status} - ${body}`
+        : `${baseMessage}: ${response.status}`;
+    } catch {
+      return `${baseMessage}: ${response.status}`;
+    }
+  }
 
   /**
    * Ensure collection exists, create if not
@@ -35,7 +73,7 @@ export class QdrantService implements IQdrantService {
    * @param dimension Vector dimension
    */
   async ensureCollection(collection: string, dimension: number): Promise<void> {
-    if (this.collectionCache.has(collection)) {
+    if (this.collectionCache.get(collection)) {
       return;
     }
 
@@ -46,7 +84,7 @@ export class QdrantService implements IQdrantService {
     );
 
     if (checkResponse.ok) {
-      this.collectionCache.add(collection);
+      this.collectionCache.set(collection, true);
       return;
     }
 
@@ -74,7 +112,10 @@ export class QdrantService implements IQdrantService {
 
     if (!createResponse.ok) {
       throw new Error(
-        `Failed to create Qdrant collection: ${createResponse.status}`
+        await this.formatError(
+          createResponse,
+          'Failed to create Qdrant collection'
+        )
       );
     }
 
@@ -102,12 +143,15 @@ export class QdrantService implements IQdrantService {
       const response = indexResponses[i];
       if (!response.ok) {
         throw new Error(
-          `Failed to create index for field '${indexFields[i]}': ${response.status}`
+          await this.formatError(
+            response,
+            `Failed to create index for field '${indexFields[i]}'`
+          )
         );
       }
     }
 
-    this.collectionCache.add(collection);
+    this.collectionCache.set(collection, true);
   }
 
   /**
@@ -128,7 +172,7 @@ export class QdrantService implements IQdrantService {
     );
 
     if (!response.ok) {
-      throw new Error(`Qdrant upsert failed: ${response.status}`);
+      throw new Error(await this.formatError(response, 'Qdrant upsert failed'));
     }
   }
 
@@ -154,7 +198,7 @@ export class QdrantService implements IQdrantService {
     );
 
     if (!response.ok) {
-      throw new Error(`Qdrant delete failed: ${response.status}`);
+      throw new Error(await this.formatError(response, 'Qdrant delete failed'));
     }
   }
 
@@ -171,7 +215,7 @@ export class QdrantService implements IQdrantService {
     collection: string,
     vector: number[],
     limit: number = 10,
-    filter?: Record<string, unknown>
+    filter?: Record<string, string | number | boolean>
   ): Promise<QdrantPoint[]> {
     const body: Record<string, unknown> = {
       query: vector,
@@ -200,13 +244,14 @@ export class QdrantService implements IQdrantService {
     );
 
     if (!response.ok) {
-      throw new Error(`Qdrant query failed: ${response.status}`);
+      throw new Error(await this.formatError(response, 'Qdrant query failed'));
     }
 
     const data = (await response.json()) as {
       result?: {
         points?: Array<{
           id: string;
+          score?: number;
           vector?: number[];
           payload?: Record<string, unknown>;
         }>;
@@ -217,6 +262,7 @@ export class QdrantService implements IQdrantService {
       id: p.id,
       vector: p.vector || [],
       payload: p.payload || {},
+      score: p.score,
     }));
   }
 
@@ -260,7 +306,9 @@ export class QdrantService implements IQdrantService {
       );
 
       if (!response.ok) {
-        throw new Error(`Qdrant scroll failed: ${response.status}`);
+        throw new Error(
+          await this.formatError(response, 'Qdrant scroll failed')
+        );
       }
 
       const data = (await response.json()) as {
@@ -295,5 +343,270 @@ export class QdrantService implements IQdrantService {
     );
 
     return allPoints;
+  }
+
+  /**
+   * Delete all points for a domain
+   *
+   * @param collection Collection name
+   * @param domain Domain to delete points for
+   */
+  async deleteByDomain(collection: string, domain: string): Promise<void> {
+    const response = await this.httpClient.fetchWithRetry(
+      `${this.qdrantUrl}/collections/${collection}/points/delete`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filter: {
+            must: [{ key: 'domain', match: { value: domain } }],
+          },
+        }),
+      },
+      { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+    );
+
+    if (!response.ok) {
+      throw new Error(await this.formatError(response, 'Qdrant delete failed'));
+    }
+  }
+
+  /**
+   * Count points matching a domain filter
+   *
+   * @param collection Collection name
+   * @param domain Domain to count points for
+   */
+  async countByDomain(collection: string, domain: string): Promise<number> {
+    const response = await this.httpClient.fetchWithRetry(
+      `${this.qdrantUrl}/collections/${collection}/points/count`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filter: {
+            must: [{ key: 'domain', match: { value: domain } }],
+          },
+          exact: true,
+        }),
+      },
+      { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+    );
+
+    if (!response.ok) {
+      throw new Error(await this.formatError(response, 'Qdrant count failed'));
+    }
+
+    const data = (await response.json()) as { result?: { count?: number } };
+    return data.result?.count ?? 0;
+  }
+
+  /**
+   * Get collection information
+   *
+   * @param collection Collection name
+   * @returns Collection info including vector count and config
+   */
+  async getCollectionInfo(collection: string): Promise<CollectionInfo> {
+    const response = await this.httpClient.fetchWithRetry(
+      `${this.qdrantUrl}/collections/${collection}`,
+      undefined,
+      { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        await this.formatError(response, 'Qdrant getCollectionInfo failed')
+      );
+    }
+
+    const data = (await response.json()) as {
+      result?: {
+        status?: string;
+        vectors_count?: number;
+        points_count?: number;
+        segments_count?: number;
+        config?: {
+          params?: {
+            vectors?: {
+              size?: number;
+              distance?: string;
+            };
+          };
+        };
+      };
+    };
+
+    const result = data.result;
+    const distance = result?.config?.params?.vectors?.distance;
+    return {
+      status: result?.status ?? 'unknown',
+      vectorsCount: result?.vectors_count ?? 0,
+      pointsCount: result?.points_count ?? 0,
+      segmentsCount: result?.segments_count ?? 0,
+      config: {
+        dimension: result?.config?.params?.vectors?.size ?? 0,
+        distance: isQdrantDistance(distance) ? distance : 'unknown',
+      },
+    };
+  }
+
+  /**
+   * Scroll all points with optional filter
+   *
+   * @param collection Collection name
+   * @param filter Optional payload filter
+   * @returns Array of all matching points (without vectors)
+   */
+  async scrollAll(
+    collection: string,
+    filter?: Record<string, string | number | boolean>
+  ): Promise<QdrantScrollPoint[]> {
+    const allPoints: QdrantScrollPoint[] = [];
+    let offset: string | number | null = null;
+    let isFirstPage = true;
+
+    while (isFirstPage || offset !== null) {
+      isFirstPage = false;
+
+      const body: Record<string, unknown> = {
+        limit: SCROLL_PAGE_SIZE,
+        with_payload: true,
+        with_vector: false,
+      };
+
+      if (filter && Object.keys(filter).length > 0) {
+        body.filter = {
+          must: Object.entries(filter).map(([key, value]) => ({
+            key,
+            match: { value },
+          })),
+        };
+      }
+
+      if (offset !== null) {
+        body.offset = offset;
+      }
+
+      const response = await this.httpClient.fetchWithRetry(
+        `${this.qdrantUrl}/collections/${collection}/points/scroll`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+        { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await this.formatError(response, 'Qdrant scroll failed')
+        );
+      }
+
+      const data = (await response.json()) as {
+        result?: {
+          points?: Array<{
+            id: string;
+            payload?: Record<string, unknown>;
+          }>;
+          next_page_offset?: string | number | null;
+        };
+      };
+
+      const points = data.result?.points || [];
+
+      for (const p of points) {
+        allPoints.push({
+          id: p.id,
+          payload: p.payload || {},
+        });
+      }
+
+      offset = data.result?.next_page_offset ?? null;
+    }
+
+    return allPoints;
+  }
+
+  /**
+   * Count total points in collection
+   *
+   * @param collection Collection name
+   * @returns Total point count
+   */
+  async countPoints(collection: string): Promise<number> {
+    const response = await this.httpClient.fetchWithRetry(
+      `${this.qdrantUrl}/collections/${collection}/points/count`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exact: true }),
+      },
+      { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+    );
+
+    if (!response.ok) {
+      throw new Error(await this.formatError(response, 'Qdrant count failed'));
+    }
+
+    const data = (await response.json()) as { result?: { count?: number } };
+    return data.result?.count ?? 0;
+  }
+
+  /**
+   * Count points matching a URL filter
+   *
+   * @param collection Collection name
+   * @param url URL to count
+   * @returns Point count for URL
+   */
+  async countByUrl(collection: string, url: string): Promise<number> {
+    const response = await this.httpClient.fetchWithRetry(
+      `${this.qdrantUrl}/collections/${collection}/points/count`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filter: {
+            must: [{ key: 'url', match: { value: url } }],
+          },
+          exact: true,
+        }),
+      },
+      { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+    );
+
+    if (!response.ok) {
+      throw new Error(await this.formatError(response, 'Qdrant count failed'));
+    }
+
+    const data = (await response.json()) as { result?: { count?: number } };
+    return data.result?.count ?? 0;
+  }
+
+  /**
+   * Delete all points in collection
+   *
+   * @param collection Collection name
+   */
+  async deleteAll(collection: string): Promise<void> {
+    const response = await this.httpClient.fetchWithRetry(
+      `${this.qdrantUrl}/collections/${collection}/points/delete`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filter: {
+            must: [],
+          },
+        }),
+      },
+      { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
+    );
+
+    if (!response.ok) {
+      throw new Error(await this.formatError(response, 'Qdrant delete failed'));
+    }
   }
 }

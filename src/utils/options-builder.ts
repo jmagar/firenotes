@@ -11,8 +11,8 @@
  * ```typescript
  * const options = new OptionsBuilder<FirecrawlOptions>()
  *   .add('limit', 10)
- *   .addMapped('maxDepth', 'maxDiscoveryDepth', 5)
- *   .addNested('scrapeTimeout', 'scrapeOptions.timeout', 15000)
+ *   .addMapped('limit', cliOptions.limit) // Same as add() for type safety
+ *   .addNested('scrapeOptions.onlyMainContent', true)
  *   .build();
  * ```
  */
@@ -48,15 +48,14 @@ export class OptionsBuilder<T extends Record<string, unknown>> {
   }
 
   /**
-   * Add a nested property (e.g., 'scrapeOptions.timeout')
+   * Add a nested property (e.g., 'scrapeOptions.onlyMainContent')
    *
-   * @param sourceKey - Original key name (for documentation/clarity)
    * @param path - Dot-separated path to nested property
    * @param value - Property value (skipped if undefined)
    * @returns This builder for chaining
    * @throws Error if path is invalid (empty, has empty segments, or contains '..')
    */
-  addNested(sourceKey: string, path: string, value: unknown): this {
+  addNested(path: string, value: unknown): this {
     if (value === undefined) {
       return this;
     }
@@ -107,11 +106,13 @@ export class OptionsBuilder<T extends Record<string, unknown>> {
   /**
    * Build the final options object
    *
-   * @returns The constructed options object as Partial<T>
+   * Returns a frozen defensive copy to prevent external mutation.
+   *
+   * @returns Immutable constructed options object as Partial<T>
    * @warning Ensure all required properties of T have been added before calling build().
    * The builder does not validate completeness at runtime.
    */
   build(): Partial<T> {
-    return this.options;
+    return Object.freeze({ ...this.options });
   }
 }

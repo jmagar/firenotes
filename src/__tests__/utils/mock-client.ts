@@ -3,8 +3,6 @@
  */
 
 import type { Mock } from 'vitest';
-import { resetClient } from '../../utils/client';
-import { resetConfig } from '../../utils/config';
 
 /**
  * Mock Firecrawl client methods
@@ -29,20 +27,4 @@ export interface MockFirecrawlClient {
   getBatchScrapeStatus?: Mock;
   getBatchScrapeErrors?: Mock;
   cancelBatchScrape?: Mock;
-}
-
-/**
- * Setup test environment - reset client and config
- */
-export function setupTest(): void {
-  resetClient();
-  resetConfig();
-}
-
-/**
- * Teardown test environment
- */
-export function teardownTest(): void {
-  resetClient();
-  resetConfig();
 }

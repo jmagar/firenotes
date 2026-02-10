@@ -14,6 +14,30 @@ If you are using in any AI agent like Claude Code, you can install the skill wit
 npx skills add firecrawl/cli
 ```
 
+## Self-Hosted Setup
+
+This project includes a self-hosted Firecrawl stack with Docker Compose:
+
+```bash
+# Start all services (Firecrawl, Patchright, Qdrant, Embedder Daemon)
+docker compose up -d
+
+# Check service status
+docker compose ps
+```
+
+**Services:**
+- **Firecrawl API**: http://localhost:53002
+- **Patchright** (browser scraping): Internal on port 53006
+- **Qdrant** (vector DB): http://localhost:53333
+- **Embedder Daemon**: http://localhost:53000
+
+**Note:** TEI (Text Embeddings Inference) runs on a remote GPU server and is not part of the local Docker stack.
+
+**Important:** The project includes a patched `patchright-app.py` file that fixes a bug in the upstream `loorisr/patchright-scrape-api` image. This file is automatically mounted into the container via `docker-compose.yaml`. The fix changes `page.timeout()` to `page.wait_for_timeout()` to prevent 500 errors when using the `--wait-for` flag.
+
+See `CLAUDE.md` for detailed infrastructure documentation.
+
 ## Quick Start
 
 Just run a command - the CLI will prompt you to authenticate if needed:
@@ -43,7 +67,8 @@ export FIRECRAWL_API_KEY=your-api-key
 export FIRECRAWL_API_URL=http://localhost:53002
 
 # Optional: embedding pipeline (enables embed, query, retrieve commands)
-export TEI_URL=http://localhost:52000
+# TEI runs on remote GPU server - update with your TEI endpoint
+export TEI_URL=http://your-tei-server:52000
 export QDRANT_URL=http://localhost:53333
 
 # Interactive (prompts automatically when needed)
@@ -55,6 +80,65 @@ firecrawl login --api-key your-api-key --api-url http://localhost:53002
 # Per-command API key
 firecrawl scrape https://example.com --api-key your-api-key
 ```
+
+---
+
+## Shell Completion
+
+Enable tab completion for commands, options, and arguments in your shell.
+
+### Installation
+
+**Automatic (recommended):**
+
+The CLI will auto-detect your shell (bash, zsh, or fish) and show installation instructions:
+
+```bash
+firecrawl completion install
+```
+
+**Manual installation:**
+
+If you prefer to manually add completion to your shell RC file:
+
+```bash
+# Bash
+firecrawl completion script bash >> ~/.bashrc
+source ~/.bashrc
+
+# Zsh
+firecrawl completion script zsh >> ~/.zshrc
+source ~/.zshrc
+
+# Fish
+firecrawl completion script fish >> ~/.config/fish/config.fish
+source ~/.config/fish/config.fish
+```
+
+**Uninstall:**
+
+```bash
+firecrawl completion uninstall
+```
+
+### Usage
+
+After installation, restart your shell or source your RC file. Then use Tab to complete:
+
+```bash
+firecrawl <TAB>              # Shows all commands
+firecrawl scrape --<TAB>      # Shows scrape options
+firecrawl crawl --<TAB>       # Shows crawl options
+firecrawl batch <TAB>         # Shows batch subcommands
+```
+
+### Features
+
+- ✅ All command names (scrape, crawl, map, search, extract, batch, etc.)
+- ✅ All option flags (--wait, --format, --output, --pretty, etc.)
+- ✅ Subcommand completion (batch status/cancel/errors, crawl status/cancel/errors, extract status)
+- ✅ File path completion for --output option
+- ✅ Context-aware option suggestions based on command
 
 ---
 
@@ -170,7 +254,7 @@ firecrawl search "firecrawl tutorials" --scrape
 firecrawl search "API documentation" --scrape --scrape-formats markdown,links
 
 # Output as pretty JSON
-firecrawl search "web scraping"
+firecrawl search "web scraping" -p
 ```
 
 #### Search Options
@@ -308,7 +392,7 @@ firecrawl crawl https://example.com --wait
 # With progress indicator
 firecrawl crawl https://example.com --progress
 
-# Check crawl status
+# Check crawl status (auto-detects job ID)
 firecrawl crawl <job-id>
 
 # List active crawl jobs
@@ -317,10 +401,10 @@ firecrawl list
 # Show job and embedding status summary
 firecrawl status
 
-# Cancel a crawl job
+# Cancel a crawl job (legacy: use --cancel flag)
 firecrawl crawl <job-id> --cancel
 
-# Fetch crawl errors
+# Fetch crawl errors (legacy: use --errors flag)
 firecrawl crawl <job-id> --errors
 
 # List active crawl jobs
@@ -343,8 +427,9 @@ firecrawl crawl https://example.com --limit 100 --max-depth 3
 | `--wait`                    | Wait for crawl to complete and embed inline            |
 | `--progress`                | Show progress while waiting (implies --wait)           |
 | `--embed`                   | Manually trigger embeddings for a completed job        |
-| `--cancel`                  | Cancel an existing crawl job (job ID required)         |
-| `--errors`                  | Fetch crawl errors for a job ID                        |
+| `--cancel`                  | (Legacy) Cancel an existing crawl job (deprecated)     |
+| `--errors`                  | (Legacy) Fetch crawl errors for a job ID (deprecated)  |
+| `--status`                  | (Legacy) Check job status (deprecated, auto-detected)  |
 | `--no-embed`                | Skip auto-embedding (useful for large crawls)          |
 | `--limit <n>`               | Maximum pages to crawl                                 |
 | `--max-depth <n>`           | Maximum crawl depth                                    |
@@ -357,7 +442,6 @@ firecrawl crawl https://example.com --limit 100 --max-depth 3
 | `--ignore-query-parameters` | Treat URLs with different params as same               |
 | `--delay <ms>`              | Delay between requests                                 |
 | `--max-concurrency <n>`     | Max concurrent requests                                |
-| `--scrape-timeout <seconds>`| Per-page scrape timeout (default: 15)                  |
 | `--timeout <seconds>`       | Overall crawl timeout when waiting                     |
 | `--poll-interval <seconds>` | Status check interval                                  |
 
@@ -472,14 +556,22 @@ firecrawl batch https://a.com https://b.com https://c.com
 firecrawl batch https://a.com https://b.com --wait
 
 # Check status
-firecrawl batch <job-id> --status
+firecrawl batch status <job-id>
 
 # Cancel a batch job
-firecrawl batch <job-id> --cancel
+firecrawl batch cancel <job-id>
 
 # Fetch batch errors
-firecrawl batch <job-id> --errors
+firecrawl batch errors <job-id>
 ```
+
+#### Batch Subcommands
+
+| Subcommand | Description                           |
+| ---------- | ------------------------------------- |
+| `status`   | Get status for a batch job by ID      |
+| `cancel`   | Cancel a running batch scrape job     |
+| `errors`   | Get error details for a batch job     |
 
 #### Batch Options
 
@@ -488,13 +580,9 @@ firecrawl batch <job-id> --errors
 | `--wait`                    | Wait for batch scrape to complete         |
 | `--poll-interval <seconds>` | Status polling interval                   |
 | `--timeout <seconds>`       | Timeout for wait mode                     |
-| `--status`                  | Get status for a batch job ID             |
-| `--cancel`                  | Cancel a batch job                        |
-| `--errors`                  | Fetch batch scrape errors                 |
 | `--format <formats>`        | Scrape formats for batch results          |
 | `--only-main-content`       | Only return main content                  |
 | `--wait-for <ms>`           | Wait before scraping (JS-rendered pages)  |
-| `--scrape-timeout <seconds>`| Per-page scrape timeout                   |
 | `--screenshot`              | Include screenshot format                 |
 | `--include-tags <tags>`     | Comma-separated tags to include           |
 | `--exclude-tags <tags>`     | Comma-separated tags to exclude           |
@@ -528,14 +616,19 @@ firecrawl extract https://site1.com https://site2.com --prompt "Get company info
 firecrawl extract https://example.com --prompt "Find pricing" --show-sources --pretty
 
 # Check extract job status
-firecrawl extract <job-id> --status
+firecrawl extract status <job-id>
 ```
+
+#### Extract Subcommands
+
+| Subcommand | Description                           |
+| ---------- | ------------------------------------- |
+| `status`   | Get status for an extract job by ID   |
 
 #### Extract Options
 
 | Option                     | Description                           |
 | -------------------------- | ------------------------------------- |
-| `--status`                 | Get extract job status by ID          |
 | `--prompt <prompt>`        | Natural language extraction prompt    |
 | `--schema <json>`          | JSON schema for structured extraction |
 | `--system-prompt <prompt>` | System prompt for extraction          |
@@ -645,13 +738,59 @@ firecrawl retrieve https://example.com -o document.md
 
 ---
 
-### `config` - View configuration
+### `config` - View and manage configuration
 
 ```bash
+# View configuration
 firecrawl config
+
+# Set default exclude paths for crawls
+firecrawl config set exclude-paths "/admin,/api,/login"
+
+# Set default exclude extensions (overrides built-in defaults)
+firecrawl config set exclude-extensions ".pkg,.exe,.dmg,.zip"
+
+# Get current settings (individual)
+firecrawl config get exclude-paths
+firecrawl config get exclude-extensions
+
+# Get combined view of both paths and extensions
+firecrawl config get excludes
+
+# Clear settings (reverts to built-in defaults for extensions)
+firecrawl config clear exclude-paths
+firecrawl config clear exclude-extensions
 ```
 
-Shows authentication status and stored credentials location.
+Shows authentication status, stored credentials location, and user settings.
+
+#### Binary File Exclusion
+
+The CLI automatically excludes common binary files during crawls to prevent worker crashes. By default, these extensions are excluded:
+
+**Executables/Installers:** `.exe`, `.msi`, `.dmg`, `.pkg`, `.deb`, `.rpm`
+**Archives:** `.zip`, `.tar`, `.gz`, `.bz2`, `.7z`, `.rar`
+**Media:** `.mp4`, `.mp3`, `.avi`, `.mov`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.pdf`
+**Fonts:** `.ttf`, `.woff`, `.woff2`
+
+You can customize this list:
+
+```bash
+# Override default extensions (replaces built-in list)
+firecrawl config set exclude-extensions ".pkg,.exe,.dmg"
+
+# Revert to built-in defaults
+firecrawl config clear exclude-extensions
+
+# Check current configuration
+firecrawl config get exclude-extensions
+```
+
+Extensions are converted to wildcard patterns (e.g., `.pkg` → `**/*.pkg`) and merged with `excludePaths` transparently. To disable all default exclusions (both paths and extensions) for a single crawl:
+
+```bash
+firecrawl crawl https://example.com --no-default-excludes
+```
 
 ---
 
@@ -679,9 +818,10 @@ When configured, `scrape`, `crawl`, `search --scrape`, and `extract` automatical
 Set these environment variables (or add to `.env`):
 
 ```bash
-export TEI_URL=http://localhost:52000        # Text Embeddings Inference server
-export QDRANT_URL=http://localhost:53333      # Qdrant vector database
-export QDRANT_COLLECTION=firecrawl_collection # optional, this is the default
+# TEI runs on remote GPU server - update with your TEI endpoint
+export TEI_URL=http://your-tei-server:52000     # Text Embeddings Inference server
+export QDRANT_URL=http://localhost:53333        # Qdrant vector database
+export QDRANT_COLLECTION=firecrawl              # optional, this is the default
 ```
 
 ### Auto-Embed Behavior

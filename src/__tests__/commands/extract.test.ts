@@ -29,7 +29,7 @@ describe('executeExtract', () => {
         apiUrl: 'https://api.firecrawl.dev',
         teiUrl: 'http://localhost:53001',
         qdrantUrl: 'http://localhost:53002',
-        collectionName: 'firecrawl',
+        qdrantCollection: 'firecrawl',
       },
       getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
       getEmbedPipeline: vi.fn().mockReturnValue({
@@ -131,55 +131,101 @@ describe('executeExtract', () => {
   });
 });
 
-describe('executeExtract status mode', () => {
-  it('should call getExtractStatus when status is true', async () => {
-    const mockClient = { getExtractStatus: vi.fn() };
-    const mockContainer = {
-      config: {
-        apiKey: 'test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
-        teiUrl: 'http://localhost:53001',
-        qdrantUrl: 'http://localhost:53002',
-        collectionName: 'firecrawl',
-      },
-      getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
-      getEmbedPipeline: vi.fn(),
-      getHttpClient: vi.fn(),
-      getTeiService: vi.fn(),
-      getQdrantService: vi.fn(),
-      dispose: vi.fn(),
-    } as unknown as IContainer;
-
-    mockClient.getExtractStatus.mockResolvedValue({
-      id: 'ext-1',
-      status: 'completed',
-      data: { ok: true },
-      tokensUsed: 1,
-    });
-
-    const result = await executeExtract(mockContainer, {
-      status: true,
-      jobId: 'ext-1',
-      urls: [],
-    });
-
-    expect(mockClient.getExtractStatus).toHaveBeenCalledWith('ext-1');
-    expect(result.success).toBe(true);
-    expect(result.data?.extracted).toEqual({ ok: true });
-    expect(result.data?.status).toBe('completed');
-    expect(result.data?.tokensUsed).toBe(1);
-  });
-});
-
 describe('createExtractCommand', () => {
-  it('should require job id for --status', async () => {
-    const { createExtractCommand } = await import('../../commands/extract');
-    const cmd = createExtractCommand();
-    cmd.exitOverride();
+  describe('status subcommand', () => {
+    it('should define status subcommand', async () => {
+      const { createExtractCommand } = await import('../../commands/extract');
+      const cmd = createExtractCommand();
 
-    await expect(
-      cmd.parseAsync(['node', 'test', '--status'], { from: 'node' })
-    ).rejects.toThrow();
+      const subcommands = cmd.commands.map((c) => c.name());
+      expect(subcommands).toContain('status');
+    });
+
+    it('should require job-id argument', async () => {
+      const { createExtractCommand } = await import('../../commands/extract');
+      const cmd = createExtractCommand();
+      cmd.exitOverride();
+
+      await expect(
+        cmd.parseAsync(['node', 'test', 'status'], { from: 'node' })
+      ).rejects.toThrow();
+    });
+
+    it('should call getExtractStatus with job-id', async () => {
+      const mockClient = { getExtractStatus: vi.fn() };
+      const mockContainer = {
+        config: {
+          apiKey: 'test-api-key',
+          apiUrl: 'https://api.firecrawl.dev',
+          teiUrl: 'http://localhost:53001',
+          qdrantUrl: 'http://localhost:53002',
+          qdrantCollection: 'firecrawl',
+        },
+        getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+        getEmbedPipeline: vi.fn(),
+        getHttpClient: vi.fn(),
+        getTeiService: vi.fn(),
+        getQdrantService: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as IContainer;
+
+      mockClient.getExtractStatus.mockResolvedValue({
+        id: 'ext-123',
+        status: 'completed',
+        data: { result: 'test' },
+        sources: ['https://example.com'],
+        tokensUsed: 100,
+      });
+
+      const { createExtractCommand } = await import('../../commands/extract');
+      const cmd = createExtractCommand(mockContainer);
+
+      await cmd.parseAsync(['node', 'test', 'status', 'ext-123'], {
+        from: 'node',
+      });
+
+      expect(mockClient.getExtractStatus).toHaveBeenCalledWith('ext-123');
+    });
+
+    it('should handle errors and exit with code 1', async () => {
+      const mockClient = { getExtractStatus: vi.fn() };
+      const mockContainer = {
+        config: {
+          apiKey: 'test-api-key',
+          apiUrl: 'https://api.firecrawl.dev',
+          teiUrl: 'http://localhost:53001',
+          qdrantUrl: 'http://localhost:53002',
+          qdrantCollection: 'firecrawl',
+        },
+        getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+        getEmbedPipeline: vi.fn(),
+        getHttpClient: vi.fn(),
+        getTeiService: vi.fn(),
+        getQdrantService: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as IContainer;
+
+      mockClient.getExtractStatus.mockRejectedValue(new Error('Job not found'));
+
+      const { createExtractCommand } = await import('../../commands/extract');
+      const cmd = createExtractCommand(mockContainer);
+
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit');
+      });
+
+      try {
+        await expect(
+          cmd.parseAsync(['node', 'test', 'status', 'ext-123'], {
+            from: 'node',
+          })
+        ).rejects.toThrow();
+
+        expect(exitSpy).toHaveBeenCalledWith(1);
+      } finally {
+        exitSpy.mockRestore();
+      }
+    });
   });
 });
 
@@ -198,7 +244,7 @@ describe('handleExtractCommand', () => {
         apiUrl: 'https://api.firecrawl.dev',
         teiUrl: 'http://localhost:53001',
         qdrantUrl: 'http://localhost:53002',
-        collectionName: 'firecrawl',
+        qdrantCollection: 'firecrawl',
       },
       getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
       getEmbedPipeline: vi.fn().mockReturnValue({

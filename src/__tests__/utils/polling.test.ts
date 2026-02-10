@@ -11,7 +11,7 @@ describe('pollWithProgress', () => {
       statusFetcher,
       pollInterval: 1000,
       isComplete: (s) => s.status === 'completed',
-      formatProgress: (s) => 'Progress',
+      formatProgress: (_s) => 'Progress',
     });
 
     const elapsed = Date.now() - startTime;
@@ -54,7 +54,7 @@ describe('pollWithProgress', () => {
         pollInterval: 50,
         timeout: 200,
         isComplete: (s) => s.status === 'completed',
-        formatProgress: (s) => 'Progress',
+        formatProgress: (_s) => 'Progress',
       })
     ).rejects.toThrow('Timeout after 0.2 seconds');
 
@@ -73,7 +73,7 @@ describe('pollWithProgress', () => {
       statusFetcher,
       pollInterval: 100,
       isComplete: (s) => s.status === 'completed',
-      formatProgress: (s) => 'Progress',
+      formatProgress: (_s) => 'Progress',
     });
 
     expect(result.status).toBe('completed');
@@ -131,7 +131,7 @@ describe('pollWithProgress', () => {
       statusFetcher,
       pollInterval: 50,
       isComplete: (s) => s.status === 'completed',
-      formatProgress: (s) => 'Progress',
+      formatProgress: (_s) => 'Progress',
     });
 
     expect(statusFetcher).toHaveBeenCalledWith('custom-job-123');
@@ -171,38 +171,50 @@ describe('pollWithProgress', () => {
         statusFetcher,
         pollInterval: 50,
         isComplete: (s: { status: string }) => s.status === 'completed',
-        formatProgress: (s: { status: string }) => 'Progress',
+        formatProgress: (_s: { status: string }) => 'Progress',
       })
     ).rejects.toThrow('Failed to fetch status: Network error');
   });
 
-  it('should respect exact poll interval timing', async () => {
-    const pollInterval = 100;
-    let lastTime = Date.now();
-    const times: number[] = [];
+  it('should respect poll interval timing', async () => {
+    // Use fake timers to avoid CI jitter
+    vi.useFakeTimers();
 
-    const statusFetcher = vi.fn(async () => {
-      const now = Date.now();
-      times.push(now - lastTime);
-      lastTime = now;
-      return { status: times.length >= 3 ? 'completed' : 'processing' };
-    });
+    try {
+      const pollInterval = 100;
+      let callCount = 0;
 
-    await pollWithProgress({
-      jobId: 'test-job',
-      statusFetcher,
-      pollInterval,
-      isComplete: (s) => s.status === 'completed',
-      formatProgress: (s) => 'Progress',
-    });
+      const statusFetcher = vi.fn(async () => {
+        callCount++;
+        return { status: callCount >= 3 ? 'completed' : 'processing' };
+      });
 
-    // First poll should be immediate (< 20ms)
-    expect(times[0]).toBeLessThan(20);
+      // Start polling (does not await - runs in background)
+      const pollPromise = pollWithProgress({
+        jobId: 'test-job',
+        statusFetcher,
+        pollInterval,
+        isComplete: (s) => s.status === 'completed',
+        formatProgress: (_s) => 'Progress',
+      });
 
-    // Subsequent intervals should be approximately pollInterval ms (with some tolerance)
-    for (let i = 1; i < times.length; i++) {
-      expect(times[i]).toBeGreaterThanOrEqual(pollInterval - 20); // 20ms tolerance
-      expect(times[i]).toBeLessThan(pollInterval + 50); // 50ms tolerance
+      // Wait a microtask for first poll to execute (immediate, no setTimeout)
+      await Promise.resolve();
+      expect(statusFetcher).toHaveBeenCalledTimes(1);
+
+      // Advance by pollInterval for second poll
+      await vi.advanceTimersByTimeAsync(pollInterval);
+      expect(statusFetcher).toHaveBeenCalledTimes(2);
+
+      // Advance by pollInterval for third poll (should complete)
+      await vi.advanceTimersByTimeAsync(pollInterval);
+      expect(statusFetcher).toHaveBeenCalledTimes(3);
+
+      // Wait for polling to complete
+      const result = await pollPromise;
+      expect(result.status).toBe('completed');
+    } finally {
+      vi.useRealTimers();
     }
   });
 
@@ -216,7 +228,7 @@ describe('pollWithProgress', () => {
         pollInterval: 50,
         timeout: 0,
         isComplete: (s) => s.status === 'completed',
-        formatProgress: (s) => 'Progress',
+        formatProgress: (_s) => 'Progress',
       })
     ).rejects.toThrow('Timeout must be a positive number');
   });
@@ -231,7 +243,22 @@ describe('pollWithProgress', () => {
         pollInterval: 50,
         timeout: -1000,
         isComplete: (s) => s.status === 'completed',
-        formatProgress: (s) => 'Progress',
+        formatProgress: (_s) => 'Progress',
+      })
+    ).rejects.toThrow('Timeout must be a positive number');
+  });
+
+  it('should reject Infinity timeout', async () => {
+    const statusFetcher = vi.fn(async () => ({ status: 'processing' }));
+
+    await expect(
+      pollWithProgress({
+        jobId: 'test-job',
+        statusFetcher,
+        pollInterval: 50,
+        timeout: Infinity,
+        isComplete: (s) => s.status === 'completed',
+        formatProgress: (_s) => 'Progress',
       })
     ).rejects.toThrow('Timeout must be a positive number');
   });

@@ -3,10 +3,11 @@
  */
 
 import type { CrawlOptions as FirecrawlCrawlOptions } from '@mendable/firecrawl-js';
-import type { IContainer } from '../../container/types';
+import type { IContainer, ImmutableConfig } from '../../container/types';
 import type { CrawlJobData } from '../../types/crawl';
 import { buildEmbedderWebhookConfig } from '../../utils/embedder-webhook';
 import { recordJob } from '../../utils/job-history';
+import { fmt, icons } from '../../utils/theme';
 
 /**
  * Attach webhook for async auto-embedding
@@ -24,11 +25,12 @@ import { recordJob } from '../../utils/job-history';
 export function attachEmbedWebhook<T extends FirecrawlCrawlOptions>(
   options: T,
   shouldEmbed: boolean,
-  isWaitMode: boolean
+  isWaitMode: boolean,
+  config: ImmutableConfig
 ): T {
   // Only attach webhook for async mode with embedding enabled
   if (shouldEmbed && !isWaitMode) {
-    const webhookConfig = buildEmbedderWebhookConfig();
+    const webhookConfig = buildEmbedderWebhookConfig(config);
     if (webhookConfig) {
       return { ...options, webhook: webhookConfig };
     }
@@ -54,24 +56,34 @@ export function attachEmbedWebhook<T extends FirecrawlCrawlOptions>(
 export async function handleAsyncEmbedding(
   jobId: string,
   url: string,
+  config: ImmutableConfig,
   apiKey?: string
 ): Promise<void> {
   const { enqueueEmbedJob } = await import('../../utils/embed-queue');
-  const webhookConfig = buildEmbedderWebhookConfig();
+  const webhookConfig = buildEmbedderWebhookConfig(config);
 
-  enqueueEmbedJob(jobId, url, apiKey);
-  console.error(`\nQueued embedding job for background processing: ${jobId}`);
+  await enqueueEmbedJob(jobId, url, apiKey);
+  console.error();
+  console.error(
+    `  ${fmt.primary(icons.pending)} Queued embedding job for background processing: ${fmt.dim(jobId)}`
+  );
 
   if (webhookConfig) {
     console.error(
-      'Embeddings will be generated automatically when crawl completes via webhook.'
+      fmt.dim(
+        '  Embeddings will be generated automatically when crawl completes via webhook.'
+      )
     );
   } else {
     console.error(
-      'Embedder webhook not configured. Set FIRECRAWL_EMBEDDER_WEBHOOK_URL to enable auto-embedding.'
+      fmt.warning(
+        `  ${icons.warning} Embedder webhook not configured. Set FIRECRAWL_EMBEDDER_WEBHOOK_URL to enable auto-embedding.`
+      )
     );
     console.error(
-      `Run 'firecrawl crawl ${jobId} --embed' to embed after completion.`
+      fmt.dim(
+        `  Run 'firecrawl crawl ${jobId} --embed' to embed after completion.`
+      )
     );
   }
 }
@@ -94,7 +106,7 @@ export async function handleSyncEmbedding(
   crawlJobData: CrawlJobData
 ): Promise<void> {
   if (crawlJobData.id) {
-    recordJob('crawl', crawlJobData.id);
+    await recordJob('crawl', crawlJobData.id);
   }
 
   const pagesToEmbed = crawlJobData.data ?? [];
@@ -103,13 +115,18 @@ export async function handleSyncEmbedding(
   }
 
   const pipeline = container.getEmbedPipeline();
+  const jobId = crawlJobData.id || 'unknown';
 
   // Embed each page using the pipeline
-  for (const page of pagesToEmbed) {
+  for (let i = 0; i < pagesToEmbed.length; i++) {
+    const page = pagesToEmbed[i];
     const content = page.markdown || page.html;
     if (content) {
+      // Use deterministic fallback to prevent dedupe collisions from empty URLs
+      const url =
+        page.metadata?.sourceURL || page.metadata?.url || `${jobId}:page-${i}`;
       await pipeline.autoEmbed(content, {
-        url: page.metadata?.sourceURL || page.metadata?.url || '',
+        url,
         title: page.metadata?.title,
         sourceCommand: 'crawl',
         contentType: page.markdown ? 'markdown' : 'html',
@@ -144,15 +161,19 @@ export async function handleManualEmbedding(
   );
 
   // Check if already queued
-  const existingJob = getEmbedJob(jobId);
+  const existingJob = await getEmbedJob(jobId);
 
   if (!existingJob) {
-    // Get crawl info to queue it
+    // Get crawl info to queue it (only need first page for URL extraction)
     const app = container.getFirecrawlClient();
-    const status = await app.getCrawlStatus(jobId);
+    const status = await app.getCrawlStatus(jobId, { autoPaginate: false });
 
     if (status.status !== 'completed') {
-      console.error(`Crawl ${jobId} is ${status.status}, cannot embed yet`);
+      console.error(
+        fmt.warning(
+          `${icons.warning} Crawl ${jobId} is ${status.status}, cannot embed yet`
+        )
+      );
       return;
     }
 
@@ -163,21 +184,31 @@ export async function handleManualEmbedding(
       if (sourceURL && typeof sourceURL === 'string') {
         url = sourceURL;
       } else {
-        console.warn(
-          `Warning: No valid source URL found, using job ID as fallback`
+        console.error(
+          fmt.warning(
+            `${icons.warning} No valid source URL found, using job ID as fallback`
+          )
         );
         url = jobId;
       }
     } else {
-      console.warn(`Warning: No crawl data available, using job ID as URL`);
+      console.error(
+        fmt.warning(
+          `${icons.warning} No crawl data available, using job ID as URL`
+        )
+      );
       url = jobId;
     }
 
-    enqueueEmbedJob(jobId, url, apiKey);
+    await enqueueEmbedJob(jobId, url, apiKey);
   }
 
   // Process queue
-  console.error(`Processing embedding queue for job ${jobId}...`);
-  await processEmbedQueue();
-  console.error(`Embedding processing complete`);
+  console.error(
+    `  ${fmt.primary(icons.processing)} Processing embedding queue for job ${fmt.dim(jobId)}...`
+  );
+  await processEmbedQueue(container);
+  console.error(
+    `  ${fmt.success(icons.success)} Embedding processing complete`
+  );
 }

@@ -8,12 +8,9 @@ import {
   executeScrape,
   handleScrapeCommand,
 } from '../../commands/scrape';
-import type { IContainer } from '../../container/types';
-import {
-  type MockFirecrawlClient,
-  setupTest,
-  teardownTest,
-} from '../utils/mock-client';
+import type { IContainer, IQdrantService } from '../../container/types';
+import type { MockFirecrawlClient } from '../utils/mock-client';
+import { createTestContainer } from '../utils/test-container';
 
 // Mock the output module to prevent console output in tests
 vi.mock('../../utils/output', () => ({
@@ -25,8 +22,6 @@ describe('executeScrape', () => {
   let mockContainer: IContainer;
 
   beforeEach(() => {
-    setupTest();
-
     // Create mock client
     mockClient = {
       scrape: vi.fn(),
@@ -52,7 +47,6 @@ describe('executeScrape', () => {
   });
 
   afterEach(() => {
-    teardownTest();
     vi.clearAllMocks();
   });
 
@@ -330,8 +324,6 @@ describe('handleScrapeCommand auto-embed', () => {
   let mockAutoEmbed: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
-    setupTest();
-
     mockClient = {
       scrape: vi.fn(),
     };
@@ -357,7 +349,6 @@ describe('handleScrapeCommand auto-embed', () => {
   });
 
   afterEach(() => {
-    teardownTest();
     vi.clearAllMocks();
   });
 
@@ -462,5 +453,127 @@ describe('handleScrapeCommand auto-embed', () => {
         sourceCommand: 'scrape',
       })
     );
+  });
+});
+
+describe('executeScrape --remove', () => {
+  let container: IContainer;
+  let mockQdrantService: IQdrantService;
+
+  beforeEach(() => {
+    mockQdrantService = {
+      ensureCollection: vi.fn().mockResolvedValue(undefined),
+      deleteByUrl: vi.fn().mockResolvedValue(undefined),
+      deleteByDomain: vi.fn().mockResolvedValue(undefined),
+      countByDomain: vi.fn().mockResolvedValue(42),
+      upsertPoints: vi.fn().mockResolvedValue(undefined),
+      queryPoints: vi.fn().mockResolvedValue([]),
+      scrollByUrl: vi.fn().mockResolvedValue([]),
+      getCollectionInfo: vi.fn().mockResolvedValue({
+        status: 'green',
+        vectorsCount: 0,
+        pointsCount: 0,
+        segmentsCount: 1,
+        config: { dimension: 1024, distance: 'Cosine' },
+      }),
+      scrollAll: vi.fn().mockResolvedValue([]),
+      countPoints: vi.fn().mockResolvedValue(0),
+      countByUrl: vi.fn().mockResolvedValue(0),
+      deleteAll: vi.fn().mockResolvedValue(undefined),
+    };
+
+    container = createTestContainer(undefined, {
+      qdrantUrl: 'http://localhost:53333',
+      qdrantCollection: 'test_col',
+    });
+    vi.spyOn(container, 'getQdrantService').mockReturnValue(mockQdrantService);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should delete by domain when --remove is set', async () => {
+    const result = await executeScrape(container, {
+      url: 'https://docs.firecrawl.dev/some/path',
+      remove: true,
+    });
+
+    expect(mockQdrantService.countByDomain).toHaveBeenCalledWith(
+      'test_col',
+      'docs.firecrawl.dev'
+    );
+    expect(mockQdrantService.deleteByDomain).toHaveBeenCalledWith(
+      'test_col',
+      'docs.firecrawl.dev'
+    );
+    expect(result.success).toBe(true);
+    expect(result.removed).toBe(42);
+  });
+
+  it('should not call Firecrawl API when --remove is set', async () => {
+    const mockClient = { scrape: vi.fn() };
+    container = createTestContainer(mockClient, {
+      qdrantUrl: 'http://localhost:53333',
+    });
+    vi.spyOn(container, 'getQdrantService').mockReturnValue(mockQdrantService);
+
+    await executeScrape(container, {
+      url: 'https://example.com',
+      remove: true,
+    });
+
+    expect(mockClient.scrape).not.toHaveBeenCalled();
+  });
+
+  it('should fail when QDRANT_URL not configured', async () => {
+    container = createTestContainer(undefined, { qdrantUrl: undefined });
+
+    const result = await executeScrape(container, {
+      url: 'https://example.com',
+      remove: true,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('QDRANT_URL');
+  });
+
+  it('should report 0 when no documents found', async () => {
+    mockQdrantService.countByDomain = vi.fn().mockResolvedValue(0);
+
+    const result = await executeScrape(container, {
+      url: 'https://example.com',
+      remove: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.removed).toBe(0);
+  });
+
+  it('should extract domain from URL correctly', async () => {
+    await executeScrape(container, {
+      url: 'https://api.example.com/v1/endpoint?query=test',
+      remove: true,
+    });
+
+    expect(mockQdrantService.countByDomain).toHaveBeenCalledWith(
+      'test_col',
+      'api.example.com'
+    );
+    expect(mockQdrantService.deleteByDomain).toHaveBeenCalledWith(
+      'test_col',
+      'api.example.com'
+    );
+  });
+
+  it('should fail gracefully for malformed URL', async () => {
+    const result = await executeScrape(container, {
+      url: 'not-a-valid-url',
+      remove: true,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Invalid URL');
+    expect(mockQdrantService.deleteByDomain).not.toHaveBeenCalled();
   });
 });

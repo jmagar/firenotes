@@ -3,6 +3,14 @@
  * Handles batched embedding generation with concurrency control
  */
 
+import { sleep } from '../../utils/http';
+import {
+  assertTeiOk,
+  parseTeiInfo,
+  requestTeiEmbeddings,
+  runConcurrentBatches,
+} from '../../utils/tei-helpers';
+import { fmt } from '../../utils/theme';
 import type { IHttpClient, ITeiService, TeiInfo } from '../types';
 
 /** Batch size for embedding requests */
@@ -11,39 +19,38 @@ const BATCH_SIZE = 24;
 /** Maximum concurrent batch requests */
 const MAX_CONCURRENT = 4;
 
-/** HTTP timeout for TEI requests (30 seconds) */
-const TEI_TIMEOUT_MS = 30000;
+/** HTTP timeout for TEI /info endpoint (30 seconds) */
+const TEI_INFO_TIMEOUT_MS = 30000;
 
 /** Number of retries for TEI requests */
 const TEI_MAX_RETRIES = 3;
 
+/** Number of batch-level retries (in addition to HTTP retries) */
+const BATCH_RETRY_ATTEMPTS = 2;
+
+/** Delay before batch retry (30 seconds) */
+const BATCH_RETRY_DELAY_MS = 30000;
+
 /**
- * Simple semaphore for concurrency control
+ * Calculate dynamic timeout based on batch size
+ *
+ * Formula: BASE + size × PER_TEXT
+ * - BASE: 30s for overhead (network, tokenization, queue wait)
+ * - PER_TEXT: 1s per text (empirical testing shows ~500ms actual)
+ *
+ * Examples:
+ * - 3 texts: 30 + 3 = 33s
+ * - 24 texts: 30 + 24 = 54s
+ *
+ * @param batchSize Number of texts in batch
+ * @returns Timeout in milliseconds
  */
-class Semaphore {
-  private current = 0;
-  private queue: (() => void)[] = [];
+function calculateBatchTimeout(batchSize: number): number {
+  const BASE_TIMEOUT_MS = 30000;
+  const PER_TEXT_MS = 1000;
+  const safeBatchSize = Math.max(0, batchSize);
 
-  constructor(private max: number) {}
-
-  async acquire(): Promise<void> {
-    if (this.current < this.max) {
-      this.current++;
-      return;
-    }
-    return new Promise<void>((resolve) => {
-      this.queue.push(() => {
-        this.current++;
-        resolve();
-      });
-    });
-  }
-
-  release(): void {
-    this.current--;
-    const next = this.queue.shift();
-    if (next) next();
-  }
+  return BASE_TIMEOUT_MS + safeBatchSize * PER_TEXT_MS;
 }
 
 /**
@@ -71,60 +78,89 @@ export class TeiService implements ITeiService {
       `${this.teiUrl}/info`,
       undefined,
       {
-        timeoutMs: TEI_TIMEOUT_MS,
+        timeoutMs: TEI_INFO_TIMEOUT_MS,
         maxRetries: TEI_MAX_RETRIES,
       }
     );
 
-    if (!response.ok) {
-      throw new Error(
-        `TEI /info failed: ${response.status} ${response.statusText}`
-      );
-    }
+    assertTeiOk(response, '/info');
 
     const info = await response.json();
-
-    // Extract dimension from model_type.embedding.dim
-    const dimension =
-      info.model_type?.embedding?.dim ??
-      info.model_type?.Embedding?.dim ??
-      1024;
-
-    this.cachedInfo = {
-      modelId: info.model_id || 'unknown',
-      dimension,
-      maxInput: info.max_input_length || 32768,
-    };
+    this.cachedInfo = parseTeiInfo(info);
 
     return this.cachedInfo;
   }
 
   /**
-   * Embed a single batch of texts
+   * Embed a single batch with batch-level retry
+   *
+   * Total attempts: (3 HTTP retries + 1) × (2 batch retries + 1) = up to 12 attempts
+   *
    * @param inputs Array of text strings to embed (up to BATCH_SIZE)
    * @returns Array of embedding vectors
    */
   async embedBatch(inputs: string[]): Promise<number[][]> {
-    const response = await this.httpClient.fetchWithRetry(
-      `${this.teiUrl}/embed`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputs }),
-      },
-      {
-        timeoutMs: TEI_TIMEOUT_MS,
-        maxRetries: TEI_MAX_RETRIES,
-      }
+    const timeoutMs = calculateBatchTimeout(inputs.length);
+    let lastError: Error | null = null;
+
+    console.error(
+      fmt.dim(
+        `[TEI] Embedding ${inputs.length} texts (timeout: ${timeoutMs}ms)`
+      )
     );
 
-    if (!response.ok) {
-      throw new Error(
-        `TEI /embed failed: ${response.status} ${response.statusText}`
-      );
+    for (
+      let batchAttempt = 0;
+      batchAttempt <= BATCH_RETRY_ATTEMPTS;
+      batchAttempt++
+    ) {
+      try {
+        const result = await requestTeiEmbeddings(
+          this.httpClient.fetchWithRetry.bind(this.httpClient),
+          this.teiUrl,
+          inputs,
+          {
+            timeoutMs,
+            maxRetries: TEI_MAX_RETRIES,
+          }
+        );
+
+        if (batchAttempt > 0) {
+          const retriesText = batchAttempt === 1 ? 'retry' : 'retries';
+          console.error(
+            fmt.success(
+              `[TEI] Batch succeeded after ${batchAttempt} ${retriesText}`
+            )
+          );
+        }
+
+        return result;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        if (batchAttempt < BATCH_RETRY_ATTEMPTS) {
+          console.error(
+            fmt.warning(
+              `[TEI] Batch retry ${batchAttempt + 1}/${BATCH_RETRY_ATTEMPTS} ` +
+                `after error: ${lastError.message}`
+            )
+          );
+          await sleep(BATCH_RETRY_DELAY_MS);
+          continue;
+        }
+
+        // Log final failure
+        console.error(
+          fmt.error(
+            `[TEI] Batch failed after ${BATCH_RETRY_ATTEMPTS + 1} attempts: ${lastError.message}`
+          )
+        );
+        throw lastError;
+      }
     }
 
-    return response.json();
+    // Unreachable: loop always returns or throws
+    throw new Error('Batch embedding failed after all retries');
   }
 
   /**
@@ -139,29 +175,8 @@ export class TeiService implements ITeiService {
    * @returns Array of embedding vectors in same order as input
    */
   async embedChunks(texts: string[]): Promise<number[][]> {
-    if (texts.length === 0) return [];
-
-    // Split into batches
-    const batches: string[][] = [];
-    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
-      batches.push(texts.slice(i, i + BATCH_SIZE));
-    }
-
-    const semaphore = new Semaphore(MAX_CONCURRENT);
-    const results: number[][][] = new Array(batches.length);
-
-    const promises = batches.map(async (batch, i) => {
-      await semaphore.acquire();
-      try {
-        results[i] = await this.embedBatch(batch);
-      } finally {
-        semaphore.release();
-      }
-    });
-
-    await Promise.all(promises);
-
-    // Flatten batched results in order
-    return results.flat();
+    return runConcurrentBatches(texts, BATCH_SIZE, MAX_CONCURRENT, (batch) =>
+      this.embedBatch(batch)
+    );
   }
 }

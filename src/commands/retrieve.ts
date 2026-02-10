@@ -5,9 +5,14 @@
 
 import type { IContainer } from '../container/types';
 import type { RetrieveOptions, RetrieveResult } from '../types/retrieve';
-import { formatJson, handleCommandError } from '../utils/command';
-import { writeOutput } from '../utils/output';
-import { scrollByUrl } from '../utils/qdrant';
+import { processCommandResult } from '../utils/command';
+import { fmt, isTTY } from '../utils/theme';
+import {
+  addVectorOutputOptions,
+  getQdrantUrlError,
+  requireContainer,
+  resolveCollectionName,
+} from './shared';
 
 /**
  * Execute retrieve command
@@ -22,19 +27,19 @@ export async function executeRetrieve(
   options: RetrieveOptions
 ): Promise<RetrieveResult> {
   try {
-    const config = container.config;
-    const qdrantUrl = config.qdrantUrl;
-    const collection =
-      options.collection || config.qdrantCollection || 'firecrawl_collection';
+    const qdrantUrl = container.config.qdrantUrl;
+    const collection = resolveCollectionName(container, options.collection);
 
     if (!qdrantUrl) {
       return {
         success: false,
-        error: 'QDRANT_URL must be set in .env for the retrieve command.',
+        error: getQdrantUrlError('retrieve'),
       };
     }
 
-    const points = await scrollByUrl(qdrantUrl, collection, options.url);
+    // Get Qdrant service from container
+    const qdrantService = container.getQdrantService();
+    const points = await qdrantService.scrollByUrl(collection, options.url);
 
     if (points.length === 0) {
       return {
@@ -98,32 +103,22 @@ export async function handleRetrieveCommand(
   container: IContainer,
   options: RetrieveOptions
 ): Promise<void> {
-  const result = await executeRetrieve(container, options);
-
-  // Use shared error handler
-  if (!handleCommandError(result)) {
-    return;
-  }
-
-  if (!result.data) return;
-
-  let outputContent: string;
-
-  if (options.json) {
-    outputContent = formatJson({
-      success: true,
-      data: {
-        url: result.data.url,
-        totalChunks: result.data.totalChunks,
-        chunks: result.data.chunks,
-      },
-    });
-  } else {
-    // Default: raw document content
-    outputContent = result.data.content;
-  }
-
-  writeOutput(outputContent, options.output, !!options.output);
+  processCommandResult(
+    await executeRetrieve(container, options),
+    options,
+    (data: { url: string; totalChunks: number; content: string }) => {
+      if (!options.output && isTTY()) {
+        return [
+          `  ${fmt.primary('Retrieved document')}`,
+          `    ${fmt.dim('URL:')} ${data.url}`,
+          `    ${fmt.dim('Chunks:')} ${data.totalChunks}`,
+          '',
+          data.content,
+        ].join('\n');
+      }
+      return data.content;
+    }
+  );
 }
 
 import { Command } from 'commander';
@@ -133,25 +128,20 @@ import { normalizeUrl } from '../utils/url';
  * Create and configure the retrieve command
  */
 export function createRetrieveCommand(): Command {
-  const retrieveCmd = new Command('retrieve')
-    .description('Retrieve full document from Qdrant by URL')
-    .argument('<url>', 'URL of the document to retrieve')
-    .option('--collection <name>', 'Qdrant collection name')
-    .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON format', false)
-    .action(async (url: string, options, command: Command) => {
-      const container = command._container;
-      if (!container) {
-        throw new Error('Container not initialized');
-      }
+  const retrieveCmd = addVectorOutputOptions(
+    new Command('retrieve')
+      .description('Retrieve full document from Qdrant by URL')
+      .argument('<url>', 'URL of the document to retrieve')
+  ).action(async (url: string, options, command: Command) => {
+    const container = requireContainer(command);
 
-      await handleRetrieveCommand(container, {
-        url: normalizeUrl(url),
-        collection: options.collection,
-        output: options.output,
-        json: options.json,
-      });
+    await handleRetrieveCommand(container, {
+      url: normalizeUrl(url),
+      collection: options.collection,
+      output: options.output,
+      json: options.json,
     });
+  });
 
   return retrieveCmd;
 }

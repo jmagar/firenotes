@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { OptionsBuilder } from '../../utils/options-builder';
 
 describe('OptionsBuilder', () => {
+  beforeEach(() => {});
+
+  afterEach(() => {});
+
   it('should add simple properties', () => {
     const result = new OptionsBuilder<{ limit: number }>()
       .add('limit', 10)
@@ -31,29 +35,31 @@ describe('OptionsBuilder', () => {
   });
 
   it('should handle nested properties', () => {
-    const result = new OptionsBuilder<{ scrapeOptions: { timeout: number } }>()
-      .addNested('scrapeTimeout', 'scrapeOptions.timeout', 15000)
+    const result = new OptionsBuilder<{
+      scrapeOptions: { onlyMainContent: boolean };
+    }>()
+      .addNested('scrapeOptions.onlyMainContent', true)
       .build();
-    expect(result).toEqual({ scrapeOptions: { timeout: 15000 } });
+    expect(result).toEqual({ scrapeOptions: { onlyMainContent: true } });
   });
 
   it('should skip undefined nested values', () => {
     const result = new OptionsBuilder<{
-      scrapeOptions?: { timeout?: number };
+      scrapeOptions?: { onlyMainContent?: boolean };
     }>()
-      .addNested('scrapeTimeout', 'scrapeOptions.timeout', undefined)
+      .addNested('scrapeOptions.onlyMainContent', undefined)
       .build();
     expect(result).toEqual({});
   });
 
   it('should handle multi-level nested properties', () => {
     const result = new OptionsBuilder<{
-      crawl: { scrape: { options: { timeout: number } } };
+      crawl: { scrape: { options: { onlyMainContent: boolean } } };
     }>()
-      .addNested('timeout', 'crawl.scrape.options.timeout', 10000)
+      .addNested('crawl.scrape.options.onlyMainContent', true)
       .build();
     expect(result).toEqual({
-      crawl: { scrape: { options: { timeout: 10000 } } },
+      crawl: { scrape: { options: { onlyMainContent: true } } },
     });
   });
 
@@ -61,19 +67,19 @@ describe('OptionsBuilder', () => {
     type ComplexOptions = {
       limit: number;
       maxDiscoveryDepth: number;
-      scrapeOptions: { timeout: number };
+      scrapeOptions: { onlyMainContent: boolean };
     };
 
     const result = new OptionsBuilder<ComplexOptions>()
       .add('limit', 100)
       .addMapped('maxDiscoveryDepth', 3)
-      .addNested('scrapeTimeout', 'scrapeOptions.timeout', 10000)
+      .addNested('scrapeOptions.onlyMainContent', true)
       .build();
 
     expect(result).toEqual({
       limit: 100,
       maxDiscoveryDepth: 3,
-      scrapeOptions: { timeout: 10000 },
+      scrapeOptions: { onlyMainContent: true },
     });
   });
 
@@ -98,17 +104,17 @@ describe('OptionsBuilder', () => {
 
   it('should merge into existing nested objects', () => {
     type NestedOptions = {
-      scrapeOptions: { timeout: number; waitTime?: number };
+      scrapeOptions: { onlyMainContent: boolean; waitTime?: number };
     };
 
     const result = new OptionsBuilder<NestedOptions>()
-      .addNested('timeout', 'scrapeOptions.timeout', 15000)
-      .addNested('waitTime', 'scrapeOptions.waitTime', 2000)
+      .addNested('scrapeOptions.onlyMainContent', true)
+      .addNested('scrapeOptions.waitTime', 2000)
       .build();
 
     expect(result).toEqual({
       scrapeOptions: {
-        timeout: 15000,
+        onlyMainContent: true,
         waitTime: 2000,
       },
     });
@@ -140,19 +146,19 @@ describe('OptionsBuilder', () => {
 
   it('should reject invalid nested paths', () => {
     expect(() => {
-      new OptionsBuilder().addNested('test', '', 'value').build();
+      new OptionsBuilder().addNested('', 'value').build();
     }).toThrow('Nested path cannot be empty');
 
     expect(() => {
-      new OptionsBuilder().addNested('test', 'a..b', 'value').build();
+      new OptionsBuilder().addNested('a..b', 'value').build();
     }).toThrow('Invalid nested path: "a..b"');
 
     expect(() => {
-      new OptionsBuilder().addNested('test', 'a.', 'value').build();
+      new OptionsBuilder().addNested('a.', 'value').build();
     }).toThrow('Invalid nested path: "a."');
 
     expect(() => {
-      new OptionsBuilder().addNested('test', '.a', 'value').build();
+      new OptionsBuilder().addNested('.a', 'value').build();
     }).toThrow('Invalid nested path: ".a"');
   });
 
@@ -162,7 +168,7 @@ describe('OptionsBuilder', () => {
     };
 
     const result = new OptionsBuilder<DeepOptions>()
-      .addNested('deep', 'a.b.c.d.e.f.g', 'value')
+      .addNested('a.b.c.d.e.f.g', 'value')
       .build();
 
     expect(result.a?.b?.c?.d?.e?.f?.g).toBe('value');

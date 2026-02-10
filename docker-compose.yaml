@@ -20,56 +20,84 @@ x-common-service: &common-service
     - .env
 
 services:
-  embedder-daemon:
+  firecrawl-embedder:
     <<: *common-service
     image: node:20-alpine
-    container_name: firecrawl-embedder-daemon
+    container_name: firecrawl-embedder
     working_dir: /app
     volumes:
       - .:/app
+      - ${EMBEDDER_QUEUE_DIR:-./data/embed-queue}:/app/.cache/embed-queue
     environment:
       FIRECRAWL_API_URL: http://firecrawl:53002
-      QDRANT_URL: http://qdrant:6333
+      QDRANT_URL: http://firecrawl-qdrant:6333
+      FIRECRAWL_EMBEDDER_QUEUE_DIR: /app/.cache/embed-queue
     command: node dist/embedder-daemon.js
     ports:
       - "53000:53000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:53000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
-  playwright:
+  firecrawl-playwright:
     <<: *common-service
     image: loorisr/patchright-scrape-api:latest
-    container_name: playwright
+    container_name: firecrawl-playwright
     environment:
       PORT: "${PLAYWRIGHT_PORT:-53006}"
+    volumes:
+      - ./patchright-app.py:/app/app.py:ro
     tmpfs:
       - /tmp/.cache:noexec,nosuid,size=1g
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python3", "-c", "import socket; s=socket.create_connection(('localhost', ${PLAYWRIGHT_PORT:-53006}), timeout=5); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-  api:
+  firecrawl:
     <<: *common-service
     image: ghcr.io/firecrawl/firecrawl:latest
     container_name: firecrawl
     environment:
       PORT: ${FIRECRAWL_PORT:-53002}
     depends_on:
-      redis:
-        condition: service_started
-      playwright:
-        condition: service_started
-      rabbitmq:
+      firecrawl-redis:
+        condition: service_healthy
+      firecrawl-playwright:
+        condition: service_healthy
+      firecrawl-rabbitmq:
         condition: service_healthy
     ports:
       - "${FIRECRAWL_PORT:-53002}:${FIRECRAWL_PORT:-53002}"
     command: node dist/src/harness.js --start-docker
+    healthcheck:
+      test: ["CMD", "bash", "-c", "timeout 5 bash -c '</dev/tcp/localhost/${FIRECRAWL_PORT:-53002}' 2>/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
-  redis:
+  firecrawl-redis:
     <<: *common-service
     image: redis:alpine
-    container_name: redis
+    container_name: firecrawl-redis
     command: redis-server --bind 0.0.0.0 --port "${REDIS_PORT:-53379}"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "${REDIS_PORT:-53379}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
-  rabbitmq:
+  firecrawl-rabbitmq:
     <<: *common-service
     image: rabbitmq:3-management
-    container_name: rabbitmq
+    container_name: firecrawl-rabbitmq
     command: rabbitmq-server
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
@@ -93,15 +121,21 @@ services:
         "max_worker_processes=32",
       ]
 
-  qdrant:
+  firecrawl-qdrant:
     <<: *common-service
     image: qdrant/qdrant:latest
-    container_name: qdrant
+    container_name: firecrawl-qdrant
     ports:
       - "${QDRANT_REST_PORT:-53333}:6333"
       - "${QDRANT_RPC_PORT:-53334}:6334"
     volumes:
-      - /home/jmagar/appdata/qdrant:/qdrant/storage
+      - ${QDRANT_DATA_DIR:-./data/qdrant}:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "bash", "-c", "timeout 5 bash -c '</dev/tcp/localhost/6333' 2>/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
 networks:
   jakenet:

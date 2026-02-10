@@ -8,12 +8,10 @@ import * as fs from 'node:fs';
 import type { IContainer } from '../container/types';
 import type { EmbedOptions, EmbedResult } from '../types/embed';
 import { chunkText } from '../utils/chunker';
-import { formatJson, handleCommandError } from '../utils/command';
-import { getConfig } from '../utils/config';
-import { embedChunks, getTeiInfo } from '../utils/embeddings';
-import { writeOutput } from '../utils/output';
-import { deleteByUrl, ensureCollection, upsertPoints } from '../utils/qdrant';
+import { processCommandResult } from '../utils/command';
+import { fmt, icons } from '../utils/theme';
 import { isUrl } from '../utils/url';
+import { requireContainer, resolveCollectionName } from './shared';
 
 /**
  * Read stdin as a string
@@ -34,11 +32,9 @@ export async function executeEmbed(
   options: EmbedOptions
 ): Promise<EmbedResult> {
   try {
-    const config = container.config;
-    const teiUrl = config.teiUrl;
-    const qdrantUrl = config.qdrantUrl;
-    const collection =
-      options.collection || config.qdrantCollection || 'firecrawl_collection';
+    const teiUrl = container.config.teiUrl;
+    const qdrantUrl = container.config.qdrantUrl;
+    const collection = resolveCollectionName(container, options.collection);
 
     if (!teiUrl || !qdrantUrl) {
       return {
@@ -96,11 +92,15 @@ export async function executeEmbed(
       };
     }
 
+    // Get services from container
+    const teiService = container.getTeiService();
+    const qdrantService = container.getQdrantService();
+
     // Get TEI dimension
-    const teiInfo = await getTeiInfo(teiUrl);
+    const teiInfo = await teiService.getTeiInfo();
 
     // Ensure collection exists
-    await ensureCollection(qdrantUrl, collection, teiInfo.dimension);
+    await qdrantService.ensureCollection(collection, teiInfo.dimension);
 
     // Chunk content
     const chunks = options.noChunk
@@ -116,10 +116,10 @@ export async function executeEmbed(
 
     // Generate embeddings
     const texts = chunks.map((c) => c.text);
-    const vectors = await embedChunks(teiUrl, texts);
+    const vectors = await teiService.embedChunks(texts);
 
     // Delete old vectors then upsert new ones
-    await deleteByUrl(qdrantUrl, collection, url);
+    await qdrantService.deleteByUrl(collection, url);
 
     const now = new Date().toISOString();
     let domain: string;
@@ -146,7 +146,7 @@ export async function executeEmbed(
       },
     }));
 
-    await upsertPoints(qdrantUrl, collection, points);
+    await qdrantService.upsertPoints(collection, points);
 
     return {
       success: true,
@@ -171,57 +171,85 @@ export async function handleEmbedCommand(
   container: IContainer,
   options: EmbedOptions
 ): Promise<void> {
-  const result = await executeEmbed(container, options);
-
-  // Use shared error handler
-  if (!handleCommandError(result)) {
-    return;
-  }
-
-  if (!result.data) return;
-
-  let outputContent: string;
-
-  if (options.json) {
-    outputContent = formatJson({
-      success: true,
-      data: result.data,
-    });
-  } else {
-    outputContent = `Embedded ${result.data.chunksEmbedded} chunks for ${result.data.url} into ${result.data.collection}`;
-  }
-
-  writeOutput(outputContent, options.output, !!options.output);
+  processCommandResult(
+    await executeEmbed(container, options),
+    options,
+    (data) =>
+      `${icons.success} Embedded ${data.chunksEmbedded} chunks for ${fmt.dim(data.url)} into ${fmt.dim(data.collection)}`
+  );
 }
 
 import { Command } from 'commander';
+import { createContainerWithOverride } from '../container/ContainerFactory';
 import { ensureAuthenticated } from '../utils/auth';
+import { loadCredentials } from '../utils/credentials';
+import { getEmbedJob, removeEmbedJob } from '../utils/embed-queue';
 import { normalizeUrl } from '../utils/url';
 
 /**
+ * Handle embed cancel command
+ */
+async function handleCancelCommand(
+  jobId: string
+): Promise<{ success: boolean; error?: string }> {
+  const job = await getEmbedJob(jobId);
+
+  if (!job) {
+    return {
+      success: false,
+      error: `Embed job ${jobId} not found`,
+    };
+  }
+
+  await removeEmbedJob(jobId);
+  console.log(`${icons.success} Cancelled embed job ${fmt.dim(jobId)}`);
+  return { success: true };
+}
+
+/**
  * Create and configure the embed command
+ *
+ * UX Pattern: Uses subcommands for actions (e.g., `embed cancel <id>`)
+ * instead of option flags. This is the preferred pattern for CLI UX:
+ * - Better discoverability
+ * - Clear semantic intent
+ * - Follows standard CLI conventions (resource action target)
  */
 export function createEmbedCommand(): Command {
-  const embedCmd = new Command('embed')
-    .description('Embed content into Qdrant vector database')
-    .argument('<input>', 'URL to scrape and embed, file path, or "-" for stdin')
+  const embedCmd = new Command('embed').description(
+    'Embed content into Qdrant vector database'
+  );
+
+  // Default embed action (when no subcommand is used)
+  embedCmd
+    .argument('[input]', 'URL to scrape and embed, file path, or "-" for stdin')
     .option(
       '--url <url>',
       'Explicit URL for metadata (required for file/stdin)'
     )
-    .option('--collection <name>', 'Qdrant collection name')
-    .option('--no-chunk', 'Disable chunking, embed as single vector')
+    .option(
+      '--collection <name>',
+      'Qdrant collection name (default: firecrawl)'
+    )
+    .option(
+      '--no-chunk',
+      'Disable chunking, embed as single vector (default: false)',
+      false
+    )
     .option(
       '-k, --api-key <key>',
       'Firecrawl API key (overrides global --api-key)'
     )
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as JSON format', false)
-    .action(async (input: string, options, command: Command) => {
-      const container = command._container;
-      if (!container) {
-        throw new Error('Container not initialized');
+    .action(async (input: string | undefined, options, command: Command) => {
+      // If no input provided and no subcommand, show help
+      if (!input) {
+        command.help();
+        return;
       }
+
+      let container = requireContainer(command);
 
       // Normalize URL input (but not file paths or stdin "-")
       const normalizedInput = isUrl(input) ? normalizeUrl(input) : input;
@@ -231,7 +259,14 @@ export function createEmbedCommand(): Command {
         normalizedInput.startsWith('http://') ||
         normalizedInput.startsWith('https://')
       ) {
-        await ensureAuthenticated();
+        const apiKey = await ensureAuthenticated(container.config.apiKey);
+        if (apiKey !== container.config.apiKey) {
+          const storedCredentials = loadCredentials();
+          container = createContainerWithOverride(container, {
+            apiKey,
+            apiUrl: storedCredentials?.apiUrl ?? container.config.apiUrl,
+          });
+        }
       }
 
       await handleEmbedCommand(container, {
@@ -243,6 +278,19 @@ export function createEmbedCommand(): Command {
         output: options.output,
         json: options.json,
       });
+    });
+
+  // Add cancel subcommand
+  embedCmd
+    .command('cancel')
+    .description('Cancel a pending embedding job')
+    .argument('<job-id>', 'Job ID to cancel')
+    .action(async (jobId: string) => {
+      const result = await handleCancelCommand(jobId);
+      if (!result.success) {
+        console.error(fmt.error(result.error || 'Unknown error'));
+        process.exit(1);
+      }
     });
 
   return embedCmd;

@@ -1,8 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { formatCrawlStatus } from '../../../commands/crawl/format';
 import type { CrawlStatusResult } from '../../../types/crawl';
 
 describe('formatCrawlStatus', () => {
+  let originalLang: string | undefined;
+
+  beforeEach(() => {
+    originalLang = process.env.LANG;
+  });
+
+  afterEach(() => {
+    if (originalLang === undefined) {
+      delete process.env.LANG;
+    } else {
+      process.env.LANG = originalLang;
+    }
+  });
   it('should format complete crawl status', () => {
     const data: CrawlStatusResult['data'] = {
       id: 'test-job-123',
@@ -141,5 +154,76 @@ describe('formatCrawlStatus', () => {
 
     expect(result).toContain('Status: failed');
     expect(result).toContain('Progress: 50/100 pages');
+  });
+
+  it('should fallback to en-US for invalid locale', () => {
+    // Set invalid locale
+    process.env.LANG = 'invalid_locale.UTF-8';
+
+    const data: CrawlStatusResult['data'] = {
+      id: 'test-job-555',
+      status: 'completed',
+      total: 1,
+      completed: 1,
+      expiresAt: '2026-12-25T15:45:30.000Z',
+    };
+
+    const result = formatCrawlStatus(data);
+
+    // Should still format successfully (fallback to en-US)
+    expect(result).toContain('Expires:');
+    expect(result).toMatch(/Dec/);
+  });
+
+  it('should handle locale from LANG environment variable', () => {
+    // Set valid locale (de_DE = German)
+    process.env.LANG = 'de_DE.UTF-8';
+
+    const data: CrawlStatusResult['data'] = {
+      id: 'test-job-666',
+      status: 'completed',
+      total: 1,
+      completed: 1,
+      expiresAt: '2026-12-25T15:45:30.000Z',
+    };
+
+    const result = formatCrawlStatus(data);
+
+    // Should format successfully
+    expect(result).toContain('Expires:');
+  });
+
+  it('should fallback to ISO string if toLocaleString throws', () => {
+    const data: CrawlStatusResult['data'] = {
+      id: 'test-job-777',
+      status: 'completed',
+      total: 1,
+      completed: 1,
+      expiresAt: 'invalid-date',
+    };
+
+    const result = formatCrawlStatus(data);
+
+    // Should still contain Expires line (fallback to ISO)
+    expect(result).toContain('Expires:');
+  });
+
+  it('should handle C locale gracefully', () => {
+    // Set C locale (no locale preferences)
+    process.env.LANG = 'C';
+
+    const data: CrawlStatusResult['data'] = {
+      id: 'test-job-888',
+      status: 'completed',
+      total: 1,
+      completed: 1,
+      expiresAt: '2026-12-25T15:45:30.000Z',
+    };
+
+    const result = formatCrawlStatus(data);
+
+    // Should use default en-US locale
+    expect(result).toContain('Expires:');
+    expect(result).toMatch(/Dec/);
   });
 });

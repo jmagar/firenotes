@@ -29,7 +29,6 @@ pnpm-debug.log*
 Thumbs.db
 
 # Testing
-coverage/
 .nyc_output/
 
 # Python
@@ -40,6 +39,7 @@ __pycache__/
 *.tmp
 *.temp
 .cache/
+.full-review/
 
 .firecrawl/
 

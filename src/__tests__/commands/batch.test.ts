@@ -5,27 +5,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBatchCommand, executeBatch } from '../../commands/batch';
 import type { IContainer } from '../../container/types';
+import type { CommandWithContainer } from '../../types/test';
 import { writeOutput } from '../../utils/output';
-import { setupTest, teardownTest } from '../utils/mock-client';
+import type { MockFirecrawlClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
+
+const createContainer = (...args: Parameters<typeof createTestContainer>) =>
+  createTestContainer(...args);
 
 vi.mock('../../utils/output', () => ({
   writeOutput: vi.fn(),
 }));
 
 describe('executeBatch', () => {
-  let mockClient: {
-    startBatchScrape: ReturnType<typeof vi.fn>;
-    batchScrape: ReturnType<typeof vi.fn>;
-    getBatchScrapeStatus: ReturnType<typeof vi.fn>;
-    getBatchScrapeErrors: ReturnType<typeof vi.fn>;
-    cancelBatchScrape: ReturnType<typeof vi.fn>;
-  };
+  let mockClient: Partial<MockFirecrawlClient>;
   let container: IContainer;
 
   beforeEach(() => {
-    setupTest();
-
     mockClient = {
       startBatchScrape: vi.fn(),
       batchScrape: vi.fn(),
@@ -34,16 +30,15 @@ describe('executeBatch', () => {
       cancelBatchScrape: vi.fn(),
     };
 
-    container = createTestContainer(mockClient as any);
+    container = createContainer(mockClient);
   });
 
   afterEach(() => {
-    teardownTest();
     vi.clearAllMocks();
   });
 
   it('should start batch scrape when wait is false', async () => {
-    mockClient.startBatchScrape.mockResolvedValue({
+    mockClient.startBatchScrape?.mockResolvedValue({
       id: 'batch-1',
       url: 'https://api.firecrawl.dev/v2/batch/scrape/batch-1',
     });
@@ -62,7 +57,7 @@ describe('executeBatch', () => {
   });
 
   it('should wait batch scrape when wait is true', async () => {
-    mockClient.batchScrape.mockResolvedValue({
+    mockClient.batchScrape?.mockResolvedValue({
       id: 'batch-1',
       status: 'completed',
       completed: 2,
@@ -86,9 +81,72 @@ describe('executeBatch', () => {
       'completed'
     );
   });
+});
 
-  it('should get batch status by job id', async () => {
-    mockClient.getBatchScrapeStatus.mockResolvedValue({
+describe('createBatchCommand', () => {
+  it('should define the batch command', () => {
+    const cmd = createBatchCommand();
+    expect(cmd.name()).toBe('batch');
+  });
+
+  it('should write output when executing', async () => {
+    const testMockClient: Partial<MockFirecrawlClient> = {
+      startBatchScrape: vi.fn().mockResolvedValue({ id: 'batch-1', url: 'u' }),
+      batchScrape: vi.fn(),
+      getBatchScrapeStatus: vi.fn(),
+      getBatchScrapeErrors: vi.fn(),
+      cancelBatchScrape: vi.fn(),
+    };
+    const testContainer = createTestContainer(testMockClient);
+
+    const cmd = createBatchCommand() as unknown as CommandWithContainer;
+    cmd.exitOverride();
+    cmd._container = testContainer;
+
+    await cmd.parseAsync(['node', 'test', 'https://a.com'], { from: 'node' });
+
+    expect(writeOutput).toHaveBeenCalled();
+  });
+});
+
+describe('batch status subcommand', () => {
+  let mockClient: Partial<MockFirecrawlClient>;
+  let container: IContainer;
+
+  beforeEach(() => {
+    mockClient = {
+      startBatchScrape: vi.fn(),
+      batchScrape: vi.fn(),
+      getBatchScrapeStatus: vi.fn(),
+      getBatchScrapeErrors: vi.fn(),
+      cancelBatchScrape: vi.fn(),
+    };
+
+    container = createContainer(mockClient);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should have status subcommand', () => {
+    const cmd = createBatchCommand();
+    const statusCmd = cmd.commands.find((c) => c.name() === 'status');
+    expect(statusCmd).toBeDefined();
+  });
+
+  it('should require job-id argument', async () => {
+    const cmd = createBatchCommand() as unknown as CommandWithContainer;
+    cmd.exitOverride();
+    cmd._container = container;
+
+    await expect(
+      cmd.parseAsync(['node', 'test', 'status'], { from: 'node' })
+    ).rejects.toThrow();
+  });
+
+  it('should call SDK getBatchScrapeStatus with job-id', async () => {
+    mockClient.getBatchScrapeStatus?.mockResolvedValue({
       id: 'batch-1',
       status: 'scraping',
       completed: 1,
@@ -96,30 +154,101 @@ describe('executeBatch', () => {
       data: [],
     });
 
-    const result = await executeBatch(container, {
-      jobId: 'batch-1',
-      status: true,
+    const cmd = createBatchCommand() as unknown as CommandWithContainer;
+    cmd.exitOverride();
+    cmd._container = container;
+
+    await cmd.parseAsync(['node', 'test', 'status', 'batch-1'], {
+      from: 'node',
     });
 
     expect(mockClient.getBatchScrapeStatus).toHaveBeenCalledWith('batch-1');
-    expect(result.success).toBe(true);
+    expect(writeOutput).toHaveBeenCalled();
+  });
+});
+
+describe('batch cancel subcommand', () => {
+  let mockClient: Partial<MockFirecrawlClient>;
+  let container: IContainer;
+
+  beforeEach(() => {
+    mockClient = {
+      startBatchScrape: vi.fn(),
+      batchScrape: vi.fn(),
+      getBatchScrapeStatus: vi.fn(),
+      getBatchScrapeErrors: vi.fn(),
+      cancelBatchScrape: vi.fn(),
+    };
+
+    container = createContainer(mockClient);
   });
 
-  it('should cancel batch scrape job', async () => {
-    mockClient.cancelBatchScrape.mockResolvedValue(true);
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
 
-    const result = await executeBatch(container, {
-      jobId: 'batch-1',
-      cancel: true,
+  it('should have cancel subcommand', () => {
+    const cmd = createBatchCommand();
+    const cancelCmd = cmd.commands.find((c) => c.name() === 'cancel');
+    expect(cancelCmd).toBeDefined();
+  });
+
+  it('should call SDK cancelBatchScrape', async () => {
+    mockClient.cancelBatchScrape?.mockResolvedValue(true);
+
+    const cmd = createBatchCommand() as unknown as CommandWithContainer;
+    cmd.exitOverride();
+    cmd._container = container;
+
+    await cmd.parseAsync(['node', 'test', 'cancel', 'batch-1'], {
+      from: 'node',
     });
 
     expect(mockClient.cancelBatchScrape).toHaveBeenCalledWith('batch-1');
-    expect(result.success).toBe(true);
-    expect(result.data).toEqual({ success: true, message: 'cancelled' });
+    expect(writeOutput).toHaveBeenCalled();
   });
 
-  it('should get batch scrape errors', async () => {
-    mockClient.getBatchScrapeErrors.mockResolvedValue({
+  it('should handle cancel failure', async () => {
+    mockClient.cancelBatchScrape?.mockResolvedValue(false);
+
+    const cmd = createBatchCommand() as unknown as CommandWithContainer;
+    cmd.exitOverride();
+    cmd._container = container;
+
+    await expect(
+      cmd.parseAsync(['node', 'test', 'cancel', 'batch-1'], { from: 'node' })
+    ).rejects.toThrow();
+  });
+});
+
+describe('batch errors subcommand', () => {
+  let mockClient: Partial<MockFirecrawlClient>;
+  let container: IContainer;
+
+  beforeEach(() => {
+    mockClient = {
+      startBatchScrape: vi.fn(),
+      batchScrape: vi.fn(),
+      getBatchScrapeStatus: vi.fn(),
+      getBatchScrapeErrors: vi.fn(),
+      cancelBatchScrape: vi.fn(),
+    };
+
+    container = createContainer(mockClient);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should have errors subcommand', () => {
+    const cmd = createBatchCommand();
+    const errorsCmd = cmd.commands.find((c) => c.name() === 'errors');
+    expect(errorsCmd).toBeDefined();
+  });
+
+  it('should call SDK getBatchScrapeErrors', async () => {
+    mockClient.getBatchScrapeErrors?.mockResolvedValue({
       errors: [
         {
           id: 'err-1',
@@ -131,68 +260,15 @@ describe('executeBatch', () => {
       robotsBlocked: ['https://b.com/robots'],
     });
 
-    const result = await executeBatch(container, {
-      jobId: 'batch-1',
-      errors: true,
+    const cmd = createBatchCommand() as unknown as CommandWithContainer;
+    cmd.exitOverride();
+    cmd._container = container;
+
+    await cmd.parseAsync(['node', 'test', 'errors', 'batch-1'], {
+      from: 'node',
     });
 
     expect(mockClient.getBatchScrapeErrors).toHaveBeenCalledWith('batch-1');
-    expect(result.success).toBe(true);
-    expect(
-      (result.data as { errors?: unknown[] } | undefined)?.errors?.length
-    ).toBe(1);
-  });
-});
-
-describe('createBatchCommand', () => {
-  it('should define the batch command', () => {
-    const cmd = createBatchCommand();
-    expect(cmd.name()).toBe('batch');
-  });
-
-  it('should require job id for --status', async () => {
-    const cmd = createBatchCommand();
-    cmd.exitOverride();
-
-    await expect(
-      cmd.parseAsync(['node', 'test', '--status'], { from: 'node' })
-    ).rejects.toThrow();
-  });
-
-  it('should require job id for --cancel', async () => {
-    const cmd = createBatchCommand();
-    cmd.exitOverride();
-
-    await expect(
-      cmd.parseAsync(['node', 'test', '--cancel'], { from: 'node' })
-    ).rejects.toThrow();
-  });
-
-  it('should require job id for --errors', async () => {
-    const cmd = createBatchCommand();
-    cmd.exitOverride();
-
-    await expect(
-      cmd.parseAsync(['node', 'test', '--errors'], { from: 'node' })
-    ).rejects.toThrow();
-  });
-
-  it('should write output when executing', async () => {
-    const mockClient = {
-      startBatchScrape: vi.fn().mockResolvedValue({ id: 'batch-1', url: 'u' }),
-      batchScrape: vi.fn(),
-      getBatchScrapeStatus: vi.fn(),
-      getBatchScrapeErrors: vi.fn(),
-      cancelBatchScrape: vi.fn(),
-    };
-    const testContainer = createTestContainer(mockClient as any);
-
-    const cmd = createBatchCommand();
-    cmd.exitOverride();
-    (cmd as any)._container = testContainer;
-
-    await cmd.parseAsync(['node', 'test', 'https://a.com'], { from: 'node' });
-
     expect(writeOutput).toHaveBeenCalled();
   });
 });

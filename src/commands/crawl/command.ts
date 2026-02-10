@@ -9,11 +9,13 @@ import type {
   CrawlResult,
   CrawlStatusResult,
 } from '../../types/crawl';
-import { formatJson } from '../../utils/command';
-import { isJobId } from '../../utils/job';
+import { formatJson, writeCommandOutput } from '../../utils/command';
+import { displayCommandInfo } from '../../utils/display';
+import { isJobId, normalizeJobId } from '../../utils/job';
 import { recordJob } from '../../utils/job-history';
-import { writeOutput } from '../../utils/output';
+import { fmt } from '../../utils/theme';
 import { normalizeUrl } from '../../utils/url';
+import { requireContainer, requireContainerFromCommandTree } from '../shared';
 import {
   handleAsyncEmbedding,
   handleManualEmbedding,
@@ -21,7 +23,11 @@ import {
 } from './embed';
 import { executeCrawl } from './execute';
 import { formatCrawlStatus } from './format';
-import { executeCrawlCancel, executeCrawlErrors } from './status';
+import {
+  checkCrawlStatus,
+  executeCrawlCancel,
+  executeCrawlErrors,
+} from './status';
 
 /**
  * Type guard to check if result data is a status-only result
@@ -57,40 +63,8 @@ export async function handleCrawlCommand(
   options: CrawlOptions
 ): Promise<void> {
   if (!options.urlOrJobId) {
-    console.error('Error: URL or job ID is required.');
-    process.exit(1);
-    return; // Ensure early return for testing
-  }
-
-  // Handle cancel operation
-  if (options.cancel) {
-    const result = await executeCrawlCancel(container, options.urlOrJobId);
-    if (!result.success) {
-      console.error('Error:', result.error || 'Unknown error occurred');
-      process.exit(1);
-      return;
-    }
-    const outputContent = formatJson(
-      { success: true, data: result.data },
-      options.pretty
-    );
-    writeOutput(outputContent, options.output, !!options.output);
-    return;
-  }
-
-  // Handle errors operation
-  if (options.errors) {
-    const result = await executeCrawlErrors(container, options.urlOrJobId);
-    if (!result.success) {
-      console.error('Error:', result.error || 'Unknown error occurred');
-      process.exit(1);
-      return;
-    }
-    const outputContent = formatJson(
-      { success: true, data: result.data },
-      options.pretty
-    );
-    writeOutput(outputContent, options.output, !!options.output);
+    console.error(fmt.error('URL or job ID is required.'));
+    process.exitCode = 1;
     return;
   }
 
@@ -100,14 +74,27 @@ export async function handleCrawlCommand(
     return;
   }
 
+  // Display command info
+  displayCommandInfo('Crawling', options.urlOrJobId, {
+    maxDepth: options.maxDepth,
+    limit: options.limit,
+    allowSubdomains: options.allowSubdomains,
+    ignoreQueryParameters: options.ignoreQueryParameters,
+    onlyMainContent: options.onlyMainContent,
+    excludeTags: options.excludeTags,
+    excludePaths: options.excludePaths,
+    wait: options.wait,
+    progress: options.progress,
+  });
+
   // Execute crawl
   const result = await executeCrawl(container, options);
 
   // Handle errors
   if (!result.success) {
-    console.error('Error:', result.error || 'Unknown error occurred');
-    process.exit(1);
-    return; // Ensure early return for testing
+    console.error(fmt.error(result.error || 'Unknown error occurred'));
+    process.exitCode = 1;
+    return;
   }
 
   // Handle status check result - distinguish by absence of 'jobId' and 'data' properties
@@ -122,7 +109,17 @@ export async function handleCrawlCommand(
               { success: true, data: statusResult.data },
               options.pretty
             );
-      writeOutput(outputContent, options.output, !!options.output);
+      try {
+        writeCommandOutput(outputContent, options);
+      } catch (error) {
+        console.error(
+          fmt.error(
+            error instanceof Error ? error.message : 'Invalid output path'
+          )
+        );
+        process.exitCode = 1;
+        return;
+      }
       return;
     }
   }
@@ -140,6 +137,7 @@ export async function handleCrawlCommand(
       await handleAsyncEmbedding(
         crawlResult.data.jobId,
         options.urlOrJobId ?? crawlResult.data.url,
+        container.config,
         options.apiKey
       );
     } else {
@@ -152,22 +150,143 @@ export async function handleCrawlCommand(
   let outputContent: string;
   if ('jobId' in crawlResult.data) {
     // Job ID response
-    recordJob('crawl', crawlResult.data.jobId);
+    await recordJob('crawl', crawlResult.data.jobId);
     const jobData = {
       jobId: crawlResult.data.jobId,
       url: crawlResult.data.url,
       status: crawlResult.data.status,
     };
-    outputContent = formatJson(
-      { success: true, data: jobData },
-      options.pretty
-    );
+    if (options.output) {
+      outputContent = formatJson(
+        { success: true, data: jobData },
+        options.pretty
+      );
+    } else {
+      outputContent = [
+        `  ${fmt.primary('Job ID:')} ${fmt.dim(jobData.jobId)}`,
+        `  ${fmt.primary('Status:')} ${jobData.status}`,
+        `  ${fmt.primary('URL:')} ${fmt.dim(jobData.url)}`,
+      ].join('\n');
+    }
   } else {
     // Completed crawl - output the data
     outputContent = formatJson(crawlResult.data, options.pretty);
   }
 
-  writeOutput(outputContent, options.output, !!options.output);
+  try {
+    writeCommandOutput(outputContent, options);
+  } catch (error) {
+    console.error(
+      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
+    );
+    process.exitCode = 1;
+    return;
+  }
+}
+
+/**
+ * Handle crawl status subcommand
+ *
+ * @param container - Dependency injection container
+ * @param jobId - Crawl job ID
+ * @param options - Command options (output, pretty)
+ */
+async function handleCrawlStatusCommand(
+  container: IContainer,
+  jobId: string,
+  options: { output?: string; pretty?: boolean }
+): Promise<void> {
+  const result = await checkCrawlStatus(container, jobId);
+
+  if (!result.success) {
+    console.error(fmt.error(result.error || 'Unknown error occurred'));
+    process.exitCode = 1;
+    return;
+  }
+
+  const outputContent =
+    options.pretty || !options.output
+      ? formatCrawlStatus(result.data)
+      : formatJson({ success: true, data: result.data }, options.pretty);
+  try {
+    writeCommandOutput(outputContent, options);
+  } catch (error) {
+    console.error(
+      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
+    );
+    process.exitCode = 1;
+    return;
+  }
+}
+
+/**
+ * Handle crawl cancel subcommand
+ *
+ * @param container - Dependency injection container
+ * @param jobId - Crawl job ID
+ * @param options - Command options (output, pretty)
+ */
+async function handleCrawlCancelCommand(
+  container: IContainer,
+  jobId: string,
+  options: { output?: string; pretty?: boolean }
+): Promise<void> {
+  const result = await executeCrawlCancel(container, jobId);
+
+  if (!result.success) {
+    console.error(fmt.error(result.error || 'Unknown error occurred'));
+    process.exitCode = 1;
+    return;
+  }
+
+  const outputContent = formatJson(
+    { success: true, data: result.data },
+    options.pretty
+  );
+  try {
+    writeCommandOutput(outputContent, options);
+  } catch (error) {
+    console.error(
+      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
+    );
+    process.exitCode = 1;
+    return;
+  }
+}
+
+/**
+ * Handle crawl errors subcommand
+ *
+ * @param container - Dependency injection container
+ * @param jobId - Crawl job ID
+ * @param options - Command options (output, pretty)
+ */
+async function handleCrawlErrorsCommand(
+  container: IContainer,
+  jobId: string,
+  options: { output?: string; pretty?: boolean }
+): Promise<void> {
+  const result = await executeCrawlErrors(container, jobId);
+
+  if (!result.success) {
+    console.error(fmt.error(result.error || 'Unknown error occurred'));
+    process.exitCode = 1;
+    return;
+  }
+
+  const outputContent = formatJson(
+    { success: true, data: result.data },
+    options.pretty
+  );
+  try {
+    writeCommandOutput(outputContent, options);
+  } catch (error) {
+    console.error(
+      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
+    );
+    process.exitCode = 1;
+    return;
+  }
 }
 
 /**
@@ -178,14 +297,11 @@ export async function handleCrawlCommand(
 export function createCrawlCommand(): Command {
   const crawlCmd = new Command('crawl')
     .description('Crawl a website using Firecrawl')
-    .argument('[url-or-job-id]', 'URL to crawl or job ID to check status')
+    .argument('[url]', 'URL to crawl')
     .option(
       '-u, --url <url>',
       'URL to crawl (alternative to positional argument)'
     )
-    .option('--cancel', 'Cancel an existing crawl job', false)
-    .option('--errors', 'Fetch crawl errors for a job ID', false)
-    .option('--status', 'Check status of existing crawl job', false)
     .option(
       '--wait',
       'Wait for crawl to complete before returning results',
@@ -201,15 +317,14 @@ export function createCrawlCommand(): Command {
       'Timeout in seconds when waiting for crawl job to complete (default: no timeout)',
       parseFloat
     )
-    .option(
-      '--scrape-timeout <seconds>',
-      'Per-page scrape timeout in seconds (default: 15)',
-      parseFloat,
-      15
-    )
     .option('--progress', 'Show progress while waiting (implies --wait)', false)
     .option('--limit <number>', 'Maximum number of pages to crawl', parseInt)
-    .option('--max-depth <number>', 'Maximum crawl depth', parseInt)
+    .option(
+      '--max-depth <number>',
+      'Maximum crawl depth',
+      (value: string) => parseInt(value, 10),
+      3
+    )
     .option(
       '--exclude-paths <paths>',
       'Comma-separated list of paths to exclude'
@@ -218,15 +333,39 @@ export function createCrawlCommand(): Command {
       '--include-paths <paths>',
       'Comma-separated list of paths to include'
     )
-    .option('--sitemap <mode>', 'Sitemap handling: skip, include', 'include')
+    .option(
+      '--sitemap <mode>',
+      'Sitemap handling: skip, include (default: include)',
+      'include'
+    )
     .option(
       '--ignore-query-parameters',
       'Ignore query parameters when crawling',
-      false
+      true
+    )
+    .option(
+      '--no-ignore-query-parameters',
+      'Include query parameters when crawling'
     )
     .option('--crawl-entire-domain', 'Crawl entire domain', false)
     .option('--allow-external-links', 'Allow external links', false)
-    .option('--allow-subdomains', 'Allow subdomains', false)
+    .option('--allow-subdomains', 'Allow subdomains', true)
+    .option('--no-allow-subdomains', 'Disallow subdomains')
+    .option(
+      '--only-main-content',
+      'Include only main content when scraping pages',
+      true
+    )
+    .option('--no-only-main-content', 'Include full page content')
+    .option(
+      '--exclude-tags <tags>',
+      'Comma-separated list of tags to exclude from scraped content',
+      'nav,footer'
+    )
+    .option(
+      '--include-tags <tags>',
+      'Comma-separated list of tags to include in scraped content'
+    )
     .option('--delay <ms>', 'Delay between requests in milliseconds', parseInt)
     .option(
       '--max-concurrency <number>',
@@ -243,63 +382,40 @@ export function createCrawlCommand(): Command {
     .option('--no-embed', 'Skip auto-embedding of crawl results')
     .option('--no-default-excludes', 'Skip default exclude paths from settings')
     .action(async (positionalUrlOrJobId, options, command: Command) => {
-      const container = command._container;
-      if (!container) {
-        throw new Error('Container not initialized');
-      }
+      const container = requireContainer(command);
 
       // Use positional argument if provided, otherwise use --url option
       const urlOrJobId = positionalUrlOrJobId || options.url;
       if (!urlOrJobId) {
         console.error(
-          'Error: URL or job ID is required. Provide it as argument or use --url option.'
+          fmt.error(
+            'URL is required. Provide it as argument or use --url option.'
+          )
         );
-        process.exit(1);
+        process.exitCode = 1;
         return;
       }
 
-      if ((options.cancel || options.errors) && !isJobId(urlOrJobId)) {
+      // Job IDs are accepted here only for manual embedding.
+      if (isJobId(urlOrJobId) && !options.embed) {
         console.error(
-          'Error: job ID is required for --cancel/--errors (URLs are not valid).'
+          fmt.error(
+            'Job IDs are not accepted here. Use "firecrawl crawl status <job-id>" instead.'
+          )
         );
-        process.exit(1);
+        process.exitCode = 1;
         return;
       }
-
-      // Validate mutually exclusive options
-      if (options.cancel && options.errors) {
-        console.error('Error: --cancel and --errors are mutually exclusive');
-        process.exit(1);
-        return;
-      }
-
-      if (
-        (options.wait || options.progress) &&
-        (options.cancel || options.errors || options.status)
-      ) {
-        console.error(
-          'Error: --wait/--progress cannot be used with --cancel/--errors/--status'
-        );
-        process.exit(1);
-        return;
-      }
-
-      // Auto-detect if it's a job ID (UUID format)
-      const isStatusCheck =
-        options.status ||
-        options.cancel ||
-        options.errors ||
-        isJobId(urlOrJobId);
 
       const crawlOptions = {
-        urlOrJobId: isStatusCheck ? urlOrJobId : normalizeUrl(urlOrJobId),
-        status: isStatusCheck,
-        cancel: options.cancel,
-        errors: options.errors,
+        urlOrJobId:
+          options.embed && isJobId(urlOrJobId)
+            ? urlOrJobId
+            : normalizeUrl(urlOrJobId),
+        status: false,
         wait: options.wait,
         pollInterval: options.pollInterval,
         timeout: options.timeout,
-        scrapeTimeout: options.scrapeTimeout,
         progress: options.progress,
         output: options.output,
         pretty: options.pretty,
@@ -321,10 +437,59 @@ export function createCrawlCommand(): Command {
         maxConcurrency: options.maxConcurrency,
         embed: options.embed,
         noDefaultExcludes: options.defaultExcludes === false,
+        onlyMainContent: options.onlyMainContent,
+        excludeTags: options.excludeTags
+          ? options.excludeTags.split(',').map((t: string) => t.trim())
+          : undefined,
+        includeTags: options.includeTags
+          ? options.includeTags.split(',').map((t: string) => t.trim())
+          : undefined,
       };
 
       await handleCrawlCommand(container, crawlOptions);
     });
+
+  // Status subcommand
+  const statusCmd = new Command('status')
+    .description('Check status of a crawl job')
+    .argument('<job-id>', 'Crawl job ID or URL containing job ID')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--pretty', 'Pretty print JSON output', false)
+    .action(async (jobId: string, options, command: Command) => {
+      const container = requireContainerFromCommandTree(command);
+      const normalizedJobId = normalizeJobId(jobId);
+      await handleCrawlStatusCommand(container, normalizedJobId, options);
+    });
+
+  crawlCmd.addCommand(statusCmd);
+
+  // Cancel subcommand
+  const cancelCmd = new Command('cancel')
+    .description('Cancel a crawl job')
+    .argument('<job-id>', 'Crawl job ID or URL containing job ID')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--pretty', 'Pretty print JSON output', false)
+    .action(async (jobId: string, options, command: Command) => {
+      const container = requireContainerFromCommandTree(command);
+      const normalizedJobId = normalizeJobId(jobId);
+      await handleCrawlCancelCommand(container, normalizedJobId, options);
+    });
+
+  crawlCmd.addCommand(cancelCmd);
+
+  // Errors subcommand
+  const errorsCmd = new Command('errors')
+    .description('Get errors from a crawl job')
+    .argument('<job-id>', 'Crawl job ID or URL containing job ID')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--pretty', 'Pretty print JSON output', false)
+    .action(async (jobId: string, options, command: Command) => {
+      const container = requireContainerFromCommandTree(command);
+      const normalizedJobId = normalizeJobId(jobId);
+      await handleCrawlErrorsCommand(container, normalizedJobId, options);
+    });
+
+  crawlCmd.addCommand(errorsCmd);
 
   return crawlCmd;
 }

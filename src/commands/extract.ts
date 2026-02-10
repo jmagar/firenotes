@@ -2,11 +2,19 @@
  * Extract command implementation
  */
 
+import pLimit from 'p-limit';
 import type { IContainer } from '../container/types';
 import type { ExtractOptions, ExtractResult } from '../types/extract';
-import { formatJson, handleCommandError } from '../utils/command';
+import {
+  formatJson,
+  handleCommandError,
+  writeCommandOutput,
+} from '../utils/command';
+import { MAX_CONCURRENT_EMBEDS } from '../utils/constants';
+import { normalizeJobId } from '../utils/job';
 import { recordJob } from '../utils/job-history';
-import { writeOutput } from '../utils/output';
+import { fmt } from '../utils/theme';
+import { requireContainer, requireContainerFromCommandTree } from './shared';
 
 /**
  * Convert extracted data to human-readable text for embedding
@@ -41,28 +49,6 @@ export async function executeExtract(
 ): Promise<ExtractResult> {
   try {
     const app = container.getFirecrawlClient();
-
-    if (options.status && options.jobId) {
-      const status = await app.getExtractStatus(options.jobId);
-
-      if (status.error) {
-        return { success: false, error: status.error };
-      }
-
-      recordJob('extract', options.jobId);
-
-      return {
-        success: true,
-        data: {
-          extracted: status.data,
-          warning: status.warning,
-          status: status.status,
-          expiresAt: status.expiresAt,
-          tokensUsed: (status as { tokensUsed?: number }).tokensUsed,
-          sources: status.sources,
-        },
-      };
-    }
 
     // Build single-arg object for new Firecrawl SDK extract()
     const extractArgs: Record<string, unknown> = {
@@ -111,7 +97,7 @@ export async function executeExtract(
     }
 
     if ((result as { id?: string }).id) {
-      recordJob('extract', (result as { id?: string }).id as string);
+      await recordJob('extract', (result as { id?: string }).id as string);
     }
 
     return {
@@ -160,15 +146,6 @@ export async function handleExtractCommand(
 
   if (!result.data) return;
 
-  if (options.status) {
-    const outputContent = formatJson(
-      { success: true, data: result.data },
-      options.pretty
-    );
-    writeOutput(outputContent, options.output, !!options.output);
-    return;
-  }
-
   // Determine embed targets: prefer sources, fallback to input URLs
   const embedTargets =
     Array.isArray(result.data.sources) && result.data.sources.length > 0
@@ -181,13 +158,19 @@ export async function handleExtractCommand(
     const pipeline = container.getEmbedPipeline();
     const extractedText = extractionToText(result.data.extracted);
 
-    for (const targetUrl of embedTargets) {
-      await pipeline.autoEmbed(extractedText, {
-        url: targetUrl,
-        sourceCommand: 'extract',
-        contentType: 'extracted',
-      });
-    }
+    // Use p-limit for concurrency control
+    const limit = pLimit(MAX_CONCURRENT_EMBEDS);
+    const embedTasks = embedTargets.map((targetUrl) =>
+      limit(() =>
+        pipeline.autoEmbed(extractedText, {
+          url: targetUrl,
+          sourceCommand: 'extract',
+          contentType: 'extracted',
+        })
+      )
+    );
+
+    await Promise.all(embedTasks);
   }
 
   // Format output using shared utility
@@ -203,34 +186,89 @@ export async function handleExtractCommand(
   }
 
   const outputContent = formatJson(outputData, options.pretty);
-  writeOutput(outputContent, options.output, !!options.output);
+  writeCommandOutput(outputContent, options);
 }
 
 import { Command } from 'commander';
 import { normalizeUrl } from '../utils/url';
 
 /**
- * Create and configure the extract command
+ * Handle extract status command
  */
-export function createExtractCommand(): Command {
+async function handleExtractStatusCommand(
+  container: IContainer,
+  jobId: string,
+  options: { output?: string; pretty?: boolean }
+): Promise<void> {
+  try {
+    const app = container.getFirecrawlClient();
+    const status = await app.getExtractStatus(jobId);
+
+    if (status.error) {
+      console.error(fmt.error(status.error));
+      process.exit(1);
+    }
+
+    await recordJob('extract', jobId);
+
+    const result = {
+      success: true,
+      data: {
+        extracted: status.data,
+        warning: status.warning,
+        status: status.status,
+        expiresAt: status.expiresAt,
+        tokensUsed: (status as { tokensUsed?: number }).tokensUsed,
+        sources: status.sources,
+      },
+    };
+
+    const outputContent = formatJson(result, options.pretty);
+    writeCommandOutput(outputContent, options);
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error(fmt.error(message));
+    process.exit(1);
+  }
+}
+
+/**
+ * Create and configure the extract command
+ *
+ * UX Pattern: Uses subcommands for actions (e.g., `extract status <job-id>`)
+ * instead of option flags. This is the preferred pattern for CLI UX:
+ * - Better discoverability
+ * - Clear semantic intent
+ * - Follows standard CLI conventions (resource action target)
+ */
+export function createExtractCommand(container?: IContainer): Command {
   const extractCmd = new Command('extract')
     .description('Extract structured data from URLs using Firecrawl')
-    .argument(
-      '[urls-or-job-id...]',
-      'URL(s) to extract from or a job ID for status'
-    )
-    .option('--status', 'Get extract job status by ID', false)
+    .argument('[urls...]', 'URL(s) to extract from')
     .option('--prompt <prompt>', 'Extraction prompt describing what to extract')
     .option('--schema <json>', 'JSON schema for structured extraction')
     .option('--system-prompt <prompt>', 'System prompt for extraction context')
-    .option('--allow-external-links', 'Allow following external links', false)
     .option(
-      '--enable-web-search',
-      'Enable web search for additional context',
+      '--allow-external-links',
+      'Allow following external links (default: false)',
       false
     )
-    .option('--include-subdomains', 'Include subdomains when extracting', false)
-    .option('--show-sources', 'Include source URLs in result', false)
+    .option(
+      '--enable-web-search',
+      'Enable web search for additional context (default: false)',
+      false
+    )
+    .option(
+      '--include-subdomains',
+      'Include subdomains when extracting (default: false)',
+      false
+    )
+    .option(
+      '--show-sources',
+      'Include source URLs in result (default: false)',
+      false
+    )
     .option(
       '-k, --api-key <key>',
       'Firecrawl API key (overrides global --api-key)'
@@ -240,30 +278,7 @@ export function createExtractCommand(): Command {
     .option('--pretty', 'Pretty print JSON output', false)
     .option('--no-embed', 'Disable auto-embedding of extracted content')
     .action(async (rawUrls: string[], options, command: Command) => {
-      const container = command._container;
-      if (!container) {
-        throw new Error('Container not initialized');
-      }
-
-      if (options.status) {
-        const jobId = rawUrls?.[0];
-        if (!jobId) {
-          console.error('Error: job ID is required for --status');
-          process.exit(1);
-        }
-
-        await handleExtractCommand(container, {
-          status: true,
-          jobId,
-          urls: [],
-          apiKey: options.apiKey,
-          output: options.output,
-          json: true,
-          pretty: options.pretty,
-          embed: false,
-        });
-        return;
-      }
+      const container = requireContainer(command);
 
       // Flatten URLs that may contain newlines (e.g. zsh doesn't word-split variables)
       const urls = rawUrls
@@ -271,6 +286,13 @@ export function createExtractCommand(): Command {
           u.includes('\n') ? u.split('\n').filter(Boolean) : [u]
         )
         .map(normalizeUrl);
+
+      // Validate at least one URL provided
+      if (urls.length === 0) {
+        console.error(fmt.error('At least one URL is required.'));
+        process.exit(1);
+      }
+
       await handleExtractCommand(container, {
         urls,
         prompt: options.prompt,
@@ -287,6 +309,30 @@ export function createExtractCommand(): Command {
         embed: options.embed,
       });
     });
+
+  // Add status subcommand
+  extractCmd
+    .command('status')
+    .description('Get extract job status by ID')
+    .argument('<job-id>', 'Extract job ID')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--pretty', 'Pretty print JSON output', false)
+    .action(async (jobId: string, options, command: Command) => {
+      const container = requireContainerFromCommandTree(command);
+
+      // Normalize job ID to support both raw IDs and URLs
+      const normalizedJobId = normalizeJobId(jobId);
+
+      await handleExtractStatusCommand(container, normalizedJobId, {
+        output: options.output,
+        pretty: options.pretty,
+      });
+    });
+
+  // Store container if provided (mainly for testing)
+  if (container) {
+    extractCmd._container = container;
+  }
 
   return extractCmd;
 }

@@ -10,67 +10,17 @@ import {
   executeCrawlErrors,
   handleCrawlCommand,
 } from '../../commands/crawl';
-import { initializeConfig } from '../../utils/config';
 import { writeOutput } from '../../utils/output';
 import type { MockFirecrawlClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
-// autoEmbed is mocked below via mockAutoEmbed
+const createContainer = (...args: Parameters<typeof createTestContainer>) =>
+  createTestContainer(...args);
 
-// No longer need to mock the client module since we use containers
-
-// Mock embedpipeline - mock autoEmbed and provide implementations for batch functions
-// Use vi.hoisted to ensure mockAutoEmbed is defined before vi.mock runs (vi.mock is hoisted)
+// No longer need to mock the client module since we use containers.
+// Use vi.hoisted to ensure mockAutoEmbed is defined before test modules run.
 const { mockAutoEmbed } = vi.hoisted(() => ({
   mockAutoEmbed: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../../utils/embedpipeline', () => ({
-  autoEmbed: mockAutoEmbed,
-  // Re-implement batchEmbed to call the mockAutoEmbed
-  batchEmbed: vi.fn().mockImplementation(
-    async (
-      items: Array<{
-        content: string;
-        metadata: {
-          url: string;
-          title?: string;
-          sourceCommand: string;
-          contentType?: string;
-        };
-      }>
-    ) => {
-      for (const item of items) {
-        await mockAutoEmbed(item.content, item.metadata);
-      }
-    }
-  ),
-  // Re-implement createEmbedItems to match real behavior
-  createEmbedItems: vi.fn().mockImplementation(
-    (
-      pages: Array<{
-        markdown?: string;
-        html?: string;
-        url?: string;
-        title?: string;
-        metadata?: { sourceURL?: string; url?: string; title?: string };
-      }>,
-      sourceCommand: string
-    ) => {
-      return pages
-        .filter((page) => page.markdown || page.html)
-        .map((page) => ({
-          content: page.markdown || page.html || '',
-          metadata: {
-            url:
-              page.url || page.metadata?.sourceURL || page.metadata?.url || '',
-            title: page.title || page.metadata?.title,
-            sourceCommand,
-            contentType: page.markdown ? 'markdown' : 'html',
-          },
-        }));
-    }
-  ),
 }));
 
 // Mock settings to avoid reading real user settings from disk
@@ -79,7 +29,7 @@ vi.mock('../../utils/settings', () => ({
 }));
 
 vi.mock('../../utils/embed-queue', () => ({
-  enqueueEmbedJob: vi.fn().mockReturnValue({
+  enqueueEmbedJob: vi.fn().mockResolvedValue({
     id: 'mock-job',
     jobId: 'mock-job',
     url: 'https://example.com',
@@ -89,7 +39,7 @@ vi.mock('../../utils/embed-queue', () => ({
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }),
-  getEmbedJob: vi.fn().mockReturnValue(null),
+  getEmbedJob: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../../utils/background-embedder', () => ({
@@ -110,12 +60,6 @@ describe('executeCrawl', () => {
   let mockClient: CrawlMockClient;
 
   beforeEach(() => {
-    // Initialize config with test API key
-    initializeConfig({
-      apiKey: 'test-api-key',
-      apiUrl: 'https://api.firecrawl.dev',
-    });
-
     // Create mock client
     mockClient = {
       scrape: vi.fn(),
@@ -136,17 +80,20 @@ describe('executeCrawl', () => {
         url: 'https://example.com',
       };
       mockClient.startCrawl.mockResolvedValue(mockResponse);
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
 
       const result = await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
       });
 
       expect(mockClient.startCrawl).toHaveBeenCalledTimes(1);
-      expect(mockClient.startCrawl).toHaveBeenCalledWith(
-        'https://example.com',
-        {}
-      );
+      // Now includes default binary extensions (regex patterns like \.exe$)
+      const call = mockClient.startCrawl.mock.calls[0];
+      expect(call[0]).toBe('https://example.com');
+      expect(call[1].excludePaths).toBeDefined();
+      expect(call[1].excludePaths.length).toBeGreaterThan(20); // Should have 24 default extensions
+      expect(call[1].excludePaths).toContain('\\.exe$');
+      expect(call[1].excludePaths).toContain('\\.pkg$');
       expect(result).toEqual({
         success: true,
         data: {
@@ -158,19 +105,15 @@ describe('executeCrawl', () => {
     });
 
     it('should include webhook config when embedder webhook URL is set', async () => {
-      const originalUrl = process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL;
-      const originalSecret = process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET;
-      process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL =
-        'https://example.com/embedder';
-      process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET = 'test-secret';
-      initializeConfig();
-
       const mockResponse = {
         id: '550e8400-e29b-41d4-a716-446655440000',
         url: 'https://example.com',
       };
       mockClient.startCrawl.mockResolvedValue(mockResponse);
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient, {
+        embedderWebhookUrl: 'https://example.com/embedder',
+        embedderWebhookSecret: 'test-secret',
+      });
 
       await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
@@ -186,18 +129,6 @@ describe('executeCrawl', () => {
           },
         })
       );
-
-      if (originalUrl === undefined) {
-        delete process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL;
-      } else {
-        process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL = originalUrl;
-      }
-      if (originalSecret === undefined) {
-        delete process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET;
-      } else {
-        process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET = originalSecret;
-      }
-      initializeConfig();
     });
 
     it('should include limit option when provided', async () => {
@@ -207,7 +138,7 @@ describe('executeCrawl', () => {
       };
       mockClient.startCrawl.mockResolvedValue(mockResponse);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         limit: 100,
@@ -228,7 +159,7 @@ describe('executeCrawl', () => {
       };
       mockClient.startCrawl.mockResolvedValue(mockResponse);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         maxDepth: 3,
@@ -249,18 +180,19 @@ describe('executeCrawl', () => {
       };
       mockClient.startCrawl.mockResolvedValue(mockResponse);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         excludePaths: ['/admin', '/private'],
       });
 
-      expect(mockClient.startCrawl).toHaveBeenCalledWith(
-        'https://example.com',
-        expect.objectContaining({
-          excludePaths: ['/admin', '/private'],
-        })
-      );
+      // Now includes custom paths + default binary extensions
+      const call = mockClient.startCrawl.mock.calls[0];
+      expect(call[0]).toBe('https://example.com');
+      expect(call[1].excludePaths).toContain('/admin');
+      expect(call[1].excludePaths).toContain('/private');
+      expect(call[1].excludePaths).toContain('\\.exe$'); // Binary extension
+      expect(call[1].excludePaths).toContain('\\.pkg$'); // Binary extension
     });
 
     it('should include includePaths option when provided', async () => {
@@ -270,7 +202,7 @@ describe('executeCrawl', () => {
       };
       mockClient.startCrawl.mockResolvedValue(mockResponse);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         includePaths: ['/blog', '/docs'],
@@ -291,7 +223,7 @@ describe('executeCrawl', () => {
       };
       mockClient.startCrawl.mockResolvedValue(mockResponse);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         sitemap: 'skip',
@@ -312,7 +244,7 @@ describe('executeCrawl', () => {
       };
       mockClient.startCrawl.mockResolvedValue(mockResponse);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         limit: 50,
@@ -328,22 +260,25 @@ describe('executeCrawl', () => {
         maxConcurrency: 5,
       });
 
-      expect(mockClient.startCrawl).toHaveBeenCalledWith(
-        'https://example.com',
-        {
-          limit: 50,
-          maxDiscoveryDepth: 2,
-          excludePaths: ['/admin'],
-          includePaths: ['/blog'],
-          sitemap: 'include',
-          ignoreQueryParameters: true,
-          crawlEntireDomain: false,
-          allowExternalLinks: false,
-          allowSubdomains: true,
-          delay: 1000,
-          maxConcurrency: 5,
-        }
-      );
+      // Now includes custom paths + default binary extensions
+      const call = mockClient.startCrawl.mock.calls[0];
+      expect(call[0]).toBe('https://example.com');
+      expect(call[1]).toMatchObject({
+        limit: 50,
+        maxDiscoveryDepth: 2,
+        includePaths: ['/blog'],
+        sitemap: 'include',
+        ignoreQueryParameters: true,
+        crawlEntireDomain: false,
+        allowExternalLinks: false,
+        allowSubdomains: true,
+        delay: 1000,
+        maxConcurrency: 5,
+      });
+      // Verify excludePaths includes custom path and extensions
+      expect(call[1].excludePaths).toContain('/admin');
+      expect(call[1].excludePaths).toContain('\\.exe$'); // Binary extension
+      expect(call[1].excludePaths).toContain('\\.pkg$'); // Binary extension
     });
   });
 
@@ -359,7 +294,7 @@ describe('executeCrawl', () => {
       };
       mockClient.getCrawlStatus.mockResolvedValue(mockStatus);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       const result = await executeCrawl(container, {
         urlOrJobId: '550e8400-e29b-41d4-a716-446655440000',
         status: true,
@@ -367,7 +302,8 @@ describe('executeCrawl', () => {
 
       expect(mockClient.getCrawlStatus).toHaveBeenCalledTimes(1);
       expect(mockClient.getCrawlStatus).toHaveBeenCalledWith(
-        '550e8400-e29b-41d4-a716-446655440000'
+        '550e8400-e29b-41d4-a716-446655440000',
+        { autoPaginate: false }
       );
       expect(result).toEqual({
         success: true,
@@ -382,21 +318,19 @@ describe('executeCrawl', () => {
       });
     });
 
-    it('should auto-detect job ID from UUID format', async () => {
-      const mockStatus = {
-        id: '550e8400-e29b-41d4-a716-446655440000',
-        status: 'scraping',
-        total: 100,
-        completed: 45,
-      };
-      mockClient.getCrawlStatus.mockResolvedValue(mockStatus);
+    it('should not auto-detect job ID without status flag', async () => {
+      mockClient.startCrawl.mockResolvedValue({
+        id: 'new-crawl-job',
+        url: '550e8400-e29b-41d4-a716-446655440000',
+      });
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       const result = await executeCrawl(container, {
         urlOrJobId: '550e8400-e29b-41d4-a716-446655440000',
       });
 
-      expect(mockClient.getCrawlStatus).toHaveBeenCalledTimes(1);
+      expect(mockClient.getCrawlStatus).not.toHaveBeenCalled();
+      expect(mockClient.startCrawl).toHaveBeenCalledTimes(1);
       expect(result.success).toBe(true);
     });
 
@@ -409,7 +343,7 @@ describe('executeCrawl', () => {
       };
       mockClient.getCrawlStatus.mockResolvedValue(mockStatus);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       const result = await executeCrawl(container, {
         urlOrJobId: '550e8400-e29b-41d4-a716-446655440000',
         status: true,
@@ -435,7 +369,7 @@ describe('executeCrawl', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       const result = await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
@@ -464,7 +398,7 @@ describe('executeCrawl', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
@@ -489,7 +423,7 @@ describe('executeCrawl', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
@@ -514,7 +448,7 @@ describe('executeCrawl', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
@@ -571,30 +505,31 @@ describe('executeCrawl', () => {
       };
 
       mockClient.startCrawl.mockResolvedValue(mockStartResponse);
-      // First call returns scraping status, second returns completed
+      // First call returns scraping status, second returns completed, third is finalFetcher
       mockClient.getCrawlStatus
         .mockResolvedValueOnce(mockScrapingStatus)
+        .mockResolvedValueOnce(mockCompletedStatus)
         .mockResolvedValueOnce(mockCompletedStatus);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       // Start the async operation
       const crawlPromise = executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
         progress: true,
-        pollInterval: 0.001, // Very short interval for testing (1ms)
+        pollInterval: 0.1, // 100ms - minimum valid interval
       });
 
       // Fast-forward timers to resolve the first setTimeout
-      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(100);
 
       // Fast-forward again to resolve the second setTimeout
-      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(100);
 
       const result = await crawlPromise;
 
       expect(mockClient.startCrawl).toHaveBeenCalledTimes(1);
-      expect(mockClient.getCrawlStatus).toHaveBeenCalledTimes(2);
+      expect(mockClient.getCrawlStatus).toHaveBeenCalledTimes(3);
       expect(result.success).toBe(true);
       if (result.success && result.data && 'status' in result.data) {
         expect(result.data.status).toBe('completed');
@@ -616,24 +551,27 @@ describe('executeCrawl', () => {
       };
 
       mockClient.startCrawl.mockResolvedValue(mockStartResponse);
-      mockClient.getCrawlStatus.mockResolvedValueOnce(mockCompletedStatus);
+      // First call returns completed, second is finalFetcher
+      mockClient.getCrawlStatus
+        .mockResolvedValueOnce(mockCompletedStatus)
+        .mockResolvedValueOnce(mockCompletedStatus);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       // Start with progress but without explicit wait
       const crawlPromise = executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         progress: true,
-        pollInterval: 0.001, // Very short interval for testing (1ms)
+        pollInterval: 0.1, // 100ms - minimum valid interval
       });
 
       // Fast-forward timers to resolve the setTimeout
-      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(100);
 
       const result = await crawlPromise;
 
       // Should use wait mode because progress implies wait
       expect(mockClient.startCrawl).toHaveBeenCalledTimes(1);
-      expect(mockClient.getCrawlStatus).toHaveBeenCalledTimes(1);
+      expect(mockClient.getCrawlStatus).toHaveBeenCalledTimes(2);
       expect(result.success).toBe(true);
       if (result.success && result.data && 'status' in result.data) {
         expect(result.data.status).toBe('completed');
@@ -646,7 +584,7 @@ describe('executeCrawl', () => {
       const errorMessage = 'API Error: Invalid URL';
       mockClient.startCrawl.mockRejectedValue(new Error(errorMessage));
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       const result = await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
       });
@@ -661,7 +599,7 @@ describe('executeCrawl', () => {
       const errorMessage = 'Job not found';
       mockClient.getCrawlStatus.mockRejectedValue(new Error(errorMessage));
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       const result = await executeCrawl(container, {
         urlOrJobId: '550e8400-e29b-41d4-a716-446655440000',
         status: true,
@@ -677,7 +615,7 @@ describe('executeCrawl', () => {
       const errorMessage = 'Crawl timeout';
       mockClient.crawl.mockRejectedValue(new Error(errorMessage));
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       const result = await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
@@ -692,7 +630,7 @@ describe('executeCrawl', () => {
     it('should handle non-Error exceptions', async () => {
       mockClient.startCrawl.mockRejectedValue('String error');
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       const result = await executeCrawl(container, {
         urlOrJobId: 'https://example.com',
       });
@@ -740,7 +678,7 @@ describe('executeCrawl', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      const container = createTestContainer(mockClient, { mockAutoEmbed });
+      const container = createContainer(mockClient, { mockAutoEmbed });
       await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
@@ -779,7 +717,7 @@ describe('executeCrawl', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      const container = createTestContainer(mockClient, { mockAutoEmbed });
+      const container = createContainer(mockClient, { mockAutoEmbed });
       await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
@@ -812,7 +750,7 @@ describe('executeCrawl', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
@@ -839,7 +777,7 @@ describe('executeCrawl', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
@@ -856,7 +794,7 @@ describe('executeCrawl', () => {
       };
       mockClient.startCrawl.mockResolvedValue(mockResponse);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
       });
@@ -885,7 +823,7 @@ describe('executeCrawl', () => {
         completed: 0,
       });
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
         embed: true,
@@ -902,7 +840,7 @@ describe('executeCrawl', () => {
       };
       mockClient.startCrawl.mockResolvedValue(mockResponse);
 
-      const container = createTestContainer(mockClient);
+      const container = createContainer(mockClient);
       await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
         embed: false,
@@ -931,7 +869,7 @@ describe('executeCrawl', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      const container = createTestContainer(mockClient, { mockAutoEmbed });
+      const container = createContainer(mockClient, { mockAutoEmbed });
       await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
@@ -971,7 +909,7 @@ describe('executeCrawl', () => {
       };
       mockClient.crawl.mockResolvedValue(mockCrawlJob);
 
-      const container = createTestContainer(mockClient, { mockAutoEmbed });
+      const container = createContainer(mockClient, { mockAutoEmbed });
       await handleCrawlCommand(container, {
         urlOrJobId: 'https://example.com',
         wait: true,
@@ -1002,11 +940,6 @@ describe('executeCrawlCancel', () => {
   let mockClient: CrawlCancelMock;
 
   beforeEach(() => {
-    initializeConfig({
-      apiKey: 'test-api-key',
-      apiUrl: 'https://api.firecrawl.dev',
-    });
-
     mockClient = { scrape: vi.fn(), cancelCrawl: vi.fn() };
   });
 
@@ -1015,7 +948,7 @@ describe('executeCrawlCancel', () => {
   });
 
   it('should cancel crawl and return status', async () => {
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
     mockClient.cancelCrawl.mockResolvedValue(true);
 
     const result = await executeCrawlCancel(container, 'job-123');
@@ -1026,31 +959,13 @@ describe('executeCrawlCancel', () => {
   });
 
   it('should return error when cancel fails', async () => {
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
     mockClient.cancelCrawl.mockRejectedValue(new Error('Cancel failed'));
 
     const result = await executeCrawlCancel(container, 'job-123');
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('Failed to cancel job job-123: Cancel failed');
-  });
-});
-
-describe('handleCrawlCommand cancel mode', () => {
-  it('should write cancel output and exit without crawling', async () => {
-    const mockClient = {
-      scrape: vi.fn(),
-      cancelCrawl: vi.fn().mockResolvedValue(true),
-    };
-    const container = createTestContainer(mockClient);
-
-    await handleCrawlCommand(container, {
-      urlOrJobId: 'job-123',
-      cancel: true,
-    });
-
-    expect(mockClient.cancelCrawl).toHaveBeenCalledWith('job-123');
-    expect(writeOutput).toHaveBeenCalled();
   });
 });
 
@@ -1061,11 +976,6 @@ describe('executeCrawlErrors', () => {
   let mockClient: CrawlErrorsMock;
 
   beforeEach(() => {
-    initializeConfig({
-      apiKey: 'test-api-key',
-      apiUrl: 'https://api.firecrawl.dev',
-    });
-
     mockClient = { scrape: vi.fn(), getCrawlErrors: vi.fn() };
   });
 
@@ -1074,7 +984,7 @@ describe('executeCrawlErrors', () => {
   });
 
   it('should return crawl errors and robotsBlocked', async () => {
-    const container = createTestContainer(mockClient);
+    const container = createContainer(mockClient);
     mockClient.getCrawlErrors.mockResolvedValue({
       errors: [
         {
@@ -1098,49 +1008,205 @@ describe('executeCrawlErrors', () => {
 });
 
 describe('createCrawlCommand', () => {
-  it('should not normalize job id for --cancel', async () => {
-    // These tests verify Commander.js argument parsing, not container usage
-    // Skip for now as they test CLI layer, not business logic
-    // TODO: Update when createCrawlCommand is refactored for DI
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('should not normalize job id for --errors', async () => {
-    // Skip - same reason as above
-  });
+  afterEach(() => {});
 
-  it('should require job id for --cancel', async () => {
-    const cmd = createCrawlCommand();
-    cmd.exitOverride();
+  describe('status subcommand', () => {
+    it('should exist as a subcommand', () => {
+      const cmd = createCrawlCommand();
+      const statusCmd = cmd.commands.find((c) => c.name() === 'status');
+      expect(statusCmd).toBeDefined();
+    });
 
-    await expect(
-      cmd.parseAsync(['node', 'test', 'https://example.com', '--cancel'], {
+    it('should require job-id argument', async () => {
+      const cmd = createCrawlCommand();
+      const statusCmd = cmd.commands.find((c) => c.name() === 'status');
+      expect(statusCmd).toBeDefined();
+
+      statusCmd?.exitOverride();
+      await expect(
+        statusCmd?.parseAsync(['node', 'test'], { from: 'node' })
+      ).rejects.toThrow();
+    });
+
+    it('should call checkCrawlStatus and format output', async () => {
+      const mockClient: Partial<MockFirecrawlClient> = {
+        getCrawlStatus: vi.fn().mockResolvedValue({
+          id: 'job-123',
+          status: 'completed',
+          total: 100,
+          completed: 100,
+          creditsUsed: 50,
+          expiresAt: '2026-02-15T00:00:00Z',
+        }),
+      };
+      const container = createContainer(mockClient);
+
+      const cmd = createCrawlCommand();
+      cmd._container = container;
+
+      await cmd.parseAsync(['node', 'test', 'status', 'job-123'], {
         from: 'node',
-      })
-    ).rejects.toThrow();
-  });
+      });
 
-  it('should require job id for --errors', async () => {
-    const cmd = createCrawlCommand();
-    cmd.exitOverride();
+      expect(mockClient.getCrawlStatus).toHaveBeenCalledWith('job-123', {
+        autoPaginate: false,
+      });
+      expect(writeOutput).toHaveBeenCalled();
+    });
 
-    await expect(
-      cmd.parseAsync(['node', 'test', 'https://example.com', '--errors'], {
+    it('should format output correctly', async () => {
+      const mockClient: Partial<MockFirecrawlClient> = {
+        getCrawlStatus: vi.fn().mockResolvedValue({
+          id: 'job-123',
+          status: 'completed',
+          total: 100,
+          completed: 100,
+        }),
+      };
+      const container = createContainer(mockClient);
+
+      const cmd = createCrawlCommand();
+      cmd._container = container;
+
+      await cmd.parseAsync(['node', 'test', 'status', 'job-123'], {
         from: 'node',
-      })
-    ).rejects.toThrow();
+      });
+
+      expect(writeOutput).toHaveBeenCalledWith(
+        expect.stringContaining('Job ID: job-123'),
+        undefined,
+        false
+      );
+    });
   });
 
-  it('should default scrapeTimeout to 15 seconds when not provided', async () => {
-    const cmd = createCrawlCommand();
-    const actionSpy = vi.fn();
-    cmd.action(actionSpy);
+  describe('cancel subcommand', () => {
+    it('should exist as a subcommand', () => {
+      const cmd = createCrawlCommand();
+      const cancelCmd = cmd.commands.find((c) => c.name() === 'cancel');
+      expect(cancelCmd).toBeDefined();
+    });
 
-    await cmd.parseAsync(['node', 'test', 'https://example.com'], {
+    it('should call executeCrawlCancel with job-id', async () => {
+      const mockClient: Partial<MockFirecrawlClient> = {
+        cancelCrawl: vi.fn().mockResolvedValue(true),
+      };
+      const container = createContainer(mockClient);
+
+      const cmd = createCrawlCommand();
+      cmd._container = container;
+
+      await cmd.parseAsync(['node', 'test', 'cancel', 'job-456'], {
+        from: 'node',
+      });
+
+      expect(mockClient.cancelCrawl).toHaveBeenCalledWith('job-456');
+      expect(writeOutput).toHaveBeenCalled();
+    });
+
+    it('should handle failure gracefully', async () => {
+      const mockClient: Partial<MockFirecrawlClient> = {
+        cancelCrawl: vi.fn().mockRejectedValue(new Error('Cancel failed')),
+      };
+      const container = createContainer(mockClient);
+      process.exitCode = 0; // Reset exit code before test
+
+      const cmd = createCrawlCommand();
+      cmd._container = container;
+
+      await cmd.parseAsync(['node', 'test', 'cancel', 'job-456'], {
+        from: 'node',
+      });
+
+      expect(process.exitCode).toBe(1);
+      process.exitCode = 0; // Clean up after test
+    });
+  });
+
+  describe('errors subcommand', () => {
+    it('should exist as a subcommand', () => {
+      const cmd = createCrawlCommand();
+      const errorsCmd = cmd.commands.find((c) => c.name() === 'errors');
+      expect(errorsCmd).toBeDefined();
+    });
+
+    it('should call executeCrawlErrors with job-id', async () => {
+      const mockClient: Partial<MockFirecrawlClient> = {
+        getCrawlErrors: vi.fn().mockResolvedValue({
+          errors: [],
+          robotsBlocked: [],
+        }),
+      };
+      const container = createContainer(mockClient);
+
+      const cmd = createCrawlCommand();
+      cmd._container = container;
+
+      await cmd.parseAsync(['node', 'test', 'errors', 'job-789'], {
+        from: 'node',
+      });
+
+      expect(mockClient.getCrawlErrors).toHaveBeenCalledWith('job-789');
+      expect(writeOutput).toHaveBeenCalled();
+    });
+  });
+
+  it('should reject job ID on primary crawl action', async () => {
+    const jobId = '550e8400-e29b-41d4-a716-446655440000';
+    const mockClient: Partial<MockFirecrawlClient> = {
+      scrape: vi.fn(),
+      getCrawlStatus: vi.fn(),
+    };
+    const container = createContainer(mockClient);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    process.exitCode = 0; // Reset exit code before test
+
+    const cmd = createCrawlCommand();
+    cmd._container = container;
+
+    await cmd.parseAsync(['node', 'test', jobId], {
       from: 'node',
     });
 
-    const [urlOrJobId, options] = actionSpy.mock.calls[0] ?? [];
-    expect(urlOrJobId).toBe('https://example.com');
-    expect(options).toEqual(expect.objectContaining({ scrapeTimeout: 15 }));
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Job IDs are not accepted here. Use "firecrawl crawl status <job-id>" instead.'
+      )
+    );
+    expect(process.exitCode).toBe(1);
+    expect(mockClient.getCrawlStatus).not.toHaveBeenCalled();
+
+    process.exitCode = 0; // Clean up after test
+    errorSpy.mockRestore();
+  });
+
+  it('should preserve raw job ID for manual embedding action', async () => {
+    const jobId = '550e8400-e29b-41d4-a716-446655440000';
+    const mockClient: Partial<MockFirecrawlClient> = {
+      scrape: vi.fn(),
+      getCrawlStatus: vi.fn().mockResolvedValue({
+        id: jobId,
+        status: 'completed',
+        total: 1,
+        completed: 1,
+        data: [],
+      }),
+    };
+    const container = createContainer(mockClient);
+
+    const cmd = createCrawlCommand();
+    cmd._container = container;
+
+    await cmd.parseAsync(['node', 'test', jobId, '--embed'], {
+      from: 'node',
+    });
+
+    expect(mockClient.getCrawlStatus).toHaveBeenCalledWith(jobId, {
+      autoPaginate: false,
+    });
   });
 });

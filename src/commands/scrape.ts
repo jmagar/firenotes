@@ -10,9 +10,12 @@ import type {
   ScrapeOptions,
   ScrapeResult,
 } from '../types/scrape';
+import { displayCommandInfo } from '../utils/display';
 import { parseScrapeOptions } from '../utils/options';
 import { handleScrapeOutput } from '../utils/output';
+import { fmt, icons } from '../utils/theme';
 import { normalizeUrl } from '../utils/url';
+import { requireContainer } from './shared';
 
 /**
  * Output timing information if requested
@@ -43,7 +46,7 @@ function outputTiming(
     timingInfo.error = error instanceof Error ? error.message : 'Unknown error';
   }
 
-  console.error('Timing:', JSON.stringify(timingInfo, null, 2));
+  console.error(`${fmt.dim('Timing:')} ${JSON.stringify(timingInfo, null, 2)}`);
 }
 
 /**
@@ -53,6 +56,44 @@ export async function executeScrape(
   container: IContainer,
   options: ScrapeOptions
 ): Promise<ScrapeResult> {
+  // Handle --remove flag (delete from Qdrant, skip scraping)
+  if (options.remove) {
+    const { qdrantUrl, qdrantCollection } = container.config;
+
+    if (!qdrantUrl) {
+      return {
+        success: false,
+        error: 'QDRANT_URL not configured. Set QDRANT_URL to use --remove.',
+      };
+    }
+
+    // Parse domain from URL with error handling
+    let domain: string;
+    try {
+      domain = new URL(options.url).hostname;
+    } catch {
+      return {
+        success: false,
+        error: `Invalid URL: ${options.url}`,
+      };
+    }
+
+    const collection = qdrantCollection || 'firecrawl';
+
+    try {
+      const qdrantService = container.getQdrantService();
+      const count = await qdrantService.countByDomain(collection, domain);
+      await qdrantService.deleteByDomain(collection, domain);
+
+      return { success: true, removed: count };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to remove domain from Qdrant: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  }
+
   // Get client instance from container
   const app = container.getFirecrawlClient();
 
@@ -136,6 +177,38 @@ export async function handleScrapeCommand(
   container: IContainer,
   options: ScrapeOptions
 ): Promise<void> {
+  // Handle --remove flag with early return
+  if (options.remove) {
+    const result = await executeScrape(container, options);
+
+    if (!result.success) {
+      console.error(fmt.error(result.error || 'Unknown error'));
+      process.exit(1);
+    }
+
+    // Parse domain - executeScrape already validated URL, but handle edge case
+    let domain: string;
+    try {
+      domain = new URL(options.url).hostname;
+    } catch {
+      domain = options.url; // Fallback to raw URL for display
+    }
+    console.log(
+      `${icons.success} Removed ${result.removed} documents for domain ${fmt.dim(domain)}`
+    );
+    return;
+  }
+
+  // Display command info
+  displayCommandInfo('Scraping', options.url, {
+    formats: options.formats,
+    onlyMainContent: options.onlyMainContent,
+    excludeTags: options.excludeTags,
+    includeTags: options.includeTags,
+    timeout: options.timeout,
+    waitFor: options.waitFor,
+  });
+
   const result = await executeScrape(container, options);
 
   // Start embedding concurrently with output
@@ -143,14 +216,16 @@ export async function handleScrapeCommand(
     options.embed !== false && result.success && result.data
       ? (async () => {
           const pipeline = container.getEmbedPipeline();
-          const data = result.data!; // Already checked above
-          const content = data.markdown || data.html || data.rawHtml || '';
-          await pipeline.autoEmbed(content, {
-            url: options.url,
-            title: data.metadata?.title,
-            sourceCommand: 'scrape',
-            contentType: options.formats?.[0] || 'markdown',
-          });
+          const data = result.data;
+          if (data) {
+            const content = data.markdown || data.html || data.rawHtml || '';
+            await pipeline.autoEmbed(content, {
+              url: options.url,
+              title: data.metadata?.title,
+              sourceCommand: 'scrape',
+              contentType: options.formats?.[0] || 'markdown',
+            });
+          }
         })()
       : Promise.resolve();
 
@@ -197,21 +272,21 @@ export function createScrapeCommand(): Command {
       '-f, --format <formats>',
       'Output format(s). Multiple formats can be specified with commas (e.g., "markdown,links,images"). Available: markdown, html, rawHtml, links, images, screenshot, summary, changeTracking, json, attributes, branding. Single format outputs raw content; multiple formats output JSON.'
     )
-    .option('--only-main-content', 'Include only main content', false)
+    .option('--only-main-content', 'Include only main content', true)
+    .option('--no-only-main-content', 'Include full page content')
     .option(
       '--wait-for <ms>',
       'Wait time before scraping in milliseconds',
       parseInt
     )
-    .option(
-      '--timeout <seconds>',
-      'Request timeout in seconds (default: 15)',
-      parseFloat,
-      15
-    )
+    .option('--timeout <seconds>', 'Request timeout in seconds', parseFloat, 15)
     .option('--screenshot', 'Take a screenshot', false)
     .option('--include-tags <tags>', 'Comma-separated list of tags to include')
-    .option('--exclude-tags <tags>', 'Comma-separated list of tags to exclude')
+    .option(
+      '--exclude-tags <tags>',
+      'Comma-separated list of tags to exclude',
+      'nav,footer'
+    )
     .option(
       '-k, --api-key <key>',
       'Firecrawl API key (overrides global --api-key)'
@@ -225,18 +300,22 @@ export function createScrapeCommand(): Command {
       false
     )
     .option('--no-embed', 'Skip auto-embedding of scraped content')
+    .option(
+      '--remove',
+      'Remove all documents for this domain from Qdrant',
+      false
+    )
     .action(
       async (positionalUrl, positionalFormats, options, command: Command) => {
-        const container = command._container;
-        if (!container) {
-          throw new Error('Container not initialized');
-        }
+        const container = requireContainer(command);
 
         // Use positional URL if provided, otherwise use --url option
         const url = positionalUrl || options.url;
         if (!url) {
           console.error(
-            'Error: URL is required. Provide it as argument or use --url option.'
+            fmt.error(
+              'URL is required. Provide it as argument or use --url option.'
+            )
           );
           process.exit(1);
         }
