@@ -14,6 +14,7 @@ import { createDaemonContainer } from '../container/DaemonContainerFactory';
 import type { IContainer, ImmutableConfig } from '../container/types';
 import { createEmbedItems } from '../container/utils/embed-helpers';
 import {
+  cleanupIrrecoverableFailedJobs,
   cleanupOldJobs,
   type EmbedJob,
   getEmbedJob,
@@ -24,6 +25,8 @@ import {
   markJobCompleted,
   markJobConfigError,
   markJobFailed,
+  markJobPendingNoRetry,
+  markJobPermanentFailed,
   markJobProcessing,
   updateEmbedJob,
   updateJobProgress,
@@ -39,6 +42,19 @@ const POLL_INTERVAL_MS = 10000; // 10 seconds (retry base)
 const BACKOFF_MULTIPLIER = 2;
 const MAX_BACKOFF_MS = 60000; // 1 minute
 const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB request body limit
+
+function isPermanentJobError(error: string): boolean {
+  const normalized = error.toLowerCase();
+  return (
+    normalized.includes('job not found') ||
+    normalized.includes('invalid job id') ||
+    normalized.includes('invalid job id format')
+  );
+}
+
+function isCrawlStillRunningError(error: string): boolean {
+  return error.toLowerCase().startsWith('crawl still ');
+}
 
 /**
  * Log embedder configuration for debugging
@@ -86,6 +102,9 @@ async function processEmbedJob(
 
   try {
     await markJobProcessing(job.jobId);
+    // Keep in-memory state aligned so later updateEmbedJob() calls
+    // do not overwrite processing status back to pending.
+    job.status = 'processing';
 
     // Create job-specific container with job's API key
     const jobContainer = createDaemonContainer({
@@ -227,11 +246,25 @@ async function processEmbedJob(
     await markJobCompleted(job.jobId);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    if (isCrawlStillRunningError(errorMsg)) {
+      console.error(
+        fmt.warning(
+          `[Embedder] Job ${job.jobId} deferred (no retry consumed): ${errorMsg}`
+        )
+      );
+      await markJobPendingNoRetry(job.jobId, errorMsg);
+      return;
+    }
+
     console.error(fmt.error(`[Embedder] Job ${job.jobId} failed: ${errorMsg}`));
-    await markJobFailed(job.jobId, errorMsg);
+    if (isPermanentJobError(errorMsg)) {
+      await markJobPermanentFailed(job.jobId, errorMsg);
+    } else {
+      await markJobFailed(job.jobId, errorMsg);
+    }
 
     // Apply backoff for next retry
-    if (job.retries + 1 < job.maxRetries) {
+    if (!isPermanentJobError(errorMsg) && job.retries + 1 < job.maxRetries) {
       const delay = getBackoffDelay(job.retries);
       console.error(fmt.dim(`[Embedder] Will retry in ${delay / 1000}s`));
     }
@@ -280,15 +313,22 @@ export async function processStaleJobsOnce(
 
   // Then process stale pending jobs
   const staleJobs = await getStalePendingJobs(maxAgeMs);
-  if (staleJobs.length === 0) {
-    return 0;
+  if (staleJobs.length > 0) {
+    console.error(
+      fmt.dim(`[Embedder] Processing ${staleJobs.length} stale jobs`)
+    );
+    for (const job of staleJobs) {
+      await processEmbedJob(job);
+    }
   }
 
-  console.error(
-    fmt.dim(`[Embedder] Processing ${staleJobs.length} stale jobs`)
-  );
-  for (const job of staleJobs) {
-    await processEmbedJob(job);
+  const irrecoverableCleaned = await cleanupIrrecoverableFailedJobs();
+  if (irrecoverableCleaned > 0) {
+    console.error(
+      fmt.dim(
+        `[Embedder] Removed ${irrecoverableCleaned} irrecoverable failed job(s)`
+      )
+    );
   }
 
   return staleJobs.length;

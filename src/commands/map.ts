@@ -18,7 +18,7 @@ import { buildApiErrorMessage } from '../utils/network-error';
 import { fmt } from '../utils/theme';
 import { filterUrls } from '../utils/url-filter';
 import { mergeExcludePaths } from './crawl/options';
-import { requireContainer } from './shared';
+import { requireContainer, resolveRequiredUrl } from './shared';
 
 const MAP_CRAWL_FALLBACK_MAX_DISCOVERY_DEPTH = 10;
 const execFileAsync = promisify(execFile);
@@ -536,16 +536,7 @@ export function createMapCommand(): Command {
     .action(async (positionalUrl, options, command: Command) => {
       const container = requireContainer(command);
 
-      // Use positional URL if provided, otherwise use --url option
-      const url = positionalUrl || options.url;
-      if (!url) {
-        console.error(
-          fmt.error(
-            'URL is required. Provide it as argument or use --url option.'
-          )
-        );
-        process.exit(1);
-      }
+      const url = resolveRequiredUrl(positionalUrl, options.url);
 
       const mapOptions = {
         urlOrJobId: normalizeUrl(url),

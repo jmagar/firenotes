@@ -45,6 +45,15 @@ export interface SearchOptions {
   onlyMainContent?: boolean;
 }
 
+/** Metadata for scraped search results */
+export interface SearchResultMetadata {
+  title?: string;
+  description?: string;
+  sourceURL?: string;
+  statusCode?: number;
+  error?: string | null;
+}
+
 export interface WebSearchResult {
   url: string;
   title?: string;
@@ -57,13 +66,7 @@ export interface WebSearchResult {
   rawHtml?: string;
   links?: string[];
   screenshot?: string;
-  metadata?: {
-    title?: string;
-    description?: string;
-    sourceURL?: string;
-    statusCode?: number;
-    error?: string | null;
-  };
+  metadata?: SearchResultMetadata;
 }
 
 export interface ImageSearchResult {
@@ -88,13 +91,7 @@ export interface NewsSearchResult {
   rawHtml?: string;
   links?: string[];
   screenshot?: string;
-  metadata?: {
-    title?: string;
-    description?: string;
-    sourceURL?: string;
-    statusCode?: number;
-    error?: string | null;
-  };
+  metadata?: SearchResultMetadata;
 }
 
 export interface SearchResultData {

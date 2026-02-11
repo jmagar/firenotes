@@ -26,6 +26,8 @@ import { formatCrawlStatus } from './format';
 import {
   checkCrawlStatus,
   executeCrawlCancel,
+  executeCrawlCleanup,
+  executeCrawlClear,
   executeCrawlErrors,
 } from './status';
 
@@ -43,6 +45,35 @@ function isStatusOnlyResult(data: unknown): boolean {
     !('data' in data) &&
     'status' in data
   );
+}
+
+/**
+ * Handle subcommand result with standard error handling and output formatting
+ */
+function handleSubcommandResult<T>(
+  result: { success: boolean; error?: string; data?: T },
+  options: { output?: string; pretty?: boolean },
+  formatOutput: (data: T) => string
+): void {
+  if (!result.success) {
+    console.error(fmt.error(result.error || 'Unknown error occurred'));
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!result.data) {
+    return;
+  }
+
+  const outputContent = formatOutput(result.data);
+  try {
+    writeCommandOutput(outputContent, options);
+  } catch (error) {
+    console.error(
+      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
+    );
+    process.exitCode = 1;
+  }
 }
 
 /**
@@ -197,26 +228,11 @@ async function handleCrawlStatusCommand(
   options: { output?: string; pretty?: boolean }
 ): Promise<void> {
   const result = await checkCrawlStatus(container, jobId);
-
-  if (!result.success) {
-    console.error(fmt.error(result.error || 'Unknown error occurred'));
-    process.exitCode = 1;
-    return;
-  }
-
-  const outputContent =
+  handleSubcommandResult(result, options, (data) =>
     options.pretty || !options.output
-      ? formatCrawlStatus(result.data)
-      : formatJson({ success: true, data: result.data }, options.pretty);
-  try {
-    writeCommandOutput(outputContent, options);
-  } catch (error) {
-    console.error(
-      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
-    );
-    process.exitCode = 1;
-    return;
-  }
+      ? formatCrawlStatus(data)
+      : formatJson({ success: true, data }, options.pretty)
+  );
 }
 
 /**
@@ -232,26 +248,9 @@ async function handleCrawlCancelCommand(
   options: { output?: string; pretty?: boolean }
 ): Promise<void> {
   const result = await executeCrawlCancel(container, jobId);
-
-  if (!result.success) {
-    console.error(fmt.error(result.error || 'Unknown error occurred'));
-    process.exitCode = 1;
-    return;
-  }
-
-  const outputContent = formatJson(
-    { success: true, data: result.data },
-    options.pretty
+  handleSubcommandResult(result, options, (data) =>
+    formatJson({ success: true, data }, options.pretty)
   );
-  try {
-    writeCommandOutput(outputContent, options);
-  } catch (error) {
-    console.error(
-      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
-    );
-    process.exitCode = 1;
-    return;
-  }
 }
 
 /**
@@ -267,26 +266,29 @@ async function handleCrawlErrorsCommand(
   options: { output?: string; pretty?: boolean }
 ): Promise<void> {
   const result = await executeCrawlErrors(container, jobId);
-
-  if (!result.success) {
-    console.error(fmt.error(result.error || 'Unknown error occurred'));
-    process.exitCode = 1;
-    return;
-  }
-
-  const outputContent = formatJson(
-    { success: true, data: result.data },
-    options.pretty
+  handleSubcommandResult(result, options, (data) =>
+    formatJson({ success: true, data }, options.pretty)
   );
-  try {
-    writeCommandOutput(outputContent, options);
-  } catch (error) {
-    console.error(
-      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
-    );
-    process.exitCode = 1;
-    return;
-  }
+}
+
+async function handleCrawlClearCommand(
+  container: IContainer,
+  options: { output?: string; pretty?: boolean }
+): Promise<void> {
+  const result = await executeCrawlClear(container);
+  handleSubcommandResult(result, options, (data) =>
+    formatJson({ success: true, data }, options.pretty)
+  );
+}
+
+async function handleCrawlCleanupCommand(
+  container: IContainer,
+  options: { output?: string; pretty?: boolean }
+): Promise<void> {
+  const result = await executeCrawlCleanup(container);
+  handleSubcommandResult(result, options, (data) =>
+    formatJson({ success: true, data }, options.pretty)
+  );
 }
 
 /**
@@ -374,7 +376,7 @@ export function createCrawlCommand(): Command {
     .option(
       '--max-concurrency <number>',
       'Maximum concurrent requests',
-      parseInt
+      (val) => parseInt(val, 10)
     )
     .option(
       '-k, --api-key <key>',
@@ -480,6 +482,28 @@ export function createCrawlCommand(): Command {
     });
 
   crawlCmd.addCommand(cancelCmd);
+
+  const clearCmd = new Command('clear')
+    .description('Clear the entire crawl queue')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--pretty', 'Pretty print JSON output', false)
+    .action(async (options, command: Command) => {
+      const container = requireContainerFromCommandTree(command);
+      await handleCrawlClearCommand(container, options);
+    });
+
+  crawlCmd.addCommand(clearCmd);
+
+  const cleanupCmd = new Command('cleanup')
+    .description('Cleanup failed and stale/stalled crawl jobs')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--pretty', 'Pretty print JSON output', false)
+    .action(async (options, command: Command) => {
+      const container = requireContainerFromCommandTree(command);
+      await handleCrawlCleanupCommand(container, options);
+    });
+
+  crawlCmd.addCommand(cleanupCmd);
 
   // Errors subcommand
   const errorsCmd = new Command('errors')

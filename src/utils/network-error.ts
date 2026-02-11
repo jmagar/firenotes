@@ -20,7 +20,9 @@ function isLocalApiUrl(apiUrl: string | undefined): boolean {
 
   try {
     const parsed = new URL(apiUrl);
-    return ['localhost', '127.0.0.1', '0.0.0.0'].includes(parsed.hostname);
+    return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(
+      parsed.hostname
+    );
   } catch {
     return false;
   }

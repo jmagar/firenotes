@@ -6,6 +6,7 @@
  */
 
 import { promises as fs } from 'node:fs';
+import * as os from 'node:os';
 import { join } from 'node:path';
 import * as lockfile from 'proper-lockfile';
 import { getEmbedQueueDir } from './storage-paths';
@@ -48,11 +49,14 @@ export interface EmbedJob {
   progressUpdatedAt?: string;
 }
 
-const QUEUE_DIR = getEmbedQueueDir();
 const MAX_RETRIES = 3;
 
+function getQueueDir(): string {
+  return getEmbedQueueDir();
+}
+
 function getLegacyQueueDir(): string {
-  const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '.';
+  const homeDir = os.homedir();
   return join(homeDir, '.config', 'firecrawl-cli', 'embed-queue');
 }
 
@@ -62,24 +66,34 @@ async function migrateLegacyQueueDir(): Promise<void> {
   }
 
   const legacyDir = getLegacyQueueDir();
-  if (legacyDir === QUEUE_DIR) {
+  const queueDir = getQueueDir();
+  if (legacyDir === queueDir) {
     return;
   }
 
-  if (!(await pathExists(legacyDir)) || (await pathExists(QUEUE_DIR))) {
+  if (!(await pathExists(legacyDir)) || (await pathExists(queueDir))) {
     return;
   }
 
-  await fs.mkdir(QUEUE_DIR, { recursive: true, mode: 0o700 });
+  await fs.mkdir(queueDir, { recursive: true, mode: 0o700 });
   const files = await fs.readdir(legacyDir);
   for (const file of files) {
-    const source = join(legacyDir, file);
-    const target = join(QUEUE_DIR, file);
-    await fs.copyFile(source, target);
+    try {
+      const source = join(legacyDir, file);
+      const target = join(queueDir, file);
+      await fs.copyFile(source, target);
+    } catch (error) {
+      // Continue on individual file copy errors
+      console.error(
+        fmt.error(
+          `[Embed Queue] Failed to copy ${file}: ${error instanceof Error ? error.message : String(error)}`
+        )
+      );
+    }
   }
   console.error(
     fmt.dim(
-      `[Embed Queue] Migrated queue files from ${legacyDir} to ${QUEUE_DIR}`
+      `[Embed Queue] Migrated queue files from ${legacyDir} to ${queueDir}`
     )
   );
 }
@@ -90,13 +104,13 @@ async function migrateLegacyQueueDir(): Promise<void> {
 async function ensureQueueDir(): Promise<void> {
   await migrateLegacyQueueDir();
 
-  if (!(await pathExists(QUEUE_DIR))) {
-    await fs.mkdir(QUEUE_DIR, { recursive: true, mode: 0o700 });
+  if (!(await pathExists(getQueueDir()))) {
+    await fs.mkdir(getQueueDir(), { recursive: true, mode: 0o700 });
     return;
   }
 
   try {
-    await fs.chmod(QUEUE_DIR, 0o700);
+    await fs.chmod(getQueueDir(), 0o700);
   } catch {
     // Ignore errors on Windows
   }
@@ -106,7 +120,7 @@ async function ensureQueueDir(): Promise<void> {
  * Get path for a job file
  */
 function getJobPath(jobId: string): string {
-  return join(QUEUE_DIR, `${jobId}.json`);
+  return join(getQueueDir(), `${jobId}.json`);
 }
 
 /**
@@ -297,7 +311,7 @@ export interface QueueListResult {
 export async function listEmbedJobsDetailed(): Promise<QueueListResult> {
   await ensureQueueDir();
 
-  const files = (await fs.readdir(QUEUE_DIR)).filter((f) =>
+  const files = (await fs.readdir(getQueueDir())).filter((f) =>
     f.endsWith('.json')
   );
   const jobs: EmbedJob[] = [];
@@ -305,7 +319,7 @@ export async function listEmbedJobsDetailed(): Promise<QueueListResult> {
 
   for (const file of files) {
     try {
-      const data = await fs.readFile(join(QUEUE_DIR, file), 'utf-8');
+      const data = await fs.readFile(join(getQueueDir(), file), 'utf-8');
       jobs.push(JSON.parse(data));
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -436,6 +450,24 @@ export async function markJobFailed(
 }
 
 /**
+ * Re-queue a job as pending without consuming a retry.
+ *
+ * Used for transient "upstream still running" states where retry budget
+ * should not be burned.
+ */
+export async function markJobPendingNoRetry(
+  jobId: string,
+  error: string
+): Promise<void> {
+  const job = await getEmbedJob(jobId);
+  if (job) {
+    job.status = 'pending';
+    job.lastError = error;
+    await updateEmbedJob(job);
+  }
+}
+
+/**
  * Mark a job as permanently failed due to configuration error
  *
  * Sets retries to maxRetries to prevent further retry attempts.
@@ -449,6 +481,25 @@ export async function markJobConfigError(
     job.status = 'failed';
     job.retries = job.maxRetries;
     job.lastError = `Configuration error: ${error}`;
+    await updateEmbedJob(job);
+  }
+}
+
+/**
+ * Mark a job as permanently failed due to an unrecoverable runtime error.
+ *
+ * Sets retries to maxRetries to prevent retry loops for deterministic failures
+ * (e.g., invalid job IDs or deleted upstream crawl jobs).
+ */
+export async function markJobPermanentFailed(
+  jobId: string,
+  error: string
+): Promise<void> {
+  const job = await getEmbedJob(jobId);
+  if (job) {
+    job.status = 'failed';
+    job.retries = job.maxRetries;
+    job.lastError = error;
     await updateEmbedJob(job);
   }
 }
@@ -509,6 +560,107 @@ export async function cleanupOldJobs(
   }
 
   return cleaned;
+}
+
+function isIrrecoverableError(error: string | undefined): boolean {
+  if (!error) return false;
+  const normalized = error.toLowerCase();
+  return (
+    normalized.includes('job not found') ||
+    normalized.includes('invalid job id') ||
+    normalized.includes('invalid job id format')
+  );
+}
+
+/**
+ * Remove failed jobs that are known to be unrecoverable.
+ *
+ * This prevents permanent queue clutter from deterministic failures where retries
+ * cannot ever succeed (deleted crawl IDs, invalid IDs).
+ */
+export async function cleanupIrrecoverableFailedJobs(): Promise<number> {
+  const jobs = await listEmbedJobs();
+  let cleaned = 0;
+
+  for (const job of jobs) {
+    if (
+      job.status === 'failed' &&
+      job.retries >= job.maxRetries &&
+      isIrrecoverableError(job.lastError)
+    ) {
+      await removeEmbedJob(job.jobId);
+      cleaned++;
+    }
+  }
+
+  return cleaned;
+}
+
+export interface EmbedCleanupResult {
+  removedFailed: number;
+  removedStalePending: number;
+  removedStaleProcessing: number;
+  removedTotal: number;
+}
+
+/**
+ * Clear every embedding queue entry regardless of status.
+ */
+export async function clearEmbedQueue(): Promise<number> {
+  const jobs = await listEmbedJobs();
+  for (const job of jobs) {
+    await removeEmbedJob(job.jobId);
+  }
+  return jobs.length;
+}
+
+/**
+ * Cleanup failed and stale/stalled embedding queue entries.
+ *
+ * - Removes all failed jobs
+ * - Removes stale pending jobs older than maxPendingAgeMs
+ * - Removes stale processing jobs older than maxProcessingAgeMs
+ */
+export async function cleanupEmbedQueue(
+  maxPendingAgeMs: number = 10 * 60_000,
+  maxProcessingAgeMs: number = 5 * 60_000
+): Promise<EmbedCleanupResult> {
+  const now = Date.now();
+  const pendingCutoff = now - maxPendingAgeMs;
+  const processingCutoff = now - maxProcessingAgeMs;
+  const jobs = await listEmbedJobs();
+
+  let removedFailed = 0;
+  let removedStalePending = 0;
+  let removedStaleProcessing = 0;
+
+  for (const job of jobs) {
+    const updatedAt = new Date(job.updatedAt).getTime();
+
+    if (job.status === 'failed') {
+      await removeEmbedJob(job.jobId);
+      removedFailed++;
+      continue;
+    }
+
+    if (job.status === 'pending' && updatedAt <= pendingCutoff) {
+      await removeEmbedJob(job.jobId);
+      removedStalePending++;
+      continue;
+    }
+
+    if (job.status === 'processing' && updatedAt <= processingCutoff) {
+      await removeEmbedJob(job.jobId);
+      removedStaleProcessing++;
+    }
+  }
+
+  return {
+    removedFailed,
+    removedStalePending,
+    removedStaleProcessing,
+    removedTotal: removedFailed + removedStalePending + removedStaleProcessing,
+  };
 }
 
 /**

@@ -43,7 +43,9 @@ describe('E2E: crawl command', () => {
       const result = await runCLIFailure(['crawl'], {
         env: { FIRECRAWL_API_KEY: apiKey ?? 'test-key' },
       });
-      expect(result.stderr).toContain('URL or job ID is required');
+      expect(result.stderr).toContain(
+        'URL is required. Provide it as argument or use --url option.'
+      );
     });
 
     it('should accept URL as positional argument', async () => {
@@ -54,7 +56,9 @@ describe('E2E: crawl command', () => {
       const result = await runCLI(['crawl', 'https://example.com'], {
         env: { FIRECRAWL_API_KEY: apiKey ?? 'test-key' },
       });
-      expect(result.stderr).not.toContain('URL or job ID is required');
+      expect(result.stderr).not.toContain(
+        'URL is required. Provide it as argument or use --url option.'
+      );
     });
 
     it('should accept URL with --url flag', async () => {
@@ -65,7 +69,9 @@ describe('E2E: crawl command', () => {
       const result = await runCLI(['crawl', '--url', 'https://example.com'], {
         env: { FIRECRAWL_API_KEY: apiKey ?? 'test-key' },
       });
-      expect(result.stderr).not.toContain('URL or job ID is required');
+      expect(result.stderr).not.toContain(
+        'URL is required. Provide it as argument or use --url option.'
+      );
     });
   });
 

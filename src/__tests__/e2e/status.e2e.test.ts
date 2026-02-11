@@ -221,9 +221,7 @@ describe('E2E: status flag', () => {
         },
       });
 
-      // NOTE: Current behavior treats whitespace as valid (bug?)
-      // Ideally should trim and treat as empty, but keeping test realistic
-      expect(result.stdout).toContain('Authenticated');
+      expect(result.stdout).toContain('Not authenticated');
       expect(result.exitCode).toBe(0);
     });
 

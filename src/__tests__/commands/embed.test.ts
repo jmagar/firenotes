@@ -4,7 +4,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { executeEmbed } from '../../commands/embed';
+import { createEmbedCommand, executeEmbed } from '../../commands/embed';
 import type {
   IContainer,
   IQdrantService,
@@ -266,5 +266,27 @@ describe('executeEmbed', () => {
     const upsertOrder = vi.mocked(mockQdrantService.upsertPoints).mock
       .invocationCallOrder[0];
     expect(deleteOrder).toBeLessThan(upsertOrder);
+  });
+});
+
+describe('createEmbedCommand', () => {
+  it('should include status subcommand', () => {
+    const cmd = createEmbedCommand();
+    expect(cmd.commands.find((sub) => sub.name() === 'status')).toBeDefined();
+  });
+
+  it('should include cancel subcommand', () => {
+    const cmd = createEmbedCommand();
+    expect(cmd.commands.find((sub) => sub.name() === 'cancel')).toBeDefined();
+  });
+
+  it('should include clear subcommand', () => {
+    const cmd = createEmbedCommand();
+    expect(cmd.commands.find((sub) => sub.name() === 'clear')).toBeDefined();
+  });
+
+  it('should include cleanup subcommand', () => {
+    const cmd = createEmbedCommand();
+    expect(cmd.commands.find((sub) => sub.name() === 'cleanup')).toBeDefined();
   });
 });

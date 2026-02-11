@@ -14,6 +14,7 @@ import { processCommandResult } from '../utils/command';
 import { fmt, icons } from '../utils/theme';
 import {
   addVectorOutputOptions,
+  aggregatePointsByDomain,
   getQdrantUrlError,
   requireContainer,
   resolveCollectionName,
@@ -46,30 +47,8 @@ export async function executeDomains(
     // Scroll all points
     const points = await qdrantService.scrollAll(collection);
 
-    // Aggregate by domain
-    const domainMap = new Map<
-      string,
-      { urls: Set<string>; vectors: number; lastUpdated: string }
-    >();
-
-    for (const point of points) {
-      const domain = String(point.payload.domain || 'unknown');
-      const url = String(point.payload.url || '');
-      const scrapedAt = String(point.payload.scraped_at || '');
-
-      if (!domainMap.has(domain)) {
-        domainMap.set(domain, { urls: new Set(), vectors: 0, lastUpdated: '' });
-      }
-
-      const entry = domainMap.get(domain);
-      if (entry) {
-        if (url) entry.urls.add(url);
-        entry.vectors++;
-        if (scrapedAt > entry.lastUpdated) {
-          entry.lastUpdated = scrapedAt;
-        }
-      }
-    }
+    // Aggregate by domain using shared function
+    const domainMap = aggregatePointsByDomain(points, true);
 
     // Convert to array and sort by vector count descending
     let domains: DomainInfo[] = Array.from(domainMap.entries())
@@ -77,7 +56,7 @@ export async function executeDomains(
         domain,
         urlCount: data.urls.size,
         vectorCount: data.vectors,
-        lastUpdated: data.lastUpdated,
+        lastUpdated: data.lastUpdated || '',
       }))
       .sort((a, b) => b.vectorCount - a.vectorCount);
 

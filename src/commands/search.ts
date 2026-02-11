@@ -20,6 +20,7 @@ import type {
 import {
   formatJson,
   handleCommandError,
+  validateAllowedValues,
   writeCommandOutput,
 } from '../utils/command';
 import { MAX_CONCURRENT_EMBEDS } from '../utils/constants';
@@ -129,28 +130,18 @@ export async function executeSearch(
     // Handle the response - the SDK returns SearchData plus metadata fields
     const data: SearchResultData = {};
 
+    // Extract results from either direct or nested data format
+    const extractResults = <T>(
+      field: 'web' | 'images' | 'news'
+    ): T[] | undefined => {
+      return (result?.[field] || result?.data?.[field]) as T[] | undefined;
+    };
+
     // Check if result has the expected structure
     if (result) {
-      // Handle web results - check both direct and nested data formats
-      if (result.web) {
-        data.web = result.web as WebSearchResult[];
-      } else if (result.data?.web) {
-        data.web = result.data.web as WebSearchResult[];
-      }
-
-      // Handle image results - check both direct and nested data formats
-      if (result.images) {
-        data.images = result.images as ImageSearchResult[];
-      } else if (result.data?.images) {
-        data.images = result.data.images as ImageSearchResult[];
-      }
-
-      // Handle news results - check both direct and nested data formats
-      if (result.news) {
-        data.news = result.news as NewsSearchResult[];
-      } else if (result.data?.news) {
-        data.news = result.data.news as NewsSearchResult[];
-      }
+      data.web = extractResults<WebSearchResult>('web');
+      data.images = extractResults<ImageSearchResult>('images');
+      data.news = extractResults<NewsSearchResult>('news');
     }
 
     return {
@@ -161,9 +152,10 @@ export async function executeSearch(
       creditsUsed: result?.creditsUsed,
     };
   } catch (error) {
+    const errorMessage = buildApiErrorMessage(error, container.config.apiUrl);
     return {
       success: false,
-      error: buildApiErrorMessage(error, container.config.apiUrl),
+      error: `Search failed: ${errorMessage}`,
     };
   }
 }
@@ -331,7 +323,6 @@ export async function handleSearchCommand(
       fmt.error(error instanceof Error ? error.message : 'Invalid output path')
     );
     process.exit(1);
-    return;
   }
 
   // Auto-embed only when --scrape was used (snippets are too noisy)
@@ -371,7 +362,7 @@ export function createSearchCommand(): Command {
     .option(
       '--limit <number>',
       'Maximum number of results (default: 5, max: 100)',
-      parseInt,
+      (val) => parseInt(val, 10),
       5
     )
     .option(
@@ -397,7 +388,7 @@ export function createSearchCommand(): Command {
     .option(
       '--timeout <ms>',
       'Timeout in milliseconds (default: 60000)',
-      parseInt,
+      (val) => parseInt(val, 10),
       60000
     )
     .option(
@@ -448,16 +439,7 @@ export function createSearchCommand(): Command {
 
         // Validate sources
         const validSources = ['web', 'images', 'news'];
-        for (const source of sources) {
-          if (!validSources.includes(source)) {
-            console.error(
-              fmt.error(
-                `Invalid source "${source}". Valid sources: ${validSources.join(', ')}`
-              )
-            );
-            process.exit(1);
-          }
-        }
+        validateAllowedValues(sources, validSources, 'source');
       }
 
       // Parse categories
@@ -469,16 +451,7 @@ export function createSearchCommand(): Command {
 
         // Validate categories
         const validCategories = ['github', 'research', 'pdf'];
-        for (const category of categories) {
-          if (!validCategories.includes(category)) {
-            console.error(
-              fmt.error(
-                `Invalid category "${category}". Valid categories: ${validCategories.join(', ')}`
-              )
-            );
-            process.exit(1);
-          }
-        }
+        validateAllowedValues(categories, validCategories, 'category');
       }
 
       // Parse scrape formats

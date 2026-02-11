@@ -2,9 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   checkCrawlStatus,
   executeCrawlCancel,
+  executeCrawlCleanup,
+  executeCrawlClear,
   executeCrawlErrors,
 } from '../../../commands/crawl/status';
 import { createTestContainer } from '../../utils/test-container';
+
+vi.mock('../../../utils/job-history', () => ({
+  getRecentJobIds: vi.fn(),
+  removeJobIds: vi.fn(),
+  clearJobTypeHistory: vi.fn(),
+}));
+
+import {
+  clearJobTypeHistory,
+  getRecentJobIds,
+  removeJobIds,
+} from '../../../utils/job-history';
 
 const createContainer = (...args: Parameters<typeof createTestContainer>) =>
   createTestContainer(...args);
@@ -252,5 +266,82 @@ describe('executeCrawlErrors', () => {
     const result = await executeCrawlErrors(container, 'test-job');
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('executeCrawlClear', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should clear local crawl history and cancel active crawls', async () => {
+    vi.mocked(getRecentJobIds).mockResolvedValue(['job-1', 'job-2']);
+    vi.mocked(clearJobTypeHistory).mockResolvedValue(undefined);
+
+    const mockClient = {
+      getActiveCrawls: vi.fn().mockResolvedValue({
+        crawls: [{ id: 'active-1', url: 'https://a.com' }],
+      }),
+      cancelCrawl: vi.fn().mockResolvedValue(true),
+    };
+    const container = createContainer(mockClient);
+
+    const result = await executeCrawlClear(container);
+
+    expect(result.success).toBe(true);
+    expect(mockClient.cancelCrawl).toHaveBeenCalledWith('active-1');
+    expect(clearJobTypeHistory).toHaveBeenCalledWith('crawl');
+    expect(result.data).toEqual({
+      clearedHistory: 2,
+      cancelledActive: 1,
+    });
+  });
+});
+
+describe('executeCrawlCleanup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should remove failed, stale, and not-found crawl jobs from history', async () => {
+    vi.mocked(getRecentJobIds).mockResolvedValue([
+      'job-failed',
+      'job-stale',
+      'job-missing',
+      'job-ok',
+    ]);
+    vi.mocked(removeJobIds).mockResolvedValue(undefined);
+
+    const mockClient = {
+      getCrawlStatus: vi.fn().mockImplementation(async (id: string) => {
+        if (id === 'job-failed') {
+          return { id, status: 'failed', total: 100, completed: 10 };
+        }
+        if (id === 'job-stale') {
+          return { id, status: 'scraping', total: 20, completed: 20 };
+        }
+        if (id === 'job-ok') {
+          return { id, status: 'scraping', total: 100, completed: 50 };
+        }
+        throw new Error('Job not found');
+      }),
+    };
+    const container = createContainer(mockClient);
+
+    const result = await executeCrawlCleanup(container);
+
+    expect(result.success).toBe(true);
+    expect(removeJobIds).toHaveBeenCalledWith('crawl', [
+      'job-failed',
+      'job-stale',
+      'job-missing',
+    ]);
+    expect(result.data).toEqual({
+      scanned: 4,
+      removedFailed: 1,
+      removedStale: 1,
+      removedNotFound: 1,
+      removedTotal: 3,
+    });
   });
 });

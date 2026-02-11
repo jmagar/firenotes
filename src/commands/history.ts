@@ -16,9 +16,9 @@ import {
   addDomainSourceFilterOptions,
   addVectorOutputOptions,
   buildDomainSourceFilter,
-  getQdrantUrlError,
   requireContainer,
   resolveCollectionName,
+  validateQdrantUrl,
 } from './shared';
 
 /**
@@ -37,10 +37,11 @@ export async function executeHistory(
     const qdrantUrl = container.config.qdrantUrl;
     const collection = resolveCollectionName(container, options.collection);
 
-    if (!qdrantUrl) {
+    const validation = validateQdrantUrl(qdrantUrl, 'history');
+    if (!validation.valid) {
       return {
         success: false,
-        error: getQdrantUrlError('history'),
+        error: validation.error,
       };
     }
 
@@ -210,7 +211,7 @@ export function createHistoryCommand(): Command {
         .option(
           '--days <number>',
           'Filter by entries from last N days',
-          parseInt
+          (val) => parseInt(val, 10)
         )
         .option('--limit <number>', 'Maximum entries to show', (val) =>
           parseInt(val, 10)

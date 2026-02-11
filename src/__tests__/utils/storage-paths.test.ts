@@ -9,11 +9,16 @@ describe('storage-paths', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.resetModules();
     delete process.env.FIRECRAWL_HOME;
   });
 
   afterEach(() => {
-    process.env.FIRECRAWL_HOME = originalFirecrawlHome;
+    if (originalFirecrawlHome === undefined) {
+      delete process.env.FIRECRAWL_HOME;
+    } else {
+      process.env.FIRECRAWL_HOME = originalFirecrawlHome;
+    }
   });
 
   it('should default to ~/.firecrawl', async () => {

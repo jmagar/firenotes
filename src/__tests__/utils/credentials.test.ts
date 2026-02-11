@@ -13,7 +13,7 @@ import {
 } from '../../utils/credentials';
 
 // Mock fs module
-vi.mock('fs', () => ({
+vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
   writeFileSync: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock('fs', () => ({
 }));
 
 // Mock os module
-vi.mock('os', () => ({
+vi.mock('node:os', () => ({
   homedir: vi.fn(),
 }));
 
@@ -38,7 +38,11 @@ describe('Credentials Utilities', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-    process.env.FIRECRAWL_HOME = originalFirecrawlHome;
+    if (originalFirecrawlHome === undefined) {
+      delete process.env.FIRECRAWL_HOME;
+    } else {
+      process.env.FIRECRAWL_HOME = originalFirecrawlHome;
+    }
   });
 
   describe('getConfigDirectoryPath', () => {

@@ -16,7 +16,7 @@ import { parseScrapeOptions } from '../utils/options';
 import { handleScrapeOutput } from '../utils/output';
 import { fmt, icons } from '../utils/theme';
 import { normalizeUrl } from '../utils/url';
-import { requireContainer } from './shared';
+import { requireContainer, resolveRequiredUrl } from './shared';
 
 /**
  * Output timing information if requested
@@ -164,9 +164,10 @@ export async function executeScrape(
     const requestEndTime = Date.now();
     outputTiming(options, requestStartTime, requestEndTime, error);
 
+    const errorMessage = buildApiErrorMessage(error, container.config.apiUrl);
     return {
       success: false,
-      error: buildApiErrorMessage(error, container.config.apiUrl),
+      error: `Scrape failed: ${errorMessage}`,
     };
   }
 }
@@ -278,7 +279,7 @@ export function createScrapeCommand(): Command {
     .option(
       '--wait-for <ms>',
       'Wait time before scraping in milliseconds',
-      parseInt
+      (val) => parseInt(val, 10)
     )
     .option('--timeout <seconds>', 'Request timeout in seconds', parseFloat, 15)
     .option('--screenshot', 'Take a screenshot', false)
@@ -310,16 +311,7 @@ export function createScrapeCommand(): Command {
       async (positionalUrl, positionalFormats, options, command: Command) => {
         const container = requireContainer(command);
 
-        // Use positional URL if provided, otherwise use --url option
-        const url = positionalUrl || options.url;
-        if (!url) {
-          console.error(
-            fmt.error(
-              'URL is required. Provide it as argument or use --url option.'
-            )
-          );
-          process.exit(1);
-        }
+        const url = resolveRequiredUrl(positionalUrl, options.url);
 
         // Merge formats: positional formats take precedence, then --format flag, then default to markdown
         let format: string;

@@ -39,13 +39,23 @@ export async function executeRetrieve(
 
     // Get Qdrant service from container
     const qdrantService = container.getQdrantService();
-    const points = await qdrantService.scrollByUrl(collection, options.url);
+    let points = await qdrantService.scrollByUrl(collection, options.url);
 
+    // If no results, try with opposite trailing slash state
     if (points.length === 0) {
-      return {
-        success: false,
-        error: `No content found for URL: ${options.url}`,
-      };
+      const alternateUrl = options.url.endsWith('/')
+        ? options.url.slice(0, -1) // Remove trailing slash
+        : `${options.url}/`; // Add trailing slash
+
+      points = await qdrantService.scrollByUrl(collection, alternateUrl);
+
+      // If still no results, return error
+      if (points.length === 0) {
+        return {
+          success: false,
+          error: `No content found for URL: ${options.url} (also tried ${alternateUrl})`,
+        };
+      }
     }
 
     // Reassemble document from ordered chunks (restore headers)

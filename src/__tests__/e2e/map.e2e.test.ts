@@ -101,9 +101,9 @@ describe('E2E: map command', () => {
       expect(result.stdout).toContain('--timeout');
     });
 
-    it('should support --notebook flag', async () => {
+    it('should not expose --notebook flag when NotebookLM integration is unavailable', async () => {
       const result = await runCLI(['map', '--help']);
-      expect(result.stdout).toContain('--notebook');
+      expect(result.stdout).not.toContain('--notebook');
     });
   });
 

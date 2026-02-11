@@ -256,6 +256,206 @@ describe('markJobConfigError', () => {
   });
 });
 
+describe('markJobPermanentFailed', () => {
+  let queueDir: string;
+
+  beforeEach(() => {
+    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
+    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    rmSync(queueDir, { recursive: true, force: true });
+    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    vi.resetModules();
+  });
+
+  it('should mark job as failed and exhaust retries', async () => {
+    const { enqueueEmbedJob, markJobPermanentFailed, getEmbedJob } =
+      await import('../../utils/embed-queue');
+
+    await enqueueEmbedJob('job-permanent-fail', 'https://example.com');
+    await markJobPermanentFailed('job-permanent-fail', 'Job not found');
+
+    const job = await getEmbedJob('job-permanent-fail');
+    expect(job).not.toBeNull();
+    expect(job?.status).toBe('failed');
+    expect(job?.retries).toBe(job?.maxRetries);
+    expect(job?.lastError).toBe('Job not found');
+  });
+});
+
+describe('cleanupIrrecoverableFailedJobs', () => {
+  let queueDir: string;
+
+  beforeEach(() => {
+    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
+    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    rmSync(queueDir, { recursive: true, force: true });
+    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    vi.resetModules();
+  });
+
+  it('should remove permanently failed jobs with irrecoverable errors', async () => {
+    const {
+      enqueueEmbedJob,
+      markJobPermanentFailed,
+      cleanupIrrecoverableFailedJobs,
+      listEmbedJobs,
+    } = await import('../../utils/embed-queue');
+
+    await enqueueEmbedJob('job-irrecoverable', 'https://example.com');
+    await markJobPermanentFailed('job-irrecoverable', 'Job not found');
+
+    const cleaned = await cleanupIrrecoverableFailedJobs();
+    const jobs = await listEmbedJobs();
+
+    expect(cleaned).toBe(1);
+    expect(
+      jobs.find((job) => job.jobId === 'job-irrecoverable')
+    ).toBeUndefined();
+  });
+
+  it('should keep failed jobs with recoverable errors', async () => {
+    const {
+      enqueueEmbedJob,
+      markJobFailed,
+      cleanupIrrecoverableFailedJobs,
+      listEmbedJobs,
+    } = await import('../../utils/embed-queue');
+
+    await enqueueEmbedJob('job-retryable', 'https://example.com');
+    await markJobFailed('job-retryable', 'Crawl still scraping');
+    await markJobFailed('job-retryable', 'Crawl still scraping');
+    await markJobFailed('job-retryable', 'Crawl still scraping');
+
+    const cleaned = await cleanupIrrecoverableFailedJobs();
+    const jobs = await listEmbedJobs();
+
+    expect(cleaned).toBe(0);
+    expect(jobs.find((job) => job.jobId === 'job-retryable')).toBeDefined();
+  });
+});
+
+describe('clearEmbedQueue', () => {
+  let queueDir: string;
+
+  beforeEach(() => {
+    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
+    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    rmSync(queueDir, { recursive: true, force: true });
+    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    vi.resetModules();
+  });
+
+  it('should remove all queue jobs', async () => {
+    const { enqueueEmbedJob, clearEmbedQueue, listEmbedJobs } = await import(
+      '../../utils/embed-queue'
+    );
+
+    await enqueueEmbedJob('job-1', 'https://example.com/1');
+    await enqueueEmbedJob('job-2', 'https://example.com/2');
+
+    const removed = await clearEmbedQueue();
+    const jobs = await listEmbedJobs();
+
+    expect(removed).toBe(2);
+    expect(jobs).toHaveLength(0);
+  });
+});
+
+describe('cleanupEmbedQueue', () => {
+  let queueDir: string;
+
+  beforeEach(() => {
+    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
+    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    rmSync(queueDir, { recursive: true, force: true });
+    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    vi.resetModules();
+  });
+
+  it('should remove failed and stale jobs while keeping fresh pending jobs', async () => {
+    const now = Date.now();
+    const jobs = [
+      {
+        id: 'job-failed',
+        jobId: 'job-failed',
+        url: 'https://example.com/failed',
+        status: 'failed' as const,
+        retries: 3,
+        maxRetries: 3,
+        createdAt: new Date(now - 60_000).toISOString(),
+        updatedAt: new Date(now - 60_000).toISOString(),
+        lastError: 'Job not found',
+      },
+      {
+        id: 'job-stale-pending',
+        jobId: 'job-stale-pending',
+        url: 'https://example.com/pending',
+        status: 'pending' as const,
+        retries: 0,
+        maxRetries: 3,
+        createdAt: new Date(now - 20 * 60_000).toISOString(),
+        updatedAt: new Date(now - 20 * 60_000).toISOString(),
+      },
+      {
+        id: 'job-stale-processing',
+        jobId: 'job-stale-processing',
+        url: 'https://example.com/processing',
+        status: 'processing' as const,
+        retries: 0,
+        maxRetries: 3,
+        createdAt: new Date(now - 20 * 60_000).toISOString(),
+        updatedAt: new Date(now - 20 * 60_000).toISOString(),
+      },
+      {
+        id: 'job-fresh-pending',
+        jobId: 'job-fresh-pending',
+        url: 'https://example.com/fresh',
+        status: 'pending' as const,
+        retries: 0,
+        maxRetries: 3,
+        createdAt: new Date(now).toISOString(),
+        updatedAt: new Date(now).toISOString(),
+      },
+    ];
+
+    for (const job of jobs) {
+      writeFileSync(
+        join(queueDir, `${job.jobId}.json`),
+        JSON.stringify(job, null, 2)
+      );
+    }
+
+    const { cleanupEmbedQueue, listEmbedJobs } = await import(
+      '../../utils/embed-queue'
+    );
+    const result = await cleanupEmbedQueue();
+    const remaining = await listEmbedJobs();
+
+    expect(result.removedFailed).toBe(1);
+    expect(result.removedStalePending).toBe(1);
+    expect(result.removedStaleProcessing).toBe(1);
+    expect(result.removedTotal).toBe(3);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]?.jobId).toBe('job-fresh-pending');
+  });
+});
+
 describe('tryClaimJob', () => {
   let queueDir: string;
 

@@ -41,20 +41,14 @@ export class HttpClient implements IHttpClient {
     const retryOptions =
       options === undefined
         ? undefined
-        : {
-            ...(options.timeoutMs !== undefined
-              ? { timeoutMs: options.timeoutMs }
-              : {}),
-            ...(options.maxRetries !== undefined
-              ? { maxRetries: options.maxRetries }
-              : {}),
-            ...(options.baseDelayMs !== undefined
-              ? { baseDelayMs: options.baseDelayMs }
-              : {}),
-            ...(options.maxDelayMs !== undefined
-              ? { maxDelayMs: options.maxDelayMs }
-              : {}),
-          };
+        : (Object.fromEntries(
+            Object.entries({
+              timeoutMs: options.timeoutMs,
+              maxRetries: options.maxRetries,
+              baseDelayMs: options.baseDelayMs,
+              maxDelayMs: options.maxDelayMs,
+            }).filter(([_, value]) => value !== undefined)
+          ) as typeof options);
 
     return utilFetchWithRetry(url, init, retryOptions);
   }

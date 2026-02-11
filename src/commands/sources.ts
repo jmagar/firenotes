@@ -16,9 +16,9 @@ import {
   addDomainSourceFilterOptions,
   addVectorOutputOptions,
   buildDomainSourceFilter,
-  getQdrantUrlError,
   requireContainer,
   resolveCollectionName,
+  validateQdrantUrl,
 } from './shared';
 
 /**
@@ -37,10 +37,11 @@ export async function executeSources(
     const qdrantUrl = container.config.qdrantUrl;
     const collection = resolveCollectionName(container, options.collection);
 
-    if (!qdrantUrl) {
+    const validation = validateQdrantUrl(qdrantUrl, 'sources');
+    if (!validation.valid) {
       return {
         success: false,
-        error: getQdrantUrlError('sources'),
+        error: validation.error,
       };
     }
 

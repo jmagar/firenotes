@@ -34,7 +34,6 @@ type StorageInfo = {
   settingsPath: string;
   jobHistoryPath: string;
   embedQueueDir: string;
-  embedQueueOverride: string | null;
   exists: {
     storageRoot: boolean;
     credentialsPath: boolean;
@@ -163,7 +162,6 @@ function getStorageInfo(): StorageInfo {
   const settingsPath = getSettingsPath();
   const jobHistoryPath = getJobHistoryPath();
   const embedQueueDir = getEmbedQueueDir();
-  const embedQueueOverride = process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR || null;
 
   return {
     storageRoot,
@@ -171,7 +169,6 @@ function getStorageInfo(): StorageInfo {
     settingsPath,
     jobHistoryPath,
     embedQueueDir,
-    embedQueueOverride,
     exists: {
       storageRoot: existsSync(storageRoot),
       credentialsPath: existsSync(credentialsPath),
@@ -190,21 +187,22 @@ function formatStorageHuman(info: StorageInfo): string {
   lines.push(`    ${fmt.dim('Settings:')} ${info.settingsPath}`);
   lines.push(`    ${fmt.dim('Job history:')} ${info.jobHistoryPath}`);
   lines.push(`    ${fmt.dim('Embed queue:')} ${info.embedQueueDir}`);
-  lines.push(
-    `    ${fmt.dim('Embed queue override:')} ${info.embedQueueOverride ?? '(none)'}`
-  );
   lines.push('');
   lines.push(`  ${fmt.primary('Exists')}`);
-  lines.push(`    ${fmt.dim('Root:')} ${String(info.exists.storageRoot)}`);
   lines.push(
-    `    ${fmt.dim('Credentials:')} ${String(info.exists.credentialsPath)}`
-  );
-  lines.push(`    ${fmt.dim('Settings:')} ${String(info.exists.settingsPath)}`);
-  lines.push(
-    `    ${fmt.dim('Job history:')} ${String(info.exists.jobHistoryPath)}`
+    `    ${fmt.dim('Root:')} ${info.exists.storageRoot ? icons.success : icons.error}`
   );
   lines.push(
-    `    ${fmt.dim('Embed queue:')} ${String(info.exists.embedQueueDir)}`
+    `    ${fmt.dim('Credentials:')} ${info.exists.credentialsPath ? icons.success : icons.error}`
+  );
+  lines.push(
+    `    ${fmt.dim('Settings:')} ${info.exists.settingsPath ? icons.success : icons.error}`
+  );
+  lines.push(
+    `    ${fmt.dim('Job history:')} ${info.exists.jobHistoryPath ? icons.success : icons.error}`
+  );
+  lines.push(
+    `    ${fmt.dim('Embed queue:')} ${info.exists.embedQueueDir ? icons.success : icons.error}`
   );
   return lines.join('\n');
 }
@@ -250,10 +248,7 @@ export function createInfoCommand(): Command {
     .option('--json', 'Output as JSON', false)
     .action(async (url: string, options, command: Command) => {
       if (!url) {
-        console.error(
-          fmt.error('URL is required. Use "firecrawl info <url>".')
-        );
-        process.exit(1);
+        command.error('URL is required. Use "firecrawl info <url>".');
       }
       const container = requireContainer(command);
       const parsedOptions = parseInfoOptions(normalizeUrl(url), options);

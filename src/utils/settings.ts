@@ -4,6 +4,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { type UserSettings, UserSettingsSchema } from '../schemas/storage';
 import { getConfigDirectoryPath } from './credentials';
@@ -13,6 +14,11 @@ import { fmt } from './theme';
 export type { UserSettings };
 
 /**
+ * Module-level flag to avoid repeated fs.existsSync checks for migration
+ */
+let migrationDone = false;
+
+/**
  * Get the settings file path
  */
 function getSettingsPath(): string {
@@ -20,7 +26,7 @@ function getSettingsPath(): string {
 }
 
 function getLegacySettingsPaths(): string[] {
-  const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
+  const homeDir = os.homedir();
   return [
     path.join(
       homeDir,
@@ -59,8 +65,13 @@ function setSecurePermissions(filePath: string): void {
  * Migrate settings from legacy paths to FIRECRAWL_HOME path.
  */
 function migrateLegacySettings(): void {
+  if (migrationDone) {
+    return;
+  }
+
   const newPath = getSettingsPath();
   if (fs.existsSync(newPath)) {
+    migrationDone = true;
     return;
   }
 
@@ -78,20 +89,35 @@ function migrateLegacySettings(): void {
       }
 
       ensureConfigDir();
-      fs.writeFileSync(
-        newPath,
-        JSON.stringify(validation.data, null, 2),
-        'utf-8'
-      );
-      setSecurePermissions(newPath);
-      console.error(
-        fmt.dim(`[Settings] Migrated settings from ${legacyPath} to ${newPath}`)
-      );
+      try {
+        fs.writeFileSync(newPath, JSON.stringify(validation.data, null, 2), {
+          encoding: 'utf-8',
+          flag: 'wx',
+        });
+        setSecurePermissions(newPath);
+        console.error(
+          fmt.dim(
+            `[Settings] Migrated settings from ${legacyPath} to ${newPath}`
+          )
+        );
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+          // Another process created the file, treat as success
+          console.error(
+            fmt.dim(`[Settings] Settings already migrated by another process`)
+          );
+        } else {
+          throw error;
+        }
+      }
+      migrationDone = true;
       return;
     } catch {
       // Ignore invalid legacy files and continue checking others
     }
   }
+
+  migrationDone = true;
 }
 
 /**

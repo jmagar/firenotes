@@ -1127,6 +1127,22 @@ describe('createCrawlCommand', () => {
     });
   });
 
+  describe('clear subcommand', () => {
+    it('should exist as a subcommand', () => {
+      const cmd = createCrawlCommand();
+      const clearCmd = cmd.commands.find((c) => c.name() === 'clear');
+      expect(clearCmd).toBeDefined();
+    });
+  });
+
+  describe('cleanup subcommand', () => {
+    it('should exist as a subcommand', () => {
+      const cmd = createCrawlCommand();
+      const cleanupCmd = cmd.commands.find((c) => c.name() === 'cleanup');
+      expect(cleanupCmd).toBeDefined();
+    });
+  });
+
   describe('errors subcommand', () => {
     it('should exist as a subcommand', () => {
       const cmd = createCrawlCommand();

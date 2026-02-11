@@ -11,9 +11,12 @@ vi.mock('../../utils/embed-queue', () => ({
   markJobProcessing: vi.fn().mockResolvedValue(undefined),
   markJobCompleted: vi.fn().mockResolvedValue(undefined),
   markJobFailed: vi.fn().mockResolvedValue(undefined),
+  markJobPendingNoRetry: vi.fn().mockResolvedValue(undefined),
+  markJobPermanentFailed: vi.fn().mockResolvedValue(undefined),
   markJobConfigError: vi.fn().mockResolvedValue(undefined),
   updateEmbedJob: vi.fn().mockResolvedValue(undefined),
   cleanupOldJobs: vi.fn().mockResolvedValue(0),
+  cleanupIrrecoverableFailedJobs: vi.fn().mockResolvedValue(0),
   getQueueStats: vi.fn().mockResolvedValue({
     pending: 0,
     processing: 0,
@@ -75,8 +78,12 @@ describe('processStaleJobsOnce', () => {
   });
 
   it('should recover stuck processing jobs before processing stale jobs', async () => {
-    const { getStalePendingJobs, getStuckProcessingJobs, updateEmbedJob } =
-      await import('../../utils/embed-queue');
+    const {
+      getStalePendingJobs,
+      getStuckProcessingJobs,
+      updateEmbedJob,
+      cleanupIrrecoverableFailedJobs,
+    } = await import('../../utils/embed-queue');
     const { createDaemonContainer } = await import(
       '../../container/DaemonContainerFactory'
     );
@@ -119,13 +126,19 @@ describe('processStaleJobsOnce', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       expect.stringContaining('Recovering 1 stuck processing jobs')
     );
+    expect(cleanupIrrecoverableFailedJobs).toHaveBeenCalled();
 
     consoleErrorSpy.mockRestore();
   });
 
   it('should process stale pending jobs', async () => {
-    const { getStalePendingJobs, markJobProcessing, markJobCompleted } =
-      await import('../../utils/embed-queue');
+    const {
+      getStalePendingJobs,
+      markJobProcessing,
+      markJobCompleted,
+      updateEmbedJob,
+      cleanupIrrecoverableFailedJobs,
+    } = await import('../../utils/embed-queue');
     const { createDaemonContainer } = await import(
       '../../container/DaemonContainerFactory'
     );
@@ -179,7 +192,109 @@ describe('processStaleJobsOnce', () => {
 
     expect(processed).toBe(1);
     expect(markJobProcessing).toHaveBeenCalledWith('job-1');
+    expect(updateEmbedJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'job-1',
+        status: 'processing',
+      })
+    );
     expect(markJobCompleted).toHaveBeenCalledWith('job-1');
+    expect(cleanupIrrecoverableFailedJobs).toHaveBeenCalled();
+  });
+
+  it('should mark permanent failures without retry backoff for invalid job errors', async () => {
+    const {
+      getStalePendingJobs,
+      markJobPermanentFailed,
+      markJobFailed,
+      cleanupIrrecoverableFailedJobs,
+    } = await import('../../utils/embed-queue');
+    const { createDaemonContainer } = await import(
+      '../../container/DaemonContainerFactory'
+    );
+
+    vi.mocked(getStalePendingJobs).mockResolvedValue([
+      {
+        id: 'job-invalid',
+        jobId: 'job-invalid',
+        url: 'https://example.com',
+        status: 'pending',
+        retries: 0,
+        maxRetries: 3,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+
+    const mockClient = {
+      getCrawlStatus: vi.fn().mockRejectedValue(new Error('Job not found')),
+    };
+    vi.mocked(createDaemonContainer).mockReturnValue(
+      createMockContainer({ firecrawlClient: mockClient })
+    );
+
+    const { processStaleJobsOnce } = await import(
+      '../../utils/background-embedder'
+    );
+    await processStaleJobsOnce(createMockContainer(), 60_000);
+
+    expect(markJobPermanentFailed).toHaveBeenCalledWith(
+      'job-invalid',
+      expect.stringContaining('Job not found')
+    );
+    expect(markJobFailed).not.toHaveBeenCalled();
+    expect(cleanupIrrecoverableFailedJobs).toHaveBeenCalled();
+  });
+
+  it('should defer crawl-still-running jobs without consuming retries', async () => {
+    const {
+      getStalePendingJobs,
+      markJobPendingNoRetry,
+      markJobFailed,
+      markJobPermanentFailed,
+      cleanupIrrecoverableFailedJobs,
+    } = await import('../../utils/embed-queue');
+    const { createDaemonContainer } = await import(
+      '../../container/DaemonContainerFactory'
+    );
+
+    vi.mocked(getStalePendingJobs).mockResolvedValue([
+      {
+        id: 'job-still-running',
+        jobId: 'job-still-running',
+        url: 'https://example.com',
+        status: 'pending',
+        retries: 1,
+        maxRetries: 3,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+
+    const mockClient = {
+      getCrawlStatus: vi.fn().mockResolvedValue({
+        status: 'scraping',
+        total: 100,
+        completed: 20,
+      }),
+    };
+
+    vi.mocked(createDaemonContainer).mockReturnValue(
+      createMockContainer({ firecrawlClient: mockClient })
+    );
+
+    const { processStaleJobsOnce } = await import(
+      '../../utils/background-embedder'
+    );
+    await processStaleJobsOnce(createMockContainer(), 60_000);
+
+    expect(markJobPendingNoRetry).toHaveBeenCalledWith(
+      'job-still-running',
+      'Crawl still scraping'
+    );
+    expect(markJobFailed).not.toHaveBeenCalled();
+    expect(markJobPermanentFailed).not.toHaveBeenCalled();
+    expect(cleanupIrrecoverableFailedJobs).toHaveBeenCalled();
   });
 });
 

@@ -5,9 +5,16 @@
 import type { IContainer } from '../../container/types';
 import type {
   CrawlCancelResult,
+  CrawlCleanupResult,
+  CrawlClearResult,
   CrawlErrorsResult,
   CrawlStatusResult,
 } from '../../types/crawl';
+import {
+  clearJobTypeHistory,
+  getRecentJobIds,
+  removeJobIds,
+} from '../../utils/job-history';
 
 /**
  * Format error message for status operations
@@ -108,6 +115,144 @@ export async function executeCrawlErrors(
     return {
       success: false,
       error: formatError('fetch errors for', jobId, error),
+    };
+  }
+}
+
+function isNotFoundError(error: string): boolean {
+  const normalized = error.toLowerCase();
+  return (
+    normalized.includes('job not found') ||
+    normalized.includes('invalid job id')
+  );
+}
+
+function isStaleInProgressStatus(status: {
+  status?: string;
+  total?: number;
+  completed?: number;
+}): boolean {
+  if (
+    status.status !== 'scraping' &&
+    status.status !== 'processing' &&
+    status.status !== 'running'
+  ) {
+    return false;
+  }
+
+  if (
+    typeof status.total !== 'number' ||
+    typeof status.completed !== 'number'
+  ) {
+    return false;
+  }
+
+  return status.total > 0 && status.completed >= status.total;
+}
+
+export async function executeCrawlClear(
+  container: IContainer
+): Promise<CrawlClearResult> {
+  try {
+    const app = container.getFirecrawlClient();
+    const recentCrawlIds = await getRecentJobIds('crawl', 100);
+
+    let cancelledActive = 0;
+    try {
+      const active = await app.getActiveCrawls();
+      const activeIds = Array.isArray(active.crawls)
+        ? active.crawls.map((crawl) => crawl.id)
+        : [];
+
+      for (const activeId of activeIds) {
+        const cancelled = await app.cancelCrawl(activeId);
+        if (cancelled) {
+          cancelledActive++;
+        }
+      }
+    } catch {
+      // If active-crawl lookup fails, still clear local queue state.
+    }
+
+    await clearJobTypeHistory('crawl');
+
+    return {
+      success: true,
+      data: {
+        clearedHistory: recentCrawlIds.length,
+        cancelledActive,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: formatError('clear crawl queue', 'history', error),
+    };
+  }
+}
+
+export async function executeCrawlCleanup(
+  container: IContainer
+): Promise<CrawlCleanupResult> {
+  try {
+    const app = container.getFirecrawlClient();
+    const recentCrawlIds = await getRecentJobIds('crawl', 100);
+
+    let removedFailed = 0;
+    let removedStale = 0;
+    let removedNotFound = 0;
+    const toRemove: string[] = [];
+
+    for (const id of recentCrawlIds) {
+      try {
+        const status = await app.getCrawlStatus(id, { autoPaginate: false });
+
+        const crawlStatus = String(status.status ?? '').toLowerCase();
+        if (
+          crawlStatus === 'failed' ||
+          crawlStatus === 'cancelled' ||
+          crawlStatus === 'error'
+        ) {
+          removedFailed++;
+          toRemove.push(id);
+          continue;
+        }
+
+        if (
+          isStaleInProgressStatus({
+            status: status.status,
+            total: status.total,
+            completed: status.completed,
+          })
+        ) {
+          removedStale++;
+          toRemove.push(id);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (isNotFoundError(message)) {
+          removedNotFound++;
+          toRemove.push(id);
+        }
+      }
+    }
+
+    await removeJobIds('crawl', toRemove);
+
+    return {
+      success: true,
+      data: {
+        scanned: recentCrawlIds.length,
+        removedFailed,
+        removedStale,
+        removedNotFound,
+        removedTotal: toRemove.length,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: formatError('cleanup crawl queue', 'history', error),
     };
   }
 }

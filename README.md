@@ -1,6 +1,6 @@
 # 🔥 **Firecrawl CLI**
 
-Command-line interface for Firecrawl. Scrape, crawl, extract, and embed data from any website directly from your terminal. Includes a built-in embedding pipeline for semantic search over scraped content via Qdrant and TEI.
+Command-line interface for Firecrawl. Scrape, crawl, extract, and embed data from any website directly from your terminal. Includes a built-in embedding pipeline for semantic search and AI-powered Q&A over scraped content via Qdrant, TEI, and Claude/Gemini CLI.
 
 ## Installation
 
@@ -66,10 +66,14 @@ Tip: You can also set FIRECRAWL_API_KEY and FIRECRAWL_API_URL environment variab
 export FIRECRAWL_API_KEY=your-api-key
 export FIRECRAWL_API_URL=http://localhost:53002
 
-# Optional: embedding pipeline (enables embed, query, retrieve commands)
+# Optional: embedding pipeline (enables embed, query, retrieve, ask commands)
 # TEI runs on remote GPU server - update with your TEI endpoint
 export TEI_URL=http://your-tei-server:52000
 export QDRANT_URL=http://localhost:53333
+
+# Optional: default AI model for ask command
+# Supported: opus, sonnet, haiku (claude) or gemini-3-pro-preview, gemini-3-flash-preview (gemini)
+export ASK_CLI=haiku
 
 # Interactive (prompts automatically when needed)
 firecrawl
@@ -134,9 +138,9 @@ firecrawl batch <TAB>         # Shows batch subcommands
 
 ### Features
 
-- ✅ All command names (scrape, crawl, map, search, extract, batch, etc.)
+- ✅ All command names (scrape, crawl, map, search, extract, batch, embed, query, retrieve, ask, etc.)
 - ✅ All option flags (--wait, --format, --output, --pretty, etc.)
-- ✅ Subcommand completion (batch status/cancel/errors, crawl status/cancel/errors, extract status)
+- ✅ Subcommand completion (batch status/cancel/errors, crawl status/cancel/clear/cleanup/errors, embed cancel/clear/cleanup, extract status)
 - ✅ File path completion for --output option
 - ✅ Context-aware option suggestions based on command
 
@@ -254,7 +258,7 @@ firecrawl search "firecrawl tutorials" --scrape
 firecrawl search "API documentation" --scrape --scrape-formats markdown,links
 
 # Output as pretty JSON
-firecrawl search "web scraping" -p
+firecrawl search "web scraping" --pretty
 ```
 
 #### Search Options
@@ -273,7 +277,7 @@ firecrawl search "web scraping" -p
 | `--scrape-formats <formats>` | Scrape formats when `--scrape` enabled (default: markdown)                                  |
 | `--only-main-content`        | Include only main content when scraping (default: true)                                     |
 | `-o, --output <path>`        | Save to file                                                                                |
-| `--json`                     | Output as compact JSON (use `-p` for pretty JSON)                                           |
+| `--json`                     | Output as compact JSON                                                                       |
 
 #### Examples
 
@@ -285,10 +289,10 @@ firecrawl search "React Server Components" --tbs qdr:m --limit 10
 firecrawl search "web scraping library" --categories github --limit 20
 
 # Search and get full content
-firecrawl search "firecrawl documentation" --scrape --scrape-formats markdown -p -o results.json
+firecrawl search "firecrawl documentation" --scrape --scrape-formats markdown --pretty -o results.json
 
 # Find research papers
-firecrawl search "large language models" --categories research -p
+firecrawl search "large language models" --categories research --pretty
 
 # Search with location targeting
 firecrawl search "best coffee shops" --location "Berlin,Germany" --country DE
@@ -327,36 +331,8 @@ firecrawl map https://example.com --limit 500
 | `--include-subdomains`      | Include subdomains                |
 | `--ignore-query-parameters` | Dedupe URLs with different params |
 | `--timeout <seconds>`       | Request timeout                   |
-| `--notebook <id-or-name>`   | Add URLs to NotebookLM notebook   |
 | `--json`                    | Output as JSON                    |
 | `-o, --output <path>`       | Save to file                      |
-
-#### NotebookLM Integration
-
-Add discovered URLs directly to a NotebookLM notebook:
-
-```bash
-# Create new notebook from mapped URLs
-firecrawl map https://docs.example.com --notebook "Example Docs"
-
-# Add to existing notebook by ID
-firecrawl map https://docs.example.com --notebook "abc123def456"
-
-# Combine with other options
-firecrawl map https://docs.example.com --limit 50 --search "api" --notebook "API Docs"
-```
-
-**Requirements:**
-
-- Python 3.11+ installed
-- NotebookLM package: `pip install notebooklm`
-- Authenticated: `notebooklm login`
-
-**Notes:**
-
-- Maximum 300 URLs (NotebookLM Pro limit)
-- Best-effort: notebook failures don't fail the map command
-- Progress messages go to stderr, map output to stdout
 
 #### Examples
 
@@ -373,7 +349,6 @@ firecrawl map https://example.com -o urls.txt
 # Include subdomains
 firecrawl map https://example.com --include-subdomains --limit 1000
 ```
-
 ---
 
 ### `crawl` - Crawl an entire website
@@ -392,8 +367,8 @@ firecrawl crawl https://example.com --wait
 # With progress indicator
 firecrawl crawl https://example.com --progress
 
-# Check crawl status (auto-detects job ID)
-firecrawl crawl <job-id>
+# Check crawl status
+firecrawl crawl status <job-id>
 
 # List active crawl jobs
 firecrawl list
@@ -401,17 +376,20 @@ firecrawl list
 # Show job and embedding status summary
 firecrawl status
 
-# Cancel a crawl job (legacy: use --cancel flag)
-firecrawl crawl <job-id> --cancel
+# Cancel a crawl job
+firecrawl crawl cancel <job-id>
 
-# Fetch crawl errors (legacy: use --errors flag)
-firecrawl crawl <job-id> --errors
-
-# List active crawl jobs
-firecrawl list
+# Fetch crawl errors
+firecrawl crawl errors <job-id>
 
 # Manually trigger embeddings for completed crawl
 firecrawl crawl <job-id> --embed
+
+# Clear crawl queue (history + best-effort active cancel)
+firecrawl crawl clear
+
+# Cleanup only failed/stale/stalled crawl history entries
+firecrawl crawl cleanup
 
 # Disable embeddings
 firecrawl crawl https://example.com --no-embed
@@ -420,6 +398,16 @@ firecrawl crawl https://example.com --no-embed
 firecrawl crawl https://example.com --limit 100 --max-depth 3
 ```
 
+#### Crawl Subcommands
+
+| Subcommand | Description |
+| ---------- | ----------- |
+| `status <job-id>` | Check status for a specific crawl job |
+| `cancel <job-id>` | Cancel a specific crawl job |
+| `errors <job-id>` | Fetch crawl errors for a specific crawl job |
+| `clear` | Clear the entire crawl queue/history and best-effort cancel active crawls |
+| `cleanup` | Remove only failed/stale/stalled/not-found crawl entries from queue/history |
+
 #### Crawl Options
 
 | Option                      | Description                                            |
@@ -427,9 +415,6 @@ firecrawl crawl https://example.com --limit 100 --max-depth 3
 | `--wait`                    | Wait for crawl to complete and embed inline            |
 | `--progress`                | Show progress while waiting (implies --wait)           |
 | `--embed`                   | Manually trigger embeddings for a completed job        |
-| `--cancel`                  | (Legacy) Cancel an existing crawl job (deprecated)     |
-| `--errors`                  | (Legacy) Fetch crawl errors for a job ID (deprecated)  |
-| `--status`                  | (Legacy) Check job status (deprecated, auto-detected)  |
 | `--no-embed`                | Skip auto-embedding (useful for large crawls)          |
 | `--limit <n>`               | Maximum pages to crawl                                 |
 | `--max-depth <n>`           | Maximum crawl depth                                    |
@@ -487,10 +472,13 @@ firecrawl crawl https://example.com --limit 1000 --max-depth 10 --wait --progres
 firecrawl crawl https://example.com --wait -o crawl-results.json --pretty
 
 # Cancel a crawl job
-firecrawl crawl <job-id> --cancel
+firecrawl crawl cancel <job-id>
 
 # Fetch crawl errors
-firecrawl crawl <job-id> --errors
+firecrawl crawl errors <job-id>
+
+# Cleanup failed/stale/stalled crawl history entries
+firecrawl crawl cleanup
 ```
 
 ---
@@ -508,36 +496,26 @@ firecrawl list
 | Option                | Description                     |
 | --------------------- | ------------------------------- |
 | `-k, --api-key <key>` | Firecrawl API key override      |
-| `--no-pretty`         | Disable pretty JSON output      |
+| `--json`              | Output as compact JSON          |
+| `--pretty`            | Pretty print JSON output        |
 | `-o, --output <path>` | Save output to file             |
 
 ---
 
 ### `status` - Job and embedding status
 
-Show active crawls plus optional crawl/batch/extract job status and embedding queue summary.
+Show active crawls, recent crawl/batch/extract job statuses, and embedding queue summary.
 
 ```bash
 # Summary (active crawls + embedding queue + recent jobs)
 firecrawl status
-
-# Check specific jobs
-firecrawl status --crawl <job-id>
-firecrawl status --batch <job-id>
-firecrawl status --extract <job-id>
-
-# Include a specific embedding job
-firecrawl status --embed <job-id>
 ```
 
 #### Status Options
 
 | Option                 | Description                                     |
 | ---------------------- | ----------------------------------------------- |
-| `--crawl <job-ids>`    | Comma-separated crawl job IDs to check          |
-| `--batch <job-ids>`    | Comma-separated batch job IDs to check          |
-| `--extract <job-ids>`  | Comma-separated extract job IDs to check        |
-| `--embed [job-id]`     | Show embedding queue status (optionally by job) |
+| `--clear`              | Clear local status job-history cache            |
 | `--json`               | Output JSON (compact)                           |
 | `--pretty`             | Pretty print JSON output                        |
 | `-o, --output <path>`  | Save output to file                             |
@@ -633,9 +611,12 @@ firecrawl extract status <job-id>
 | `--schema <json>`          | JSON schema for structured extraction |
 | `--system-prompt <prompt>` | System prompt for extraction          |
 | `--allow-external-links`   | Allow following external links        |
-| `--enable-web-search`      | Enable web search during extraction   |
-| `--include-subdomains`     | Include subdomains                    |
-| `--show-sources`           | Show source URLs in output            |
+| `--enable-web-search`      | Enable web search during extraction (default) |
+| `--no-enable-web-search`   | Disable web search during extraction  |
+| `--include-subdomains`     | Include subdomains (default)          |
+| `--no-include-subdomains`  | Exclude subdomains                    |
+| `--show-sources`           | Show source URLs in output (default)  |
+| `--no-show-sources`        | Hide source URLs in output            |
 | `--no-embed`               | Skip auto-embedding                   |
 | `--pretty`                 | Pretty print JSON output              |
 | `-o, --output <path>`      | Save to file                          |
@@ -661,6 +642,18 @@ firecrawl embed https://example.com --no-chunk
 
 # Custom collection
 firecrawl embed https://example.com --collection my_collection
+
+# Cancel a specific embedding job
+firecrawl embed cancel <job-id>
+
+# Check a specific embedding job
+firecrawl embed status <job-id>
+
+# Clear the entire embedding queue
+firecrawl embed clear
+
+# Cleanup only failed/stale/stalled embedding jobs
+firecrawl embed cleanup
 ```
 
 #### Embed Options
@@ -672,6 +665,15 @@ firecrawl embed https://example.com --collection my_collection
 | `--no-chunk`          | Embed as single vector, skip chunking                   |
 | `--json`              | Output as JSON format                                   |
 | `-o, --output <path>` | Save to file                                            |
+
+#### Embed Subcommands
+
+| Subcommand | Description |
+| ---------- | ----------- |
+| `status <job-id>` | Get status for a specific embedding job |
+| `cancel <job-id>` | Cancel a specific pending embedding job |
+| `clear` | Clear the entire embedding queue (pending/processing/completed/failed) |
+| `cleanup` | Remove only failed and stale/stalled embedding jobs |
 
 ---
 
@@ -703,7 +705,7 @@ firecrawl query "authentication" --json
 
 | Option                | Description                     |
 | --------------------- | ------------------------------- |
-| `--limit <n>`         | Maximum results (default: 5)    |
+| `--limit <n>`         | Maximum results (default: 10)   |
 | `--domain <domain>`   | Filter to specific domain       |
 | `--full`              | Show complete chunk text        |
 | `--group`             | Group results by source URL     |
@@ -738,11 +740,136 @@ firecrawl retrieve https://example.com -o document.md
 
 ---
 
+### `ask` - Ask questions about your embedded documents
+
+Ask natural language questions about your embedded documents and get AI-powered answers. Automatically queries Qdrant, retrieves relevant documents, and uses Claude or Gemini CLI to generate responses.
+
+```bash
+# Basic usage (uses haiku by default)
+firecrawl ask "How do I create a Claude Code skill?"
+
+# Limit number of documents retrieved
+firecrawl ask "What is FastAPI?" --limit 5
+
+# Use a different Claude model
+firecrawl ask "Complex technical analysis needed" --model sonnet
+firecrawl ask "Comprehensive review required" --model opus
+
+# Use Gemini instead of Claude
+firecrawl ask "Explain this concept" --model gemini-3-flash-preview
+firecrawl ask "In-depth research needed" --model gemini-3-pro-preview
+
+# Filter by domain
+firecrawl ask "React hooks explanation" --domain react.dev
+
+# Custom collection
+firecrawl ask "API documentation" --collection docs
+
+# Combine options
+firecrawl ask "Authentication best practices" --limit 10 --model sonnet --domain docs.example.com
+```
+
+#### Ask Options
+
+| Option                | Description                                                                 |
+| --------------------- | --------------------------------------------------------------------------- |
+| `--limit <n>`         | Maximum documents to retrieve (default: 10)                                 |
+| `--domain <domain>`   | Filter results by domain                                                    |
+| `--collection <name>` | Qdrant collection name (default: firecrawl)                                 |
+| `--model <name>`      | AI model to use (see supported models below)                                |
+
+#### Supported Models
+
+**Claude (via `claude` CLI):**
+- `haiku` - Fast, cost-effective (default)
+- `sonnet` - Balanced performance and intelligence
+- `opus` - Maximum capability for complex tasks
+
+**Gemini (via `gemini` CLI):**
+- `gemini-3-flash-preview` - Fast responses
+- `gemini-3-pro-preview` - Enhanced capabilities
+
+#### Model Configuration
+
+Set a default model via environment variable:
+
+```bash
+# Ask command model default
+export ASK_CLI=gemini-3-flash-preview
+```
+
+Command-line `--model` flag always overrides `ASK_CLI`.
+
+#### Requirements
+
+- **TEI and Qdrant**: Must be configured for semantic search (`TEI_URL` and `QDRANT_URL` environment variables)
+- **Claude CLI**: Install from Anthropic for Claude models
+- **Gemini CLI**: Install from Google for Gemini models
+- **Embedded content**: Must have previously scraped/crawled content with embeddings enabled
+
+#### How It Works
+
+1. **Query**: Performs semantic search in Qdrant for relevant documents
+2. **Retrieve**: Fetches full content from top matching documents
+3. **Format**: Builds context string with documents + your question
+4. **AI CLI**: Spawns `claude` or `gemini` CLI subprocess (auto-detected from model name)
+5. **Stream**: Real-time response output to stdout, sources to stderr
+
+#### Why CLI Subprocess?
+
+- **No API costs**: Uses your Claude Max or Gemini subscription
+- **Simple**: No API key management or SDK dependencies
+- **Standard**: Same pattern as calling `git`, `docker`, or `npm`
+- **Maintained**: Officially supported by Anthropic/Google
+
+#### Examples
+
+```bash
+# Quick question with default settings
+firecrawl ask "What are the main features?"
+
+# Research-heavy query with more context
+firecrawl ask "Compare authentication approaches" --limit 15 --model sonnet
+
+# Domain-specific search
+firecrawl ask "API rate limiting best practices" --domain api.docs.example.com
+
+# Use Gemini for variety
+firecrawl ask "Summarize the architecture" --model gemini-3-pro-preview
+
+# Save AI response to file (stdout redirect)
+firecrawl ask "Setup instructions" > setup-guide.md
+
+# Complex query with maximum intelligence
+firecrawl ask "Security implications of this design" --model opus --limit 20
+```
+
+#### Output Format
+
+- **stdout**: AI response only (clean, pipe-safe)
+- **stderr**: Progress messages, source citations, metadata
+
+This separation allows piping the AI response while still seeing progress:
+
+```bash
+# Pipe response to another tool
+firecrawl ask "Code examples" | grep -A5 "function"
+
+# Save response, see progress in terminal
+firecrawl ask "Documentation" > output.md
+```
+
+---
+
 ### `config` - View and manage configuration
 
 ```bash
 # View configuration
 firecrawl config
+
+# View configuration as JSON
+firecrawl config --json
+firecrawl view-config --json
 
 # Set default exclude paths for crawls
 firecrawl config set exclude-paths "/admin,/api,/login"
@@ -762,7 +889,8 @@ firecrawl config clear exclude-paths
 firecrawl config clear exclude-extensions
 ```
 
-Shows authentication status, stored credentials location, and user settings.
+Shows authentication status, stored credentials location, user settings, command defaults, and runtime environment values.
+Use `--json` for machine-readable diagnostics.
 
 #### Binary File Exclusion
 
@@ -811,7 +939,7 @@ firecrawl logout
 
 ## Embedding Pipeline
 
-When configured, `scrape`, `crawl`, `search --scrape`, and `extract` automatically embed their output into Qdrant for semantic search. This also enables the `embed`, `query`, and `retrieve` commands.
+When configured, `scrape`, `crawl`, `search --scrape`, and `extract` automatically embed their output into Qdrant for semantic search. This also enables the `embed`, `query`, `retrieve`, and `ask` commands.
 
 ### Setup
 
@@ -834,6 +962,23 @@ firecrawl crawl https://example.com --wait --no-embed
 ```
 
 Without TEI/Qdrant configured, the CLI works normally and silently skips embedding.
+
+### Queue Maintenance & Stale Recovery
+
+- `firecrawl embed cleanup` removes only failed/stale/stalled embedding jobs.
+- `firecrawl embed clear` removes all embedding queue jobs.
+- `firecrawl crawl cleanup` removes only failed/stale/stalled/not-found crawl queue/history entries.
+- Crawl jobs that are actively progressing (for example, `completed < total`) are not removed by cleanup.
+- Crawl jobs in an in-progress state (`scraping`/`processing`/`running`) with `completed >= total` are treated as stale and removed by cleanup.
+- `firecrawl crawl clear` clears crawl queue/history and attempts to cancel active crawls.
+- Automatic stale pending threshold is controlled by `FIRECRAWL_EMBEDDER_STALE_MINUTES` (default `10` minutes).
+- Stuck processing recovery threshold is `5` minutes.
+- Stale scan interval is half the stale threshold with a minimum of `60s` (default `5m`).
+- Old completed/failed embedding jobs are pruned automatically:
+  - `firecrawl status`: jobs older than `1h`
+  - embedder daemon startup: jobs older than `24h`
+- Irrecoverable failed embedding jobs (for example, `Job not found` / `invalid job id`) are auto-pruned during daemon stale cycles.
+- Active crawls that are still scraping do not consume embedding retry attempts.
 
 ---
 

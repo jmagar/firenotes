@@ -8,10 +8,18 @@ import * as fs from 'node:fs';
 import type { IContainer } from '../container/types';
 import type { EmbedOptions, EmbedResult } from '../types/embed';
 import { chunkText } from '../utils/chunker';
-import { processCommandResult } from '../utils/command';
+import {
+  formatJson,
+  processCommandResult,
+  writeCommandOutput,
+} from '../utils/command';
 import { fmt, icons } from '../utils/theme';
 import { isUrl } from '../utils/url';
-import { requireContainer, resolveCollectionName } from './shared';
+import {
+  requireContainer,
+  resolveCollectionName,
+  validateEmbeddingUrls,
+} from './shared';
 
 /**
  * Read stdin as a string
@@ -36,11 +44,11 @@ export async function executeEmbed(
     const qdrantUrl = container.config.qdrantUrl;
     const collection = resolveCollectionName(container, options.collection);
 
-    if (!teiUrl || !qdrantUrl) {
+    const validation = validateEmbeddingUrls(teiUrl, qdrantUrl, 'embed');
+    if (!validation.valid) {
       return {
         success: false,
-        error:
-          'TEI_URL and QDRANT_URL must be set in .env for the embed command.',
+        error: validation.error,
       };
     }
 
@@ -183,7 +191,12 @@ import { Command } from 'commander';
 import { createContainerWithOverride } from '../container/ContainerFactory';
 import { ensureAuthenticated } from '../utils/auth';
 import { loadCredentials } from '../utils/credentials';
-import { getEmbedJob, removeEmbedJob } from '../utils/embed-queue';
+import {
+  cleanupEmbedQueue,
+  clearEmbedQueue,
+  getEmbedJob,
+  removeEmbedJob,
+} from '../utils/embed-queue';
 import { normalizeUrl } from '../utils/url';
 
 /**
@@ -203,6 +216,83 @@ async function handleCancelCommand(
 
   await removeEmbedJob(jobId);
   console.log(`${icons.success} Cancelled embed job ${fmt.dim(jobId)}`);
+  return { success: true };
+}
+
+async function handleClearCommand(): Promise<{
+  success: boolean;
+  removed?: number;
+  error?: string;
+}> {
+  try {
+    const removed = await clearEmbedQueue();
+    console.log(
+      `${icons.success} Cleared ${removed} embedding job${removed === 1 ? '' : 's'}`
+    );
+    return { success: true, removed };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+async function handleCleanupCommand(): Promise<{
+  success: boolean;
+  removed?: number;
+  error?: string;
+}> {
+  try {
+    const result = await cleanupEmbedQueue();
+    console.log(
+      `${icons.success} Cleanup removed ${result.removedTotal} embedding job${result.removedTotal === 1 ? '' : 's'} ${fmt.dim(`(failed: ${result.removedFailed}, stale pending: ${result.removedStalePending}, stale processing: ${result.removedStaleProcessing})`)}`
+    );
+    return { success: true, removed: result.removedTotal };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+async function handleStatusCommand(
+  jobId: string,
+  options: { output?: string; json?: boolean; pretty?: boolean }
+): Promise<{ success: boolean; error?: string }> {
+  const job = await getEmbedJob(jobId);
+  if (!job) {
+    return {
+      success: false,
+      error: `Embed job ${jobId} not found`,
+    };
+  }
+
+  const useJson = options.json || options.pretty || Boolean(options.output);
+  if (useJson) {
+    writeCommandOutput(
+      formatJson({ success: true, data: job }, options.pretty),
+      options
+    );
+    return { success: true };
+  }
+
+  const progress =
+    job.totalDocuments !== undefined && job.processedDocuments !== undefined
+      ? `${job.processedDocuments}/${job.totalDocuments}`
+      : 'n/a';
+
+  console.log(`  ${fmt.primary('Job ID:')} ${fmt.dim(job.jobId)}`);
+  console.log(`  ${fmt.primary('Status:')} ${job.status}`);
+  console.log(`  ${fmt.primary('URL:')} ${fmt.dim(job.url)}`);
+  console.log(
+    `  ${fmt.primary('Retries:')} ${fmt.dim(`${job.retries}/${job.maxRetries}`)}`
+  );
+  console.log(`  ${fmt.primary('Progress:')} ${fmt.dim(progress)}`);
+  if (job.lastError) {
+    console.log(`  ${fmt.primary('Last Error:')} ${fmt.dim(job.lastError)}`);
+  }
   return { success: true };
 }
 
@@ -287,6 +377,47 @@ export function createEmbedCommand(): Command {
     .argument('<job-id>', 'Job ID to cancel')
     .action(async (jobId: string) => {
       const result = await handleCancelCommand(jobId);
+      if (!result.success) {
+        console.error(fmt.error(result.error || 'Unknown error'));
+        process.exit(1);
+      }
+    });
+
+  embedCmd
+    .command('clear')
+    .description('Clear the entire embedding queue')
+    .action(async () => {
+      const result = await handleClearCommand();
+      if (!result.success) {
+        console.error(fmt.error(result.error || 'Unknown error'));
+        process.exit(1);
+      }
+    });
+
+  embedCmd
+    .command('cleanup')
+    .description('Cleanup failed and stale/stalled embedding jobs')
+    .action(async () => {
+      const result = await handleCleanupCommand();
+      if (!result.success) {
+        console.error(fmt.error(result.error || 'Unknown error'));
+        process.exit(1);
+      }
+    });
+
+  embedCmd
+    .command('status')
+    .description('Get embedding job status by ID')
+    .argument('<job-id>', 'Embedding job ID')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--json', 'Output as JSON format', false)
+    .option('--pretty', 'Pretty print JSON output', false)
+    .action(async (jobId: string, options) => {
+      const result = await handleStatusCommand(jobId, {
+        output: options.output,
+        json: options.json,
+        pretty: options.pretty,
+      });
       if (!result.success) {
         console.error(fmt.error(result.error || 'Unknown error'));
         process.exit(1);

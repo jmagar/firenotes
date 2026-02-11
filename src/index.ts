@@ -17,6 +17,7 @@ if (process.env.FIRECRAWL_CLI_DISABLE_LOCAL_ENV !== '1') {
 }
 
 import packageJson from '../package.json';
+import { createAskCommand } from './commands/ask';
 import { createBatchCommand } from './commands/batch';
 import { createCompletionCommand } from './commands/completion';
 import {
@@ -134,6 +135,7 @@ const TOP_LEVEL_COMMANDS = new Set([
   'embed',
   'query',
   'retrieve',
+  'ask',
   'batch',
   'config',
   'view-config',
@@ -228,6 +230,7 @@ function renderTopLevelHelp(): string {
         ['embed [input]', 'Embed content into Qdrant vector database'],
         ['query <query>', 'Semantic search over embedded content'],
         ['retrieve <url>', 'Retrieve full document from Qdrant by URL'],
+        ['ask <query>', 'Ask questions about your embedded documents'],
         ['sources', 'List all indexed source URLs'],
         ['domains', 'List unique indexed domains'],
         ['stats', 'Show vector database statistics'],
@@ -314,6 +317,9 @@ function renderTopLevelHelp(): string {
   lines.push(
     `  ${muted('firecrawl query "pricing and limits" --domain docs.firecrawl.dev')}`
   );
+  lines.push(
+    `  ${muted('firecrawl ask "How do I use the crawl command?" --limit 3')}`
+  );
   lines.push('');
   lines.push(
     `  ${muted(`${icons.arrow} Run firecrawl <command> --help for command-specific flags`)}`
@@ -384,11 +390,12 @@ program.addCommand(createStatusCommand());
 program.addCommand(createMapCommand());
 program.addCommand(createSearchCommand());
 
-// Add extract, embed, query, and retrieve commands to main program
+// Add extract, embed, query, retrieve, and ask commands to main program
 program.addCommand(createExtractCommand());
 program.addCommand(createEmbedCommand());
 program.addCommand(createQueryCommand());
 program.addCommand(createRetrieveCommand());
+program.addCommand(createAskCommand());
 program.addCommand(createBatchCommand());
 
 program.addCommand(createConfigCommand());

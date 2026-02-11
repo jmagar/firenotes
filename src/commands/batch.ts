@@ -15,8 +15,7 @@ import {
 import { recordJob } from '../utils/job-history';
 import { parseFormats } from '../utils/options';
 import { fmt, icons } from '../utils/theme';
-import { normalizeUrl } from '../utils/url';
-import { requireContainerFromCommandTree } from './shared';
+import { normalizeUrlArgs, requireContainerFromCommandTree } from './shared';
 
 // Extend Commander's Command type to include our custom _container property
 declare module 'commander' {
@@ -127,6 +126,66 @@ function formatBatchErrorsHuman(data: unknown): string {
   return lines.join('\n');
 }
 
+/**
+ * Generic handler for batch subcommands with error handling
+ */
+async function handleBatchSubcommand<T>(
+  container: IContainer,
+  jobId: string,
+  options: { output?: string; json?: boolean; pretty?: boolean },
+  operation: (app: ReturnType<IContainer['getFirecrawlClient']>) => Promise<T>,
+  formatHuman: (data: T) => string
+): Promise<void> {
+  try {
+    const app = container.getFirecrawlClient();
+    const data = await operation(app);
+
+    await recordJob('batch', jobId);
+
+    const result = { success: true, data };
+    const useJson = shouldOutputJson(options) || !!options.output;
+    const outputContent = useJson
+      ? formatJson(result, options.pretty)
+      : formatHuman(data);
+    writeCommandOutput(outputContent, options);
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error(fmt.error(message));
+    process.exit(1);
+  }
+}
+
+/**
+ * Add a standard subcommand with common options
+ */
+function addBatchSubcommand(
+  parent: Command,
+  name: string,
+  description: string,
+  handler: (
+    container: IContainer,
+    jobId: string,
+    options: { output?: string; json?: boolean; pretty?: boolean }
+  ) => Promise<void>
+): void {
+  parent
+    .command(name)
+    .description(description)
+    .argument('<job-id>', 'Batch job ID')
+    .option('-o, --output <path>', 'Output file path (default: stdout)')
+    .option('--json', 'Output as JSON', false)
+    .option('--pretty', 'Pretty print JSON output', false)
+    .action(async (jobId: string, options, command: Command) => {
+      const container = requireContainerFromCommandTree(command);
+      await handler(container, jobId, {
+        output: options.output,
+        json: options.json,
+        pretty: options.pretty,
+      });
+    });
+}
+
 export async function executeBatch(
   container: IContainer,
   options: BatchOptions
@@ -187,40 +246,27 @@ async function handleBatchStatusCommand(
   jobId: string,
   options: { output?: string; json?: boolean; pretty?: boolean }
 ): Promise<void> {
-  try {
-    const app = container.getFirecrawlClient();
-    const status = await app.getBatchScrapeStatus(jobId);
-
-    await recordJob('batch', jobId);
-
-    const result = {
-      success: true,
-      data: status,
-    };
-    const statusRecord = asRecord(status);
-    const completed = statusRecord.completed;
-    const total = statusRecord.total;
-
-    const useJson = shouldOutputJson(options) || !!options.output;
-    const outputContent = useJson
-      ? formatJson(result, options.pretty)
-      : formatBatchSummary('Batch status', [
-          ['Job ID', statusRecord.id ?? jobId],
-          ['Status', statusRecord.status],
-          [
-            'Progress',
-            typeof completed === 'number' && typeof total === 'number'
-              ? `${String(completed)}/${String(total)}`
-              : undefined,
-          ],
-        ]);
-    writeCommandOutput(outputContent, options);
-  } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error(fmt.error(message));
-    process.exit(1);
-  }
+  await handleBatchSubcommand(
+    container,
+    jobId,
+    options,
+    (app) => app.getBatchScrapeStatus(jobId),
+    (status) => {
+      const statusRecord = asRecord(status);
+      const completed = statusRecord.completed;
+      const total = statusRecord.total;
+      return formatBatchSummary('Batch status', [
+        ['Job ID', statusRecord.id ?? jobId],
+        ['Status', statusRecord.status],
+        [
+          'Progress',
+          typeof completed === 'number' && typeof total === 'number'
+            ? `${String(completed)}/${String(total)}`
+            : undefined,
+        ],
+      ]);
+    }
+  );
 }
 
 /**
@@ -231,33 +277,19 @@ async function handleBatchCancelCommand(
   jobId: string,
   options: { output?: string; json?: boolean; pretty?: boolean }
 ): Promise<void> {
-  try {
-    const app = container.getFirecrawlClient();
-    const ok = await app.cancelBatchScrape(jobId);
-
-    if (!ok) {
-      console.error(fmt.error('Cancel failed'));
-      process.exit(1);
-    }
-
-    await recordJob('batch', jobId);
-
-    const result = {
-      success: true,
-      data: { success: true, message: 'cancelled' },
-    };
-
-    const useJson = shouldOutputJson(options) || !!options.output;
-    const outputContent = useJson
-      ? formatJson(result, options.pretty)
-      : `${fmt.success(icons.success)} Cancelled batch job ${fmt.dim(jobId)}`;
-    writeCommandOutput(outputContent, options);
-  } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error(fmt.error(message));
-    process.exit(1);
-  }
+  await handleBatchSubcommand(
+    container,
+    jobId,
+    options,
+    async (app) => {
+      const ok = await app.cancelBatchScrape(jobId);
+      if (!ok) {
+        throw new Error('Cancel failed');
+      }
+      return { success: true, message: 'cancelled' };
+    },
+    () => `${fmt.success(icons.success)} Cancelled batch job ${fmt.dim(jobId)}`
+  );
 }
 
 /**
@@ -268,28 +300,13 @@ async function handleBatchErrorsCommand(
   jobId: string,
   options: { output?: string; json?: boolean; pretty?: boolean }
 ): Promise<void> {
-  try {
-    const app = container.getFirecrawlClient();
-    const errors = await app.getBatchScrapeErrors(jobId);
-
-    await recordJob('batch', jobId);
-
-    const result = {
-      success: true,
-      data: errors,
-    };
-
-    const useJson = shouldOutputJson(options) || !!options.output;
-    const outputContent = useJson
-      ? formatJson(result, options.pretty)
-      : formatBatchErrorsHuman(errors);
-    writeCommandOutput(outputContent, options);
-  } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error(fmt.error(message));
-    process.exit(1);
-  }
+  await handleBatchSubcommand(
+    container,
+    jobId,
+    options,
+    (app) => app.getBatchScrapeErrors(jobId),
+    formatBatchErrorsHuman
+  );
 }
 
 export function createBatchCommand(): Command {
@@ -308,7 +325,7 @@ export function createBatchCommand(): Command {
     .option(
       '--wait-for <ms>',
       'Wait time before scraping in milliseconds',
-      parseInt
+      (val) => parseInt(val, 10)
     )
     .option('--screenshot', 'Include screenshot format', false)
     .option('--include-tags <tags>', 'Comma-separated list of tags to include')
@@ -316,7 +333,7 @@ export function createBatchCommand(): Command {
     .option(
       '--max-concurrency <number>',
       'Max concurrency for batch scraping',
-      parseInt
+      (val) => parseInt(val, 10)
     )
     .option('--ignore-invalid-urls', 'Ignore invalid URLs', false)
     .option('--webhook <url>', 'Webhook URL for batch completion')
@@ -334,11 +351,7 @@ export function createBatchCommand(): Command {
     .action(async (rawArgs: string[], options, command: Command) => {
       const container = requireContainerFromCommandTree(command);
 
-      const urls = (rawArgs ?? [])
-        .flatMap((u) =>
-          u.includes('\n') ? u.split('\n').filter(Boolean) : [u]
-        )
-        .map(normalizeUrl);
+      const urls = normalizeUrlArgs(rawArgs ?? []);
 
       const batchOptions: BatchOptions = {
         urls,
@@ -371,59 +384,27 @@ export function createBatchCommand(): Command {
       await handleBatchCommand(container, batchOptions);
     });
 
-  // Add status subcommand
-  batchCmd
-    .command('status')
-    .description('Get batch job status by ID')
-    .argument('<job-id>', 'Batch job ID')
-    .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON', false)
-    .option('--pretty', 'Pretty print JSON output', false)
-    .action(async (jobId: string, options, command: Command) => {
-      const container = requireContainerFromCommandTree(command);
+  // Add subcommands
+  addBatchSubcommand(
+    batchCmd,
+    'status',
+    'Get batch job status by ID',
+    handleBatchStatusCommand
+  );
 
-      await handleBatchStatusCommand(container, jobId, {
-        output: options.output,
-        json: options.json,
-        pretty: options.pretty,
-      });
-    });
+  addBatchSubcommand(
+    batchCmd,
+    'cancel',
+    'Cancel a batch scrape job',
+    handleBatchCancelCommand
+  );
 
-  // Add cancel subcommand
-  batchCmd
-    .command('cancel')
-    .description('Cancel a batch scrape job')
-    .argument('<job-id>', 'Batch job ID')
-    .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON', false)
-    .option('--pretty', 'Pretty print JSON output', false)
-    .action(async (jobId: string, options, command: Command) => {
-      const container = requireContainerFromCommandTree(command);
-
-      await handleBatchCancelCommand(container, jobId, {
-        output: options.output,
-        json: options.json,
-        pretty: options.pretty,
-      });
-    });
-
-  // Add errors subcommand
-  batchCmd
-    .command('errors')
-    .description('Get errors for a batch scrape job')
-    .argument('<job-id>', 'Batch job ID')
-    .option('-o, --output <path>', 'Output file path (default: stdout)')
-    .option('--json', 'Output as JSON', false)
-    .option('--pretty', 'Pretty print JSON output', false)
-    .action(async (jobId: string, options, command: Command) => {
-      const container = requireContainerFromCommandTree(command);
-
-      await handleBatchErrorsCommand(container, jobId, {
-        output: options.output,
-        json: options.json,
-        pretty: options.pretty,
-      });
-    });
+  addBatchSubcommand(
+    batchCmd,
+    'errors',
+    'Get errors for a batch scrape job',
+    handleBatchErrorsCommand
+  );
 
   return batchCmd;
 }

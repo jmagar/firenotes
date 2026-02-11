@@ -126,6 +126,23 @@ export interface CrawlCancelData {
 
 export type CrawlCancelResult = CommandResult<CrawlCancelData>;
 
+export interface CrawlClearData {
+  clearedHistory: number;
+  cancelledActive: number;
+}
+
+export type CrawlClearResult = CommandResult<CrawlClearData>;
+
+export interface CrawlCleanupData {
+  scanned: number;
+  removedFailed: number;
+  removedStale: number;
+  removedNotFound: number;
+  removedTotal: number;
+}
+
+export type CrawlCleanupResult = CommandResult<CrawlCleanupData>;
+
 /** Union of all possible crawl data types */
 export type CrawlDataType =
   | CrawlJobStartedData

@@ -271,6 +271,25 @@ export const completionTree = {
       '--json': [],
       '--pretty': [],
     },
+    subcommands: {
+      status: {
+        options: {
+          '-o': '<file>',
+          '--output': '<file>',
+          '--json': [],
+          '--pretty': [],
+        },
+      },
+      cancel: {
+        options: {},
+      },
+      clear: {
+        options: {},
+      },
+      cleanup: {
+        options: {},
+      },
+    },
   },
 
   query: {

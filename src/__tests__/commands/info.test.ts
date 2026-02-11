@@ -320,19 +320,17 @@ describe('createInfoCommand', () => {
 
   it('should require URL for info command action', async () => {
     const command = createInfoCommand();
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit');
     });
 
+    // commander.error() throws an error with the message and exits with code 1
     await expect(
       command.parseAsync(['node', 'test'], { from: 'node' })
-    ).rejects.toThrow('process.exit');
+    ).rejects.toThrow();
 
-    expect(errorSpy).toHaveBeenCalled();
     expect(exitSpy).toHaveBeenCalledWith(1);
 
-    errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
 
@@ -374,6 +372,49 @@ describe('createInfoCommand', () => {
         join(expectedRoot, 'job-history.json')
       );
       expect(parsed.embedQueueDir).toBe(join(expectedRoot, 'embed-queue'));
+    } finally {
+      if (originalHome === undefined) {
+        delete process.env.FIRECRAWL_HOME;
+      } else {
+        process.env.FIRECRAWL_HOME = originalHome;
+      }
+    }
+  });
+
+  it('should respect custom FIRECRAWL_HOME path for info storage', async () => {
+    const originalHome = process.env.FIRECRAWL_HOME;
+    const customPath = join(homedir(), 'custom-firecrawl-dir');
+    process.env.FIRECRAWL_HOME = customPath;
+
+    try {
+      const command = createInfoCommand();
+      let output = '';
+      const writeSpy = vi
+        .spyOn(process.stdout, 'write')
+        .mockImplementation((chunk: string | Uint8Array) => {
+          output += String(chunk);
+          return true;
+        });
+
+      await command.parseAsync(['node', 'test', 'storage', '--json'], {
+        from: 'node',
+      });
+
+      writeSpy.mockRestore();
+
+      const parsed = JSON.parse(output.trim()) as {
+        storageRoot: string;
+        credentialsPath: string;
+        settingsPath: string;
+        jobHistoryPath: string;
+        embedQueueDir: string;
+      };
+
+      expect(parsed.storageRoot).toBe(customPath);
+      expect(parsed.credentialsPath).toBe(join(customPath, 'credentials.json'));
+      expect(parsed.settingsPath).toBe(join(customPath, 'settings.json'));
+      expect(parsed.jobHistoryPath).toBe(join(customPath, 'job-history.json'));
+      expect(parsed.embedQueueDir).toBe(join(customPath, 'embed-queue'));
     } finally {
       if (originalHome === undefined) {
         delete process.env.FIRECRAWL_HOME;

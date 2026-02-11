@@ -6,7 +6,7 @@
  */
 
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 
 function expandLeadingTilde(inputPath: string): string {
   if (inputPath === '~') {
@@ -57,17 +57,11 @@ export function getJobHistoryPath(): string {
   return getStoragePath('job-history.json');
 }
 
-/**
- * Resolve embed queue directory.
- *
- * Supports FIRECRAWL_EMBEDDER_QUEUE_DIR override.
- */
 export function getEmbedQueueDir(): string {
   const configuredDir = process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
   if (configuredDir && configuredDir.trim().length > 0) {
-    return configuredDir.startsWith('/')
-      ? configuredDir
-      : join(process.cwd(), configuredDir);
+    const trimmed = configuredDir.trim();
+    return isAbsolute(trimmed) ? trimmed : join(process.cwd(), trimmed);
   }
 
   return getStoragePath('embed-queue');

@@ -169,33 +169,65 @@ complete -c firecrawl -l json -d "Output as JSON"
 }
 
 /**
+ * Generate completion script for the given shell
+ * @param shell - Shell type ('bash', 'zsh', or 'fish')
+ * @returns Completion script or null if unsupported
+ */
+function generateScript(shell: string): string | null {
+  switch (shell) {
+    case 'bash':
+      return generateBashScript();
+    case 'zsh':
+      return generateZshScript();
+    case 'fish':
+      return generateFishScript();
+    default:
+      return null;
+  }
+}
+
+/**
+ * Validate shell and get RC path, exiting on error
+ * @param shell - Shell type to validate
+ * @returns RC file path
+ */
+function validateShellAndGetRcPath(shell: string): string {
+  const rcPath = getShellRcPath(shell);
+  if (!rcPath) {
+    console.error(fmt.error(`Unsupported shell: ${shell}`));
+    process.exit(1);
+  }
+  return rcPath;
+}
+
+/**
+ * Resolve target shell, handling auto-detection and validation
+ * @param providedShell - Optional shell override
+ * @returns Validated shell type
+ */
+function resolveTargetShell(providedShell?: string): string {
+  const targetShell = providedShell || detectShell();
+  if (targetShell === 'unknown') {
+    console.error(
+      fmt.error('Could not detect shell. Please specify: bash, zsh, or fish')
+    );
+    process.exit(1);
+  }
+  return targetShell;
+}
+
+/**
  * Install completion for the given shell
  *
  * @param shell - Shell type ('bash', 'zsh', or 'fish')
  */
 function installCompletion(shell: string): void {
-  const rcPath = getShellRcPath(shell);
+  const rcPath = validateShellAndGetRcPath(shell);
+  const script = generateScript(shell);
 
-  if (!rcPath) {
+  if (!script) {
     console.error(fmt.error(`Unsupported shell: ${shell}`));
     process.exit(1);
-  }
-
-  // Generate script based on shell
-  let script: string;
-  switch (shell) {
-    case 'bash':
-      script = generateBashScript();
-      break;
-    case 'zsh':
-      script = generateZshScript();
-      break;
-    case 'fish':
-      script = generateFishScript();
-      break;
-    default:
-      console.error(fmt.error(`Unsupported shell: ${shell}`));
-      process.exit(1);
   }
 
   console.log(
@@ -215,22 +247,11 @@ function installCompletion(shell: string): void {
  * @param shell - Shell type ('bash', 'zsh', or 'fish')
  */
 function outputScript(shell: string): void {
-  let script: string;
-  switch (shell) {
-    case 'bash':
-      script = generateBashScript();
-      break;
-    case 'zsh':
-      script = generateZshScript();
-      break;
-    case 'fish':
-      script = generateFishScript();
-      break;
-    default:
-      console.error(fmt.error(`Unsupported shell: ${shell}`));
-      process.exit(1);
+  const script = generateScript(shell);
+  if (!script) {
+    console.error(fmt.error(`Unsupported shell: ${shell}`));
+    process.exit(1);
   }
-
   console.log(script);
 }
 
@@ -240,12 +261,7 @@ function outputScript(shell: string): void {
  * @param shell - Shell type ('bash', 'zsh', or 'fish')
  */
 function uninstallCompletion(shell: string): void {
-  const rcPath = getShellRcPath(shell);
-
-  if (!rcPath) {
-    console.error(fmt.error(`Unsupported shell: ${shell}`));
-    process.exit(1);
-  }
+  const rcPath = validateShellAndGetRcPath(shell);
 
   console.log(fmt.success(`${icons.success} To uninstall completion:`));
   console.log(fmt.dim(`\n1. Open ${rcPath} in your editor`));
@@ -269,18 +285,7 @@ export function createCompletionCommand(): Command {
     .description('Show completion installation instructions')
     .argument('[shell]', 'Shell type: bash, zsh, or fish')
     .action((shell?: string) => {
-      const targetShell = shell || detectShell();
-
-      if (targetShell === 'unknown') {
-        console.error(
-          fmt.error(
-            'Could not detect shell. Please specify: bash, zsh, or fish'
-          )
-        );
-        process.exit(1);
-      }
-
-      installCompletion(targetShell);
+      installCompletion(resolveTargetShell(shell));
     });
 
   // Uninstall subcommand
@@ -289,18 +294,7 @@ export function createCompletionCommand(): Command {
     .description('Show completion uninstallation instructions')
     .argument('[shell]', 'Shell type: bash, zsh, or fish')
     .action((shell?: string) => {
-      const targetShell = shell || detectShell();
-
-      if (targetShell === 'unknown') {
-        console.error(
-          fmt.error(
-            'Could not detect shell. Please specify: bash, zsh, or fish'
-          )
-        );
-        process.exit(1);
-      }
-
-      uninstallCompletion(targetShell);
+      uninstallCompletion(resolveTargetShell(shell));
     });
 
   // Script subcommand

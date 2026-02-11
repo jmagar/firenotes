@@ -89,11 +89,13 @@ describe('E2E: embed command', () => {
   );
 
   describe('input validation', () => {
-    it('should fail when no input is provided', async () => {
-      const result = await runCLIFailure(['embed'], {
+    it('should show embed help when no input is provided', async () => {
+      const result = await runCLISuccess(['embed'], {
         env: { FIRECRAWL_API_KEY: apiKey ?? 'test-key' },
       });
-      expect(result.stderr).toContain("required argument 'input'");
+      expect(result.stdout).toContain(
+        'Usage: firecrawl embed [options] [command] [input]'
+      );
     });
 
     it('should accept URL as input', async () => {
@@ -104,7 +106,9 @@ describe('E2E: embed command', () => {
       const result = await runCLI(['embed', 'https://example.com'], {
         env: { FIRECRAWL_API_KEY: apiKey ?? 'test-key' },
       });
-      expect(result.stderr).not.toContain("required argument 'input'");
+      expect(result.stdout).not.toContain(
+        'Usage: firecrawl embed [options] [command] [input]'
+      );
     });
 
     it('should accept file path as input', async () => {
@@ -118,11 +122,18 @@ describe('E2E: embed command', () => {
         },
       });
 
-      expect(result.stderr).not.toContain("required argument 'input'");
+      expect(result.stdout).not.toContain(
+        'Usage: firecrawl embed [options] [command] [input]'
+      );
     });
   });
 
   describe('embed options', () => {
+    it('should support status subcommand', async () => {
+      const result = await runCLISuccess(['embed', '--help']);
+      expect(result.stdout).toContain('status [options] <job-id>');
+    });
+
     it('should support --url flag', async () => {
       const result = await runCLISuccess(['embed', '--help']);
       expect(result.stdout).toContain('--url');

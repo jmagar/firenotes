@@ -190,3 +190,28 @@ export function processCommandResult<T>(
 
   return result.data;
 }
+
+/**
+ * Validate that values are in an allowed list.
+ * Exits with error message if validation fails.
+ *
+ * @param values - The values to validate
+ * @param validValues - The list of valid values
+ * @param valueName - The name of the value type for error messages (e.g., "source", "category")
+ */
+export function validateAllowedValues(
+  values: string[],
+  validValues: string[],
+  valueName: string
+): void {
+  for (const value of values) {
+    if (!validValues.includes(value)) {
+      console.error(
+        fmt.error(
+          `Invalid ${valueName} "${value}". Valid ${valueName}s: ${validValues.join(', ')}`
+        )
+      );
+      process.exit(1);
+    }
+  }
+}

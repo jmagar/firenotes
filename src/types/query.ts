@@ -9,6 +9,8 @@ export interface QueryOptions {
   domain?: string;
   full?: boolean;
   group?: boolean;
+  verboseSnippets?: boolean;
+  timing?: boolean;
   collection?: string;
   output?: string;
   json?: boolean;

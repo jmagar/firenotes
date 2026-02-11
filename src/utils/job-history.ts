@@ -5,7 +5,8 @@
 import { promises as fs } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { getJobHistoryPath, getStoragePath } from './storage-paths';
+import { getJobHistoryPath, getStorageRoot } from './storage-paths';
+import { fmt } from './theme';
 
 export type JobType = 'crawl' | 'batch' | 'extract';
 
@@ -53,7 +54,7 @@ function getLegacyDataPath(): string {
   return join(home, '.local', 'share', 'firecrawl-cli', 'job-history.json');
 }
 
-const HISTORY_DIR = getStoragePath();
+const HISTORY_DIR = getStorageRoot();
 const HISTORY_PATH = getJobHistoryPath();
 
 async function ensureHistoryDir(): Promise<void> {
@@ -68,25 +69,26 @@ async function ensureHistoryDir(): Promise<void> {
  * Migrate job history from legacy cache directory if it exists
  */
 async function migrateLegacyHistory(): Promise<void> {
+  // Skip if already migrated (idempotency check)
   try {
     await fs.access(HISTORY_PATH);
-    return;
+    return; // Already migrated
   } catch {
-    // Target file does not exist, continue
+    // HISTORY_PATH doesn't exist, proceed with migration
   }
 
   const legacyPaths = [getLegacyDataPath(), getLegacyCachePath()];
   for (const legacyPath of legacyPaths) {
     try {
-      await fs.access(legacyPath);
       const legacyData = await fs.readFile(legacyPath, 'utf-8');
-      const _parsed = JSON.parse(legacyData) as Partial<JobHistoryData>;
+      // Validate the data is valid JSON before migrating
+      JSON.parse(legacyData);
 
       await ensureHistoryDir();
       await fs.writeFile(HISTORY_PATH, legacyData);
 
       console.error(
-        `[Job History] Migrated from ${legacyPath} to ${HISTORY_PATH}`
+        fmt.dim(`[Job History] Migrated from ${legacyPath} to ${HISTORY_PATH}`)
       );
       return;
     } catch {
@@ -157,4 +159,10 @@ export async function removeJobIds(
 
 export async function clearJobHistory(): Promise<void> {
   await saveHistory({ crawl: [], batch: [], extract: [] });
+}
+
+export async function clearJobTypeHistory(type: JobType): Promise<void> {
+  const history = await loadHistory();
+  history[type] = [];
+  await saveHistory(history);
 }

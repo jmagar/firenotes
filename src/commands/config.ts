@@ -3,16 +3,276 @@
  * Handles configuration and authentication
  */
 
-import { isAuthenticated } from '../utils/auth';
+import { getAuthSource, isAuthenticated } from '../utils/auth';
 import { DEFAULT_EXCLUDE_EXTENSIONS } from '../utils/constants';
 import { getConfigDirectoryPath, loadCredentials } from '../utils/credentials';
-import { DEFAULT_API_URL } from '../utils/defaults';
+import { DEFAULT_API_URL, DEFAULT_QDRANT_COLLECTION } from '../utils/defaults';
 import { clearSetting, loadSettings, saveSettings } from '../utils/settings';
 import { fmt, icons } from '../utils/theme';
 
 export interface ConfigureOptions {
   apiKey?: string;
   apiUrl?: string;
+  json?: boolean;
+}
+
+const COMMAND_DEFAULTS: Record<string, Record<string, string>> = {
+  scrape: {
+    formats: 'markdown',
+    onlyMainContent: 'true',
+    timeoutSeconds: '15',
+    excludeTags: 'nav,footer',
+    autoEmbed: 'true',
+  },
+  crawl: {
+    wait: 'false',
+    progress: 'false',
+    pollIntervalSeconds: '5 (when --wait/--progress)',
+    maxDepth: '3',
+    sitemap: 'include',
+    ignoreQueryParameters: 'true',
+    allowSubdomains: 'true',
+    onlyMainContent: 'true',
+    excludeTags: 'nav,footer',
+    autoEmbed: 'true',
+  },
+  map: {
+    wait: 'false',
+    sitemap: 'include',
+    includeSubdomains: 'auto (defer to API)',
+    ignoreQueryParameters: 'auto (defer to API)',
+    ignoreCache: 'auto (defer to API)',
+    filtering: 'enabled',
+    defaultExcludes: 'enabled',
+  },
+  search: {
+    limit: '5',
+    sources: 'web',
+    timeoutMs: '60000',
+    ignoreInvalidUrls: 'true',
+    scrape: 'true',
+    scrapeFormats: 'markdown',
+    onlyMainContent: 'true',
+    autoEmbed: 'true',
+  },
+  extract: {
+    allowExternalLinks: 'false',
+    enableWebSearch: 'true',
+    includeSubdomains: 'true',
+    showSources: 'true',
+    ignoreInvalidUrls: 'true',
+    autoEmbed: 'true',
+  },
+};
+
+type EnvItem = {
+  key: string;
+  value: string;
+  masked?: boolean;
+  warning?: string;
+};
+
+type RuntimeEnvJsonItem = {
+  value: string;
+  masked: boolean;
+  warning?: string;
+};
+
+type ConfigDiagnostics = {
+  authenticated: boolean;
+  authSource: 'explicit' | 'env' | 'stored' | 'none';
+  authSourceLabel: string;
+  apiKeyMasked: string;
+  apiUrl: string;
+  configPath: string;
+  settings: {
+    excludePaths: string[];
+    excludeExtensions: string[];
+  };
+  commandDefaults: Record<string, Record<string, string>>;
+  runtimeEnvironment: Record<string, RuntimeEnvJsonItem>;
+};
+
+function maskValue(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return 'Not set';
+  if (trimmed.length >= 16) {
+    return `${trimmed.substring(0, 6)}...${trimmed.slice(-4)}`;
+  }
+  return '*'.repeat(Math.min(trimmed.length, 8));
+}
+
+function presentValue(value: string | undefined): string {
+  if (!value || value.trim().length === 0) return 'Not set';
+  return value.trim();
+}
+
+function buildRuntimeEnvItems(): EnvItem[] {
+  const openAiModel = process.env.OPENAI_MODEL;
+  const qdrantCollection = presentValue(process.env.QDRANT_COLLECTION);
+
+  return [
+    { key: 'ASK_CLI', value: presentValue(process.env.ASK_CLI) },
+    {
+      key: 'SEARXNG_ENDPOINT',
+      value: presentValue(process.env.SEARXNG_ENDPOINT),
+    },
+    {
+      key: 'SEARXNG_ENGINES',
+      value: presentValue(process.env.SEARXNG_ENGINES),
+    },
+    {
+      key: 'SEARXNG_CATEGORIES',
+      value: presentValue(process.env.SEARXNG_CATEGORIES),
+    },
+    {
+      key: 'OPENAI_API_KEY',
+      value: presentValue(process.env.OPENAI_API_KEY),
+      masked: true,
+    },
+    {
+      key: 'OPENAI_BASE_URL',
+      value: presentValue(process.env.OPENAI_BASE_URL),
+    },
+    {
+      key: 'OPENAI_MODEL',
+      value: presentValue(openAiModel),
+    },
+    {
+      key: 'FIRECRAWL_EMBEDDER_WEBHOOK_URL',
+      value: presentValue(process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL),
+    },
+    {
+      key: 'FIRECRAWL_EMBEDDER_WEBHOOK_SECRET',
+      value: presentValue(process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET),
+      masked: true,
+    },
+    { key: 'FIRECRAWL_HOME', value: presentValue(process.env.FIRECRAWL_HOME) },
+    {
+      key: 'QDRANT_DATA_DIR',
+      value: presentValue(process.env.QDRANT_DATA_DIR),
+    },
+    { key: 'REDIS_URL', value: presentValue(process.env.REDIS_URL) },
+    {
+      key: 'REDIS_RATE_LIMIT_URL',
+      value: presentValue(process.env.REDIS_RATE_LIMIT_URL),
+    },
+    {
+      key: 'PLAYWRIGHT_MICROSERVICE_URL',
+      value: presentValue(process.env.PLAYWRIGHT_MICROSERVICE_URL),
+    },
+    {
+      key: 'NUQ_RABBITMQ_URL',
+      value: presentValue(process.env.NUQ_RABBITMQ_URL),
+    },
+    { key: 'POSTGRES_USER', value: presentValue(process.env.POSTGRES_USER) },
+    {
+      key: 'POSTGRES_PASSWORD',
+      value: presentValue(process.env.POSTGRES_PASSWORD),
+      masked: true,
+    },
+    { key: 'POSTGRES_DB', value: presentValue(process.env.POSTGRES_DB) },
+    { key: 'POSTGRES_HOST', value: presentValue(process.env.POSTGRES_HOST) },
+    { key: 'POSTGRES_PORT', value: presentValue(process.env.POSTGRES_PORT) },
+    { key: 'TEI_URL', value: presentValue(process.env.TEI_URL) },
+    { key: 'QDRANT_URL', value: presentValue(process.env.QDRANT_URL) },
+    {
+      key: 'QDRANT_COLLECTION',
+      value:
+        qdrantCollection === 'Not set'
+          ? DEFAULT_QDRANT_COLLECTION
+          : qdrantCollection,
+    },
+  ];
+}
+
+function printCommandDefaults(): void {
+  console.log('');
+  console.log(fmt.primary('Command Defaults'));
+  for (const [command, defaults] of Object.entries(COMMAND_DEFAULTS)) {
+    console.log(`  ${fmt.dim(`${command}:`)}`);
+    for (const [key, value] of Object.entries(defaults)) {
+      console.log(`    ${fmt.dim(`${key}:`)} ${value}`);
+    }
+  }
+}
+
+function printRuntimeEnvironment(): void {
+  console.log('');
+  console.log(fmt.primary('Runtime Environment'));
+  for (const item of buildRuntimeEnvItems()) {
+    const value = item.masked ? maskValue(item.value) : item.value;
+    const warning = item.warning ? ` ${fmt.warning(`(${item.warning})`)}` : '';
+    console.log(`  ${fmt.dim(`${item.key}:`)} ${value}${warning}`);
+  }
+}
+
+function getAuthSourceLabel(
+  authSource: 'explicit' | 'env' | 'stored' | 'none'
+): string {
+  if (authSource === 'env') return 'via FIRECRAWL_API_KEY';
+  if (authSource === 'stored') return 'via stored credentials';
+  if (authSource === 'explicit') return 'via --api-key';
+  return '';
+}
+
+function buildConfigDiagnostics(): ConfigDiagnostics {
+  const credentials = loadCredentials();
+  const authSource = getAuthSource();
+  const authenticated = isAuthenticated();
+  const envApiKey =
+    process.env.FIRECRAWL_API_KEY && process.env.FIRECRAWL_API_KEY.trim();
+  const storedApiKey = credentials?.apiKey?.trim();
+  const activeApiKey =
+    authSource === 'env'
+      ? envApiKey
+      : authSource === 'stored'
+        ? storedApiKey
+        : undefined;
+  const activeApiUrl =
+    authSource === 'env'
+      ? process.env.FIRECRAWL_API_URL || DEFAULT_API_URL
+      : credentials?.apiUrl || DEFAULT_API_URL;
+  const settings = loadSettings();
+
+  const runtimeEnvironment: Record<string, RuntimeEnvJsonItem> = {};
+  for (const item of buildRuntimeEnvItems()) {
+    runtimeEnvironment[item.key] = {
+      value: item.masked ? maskValue(item.value) : item.value,
+      masked: !!item.masked,
+      warning: item.warning,
+    };
+  }
+
+  return {
+    authenticated,
+    authSource,
+    authSourceLabel: getAuthSourceLabel(authSource),
+    apiKeyMasked: activeApiKey ? maskValue(activeApiKey) : 'Not set',
+    apiUrl: activeApiUrl,
+    configPath: getConfigDirectoryPath(),
+    settings: {
+      excludePaths: settings.defaultExcludePaths ?? [],
+      excludeExtensions: settings.defaultExcludeExtensions ?? [],
+    },
+    commandDefaults: COMMAND_DEFAULTS,
+    runtimeEnvironment,
+  };
+}
+
+/**
+ * Validate setting key and show error if invalid
+ * @returns true if valid, false if invalid
+ */
+function validateSettingKey(key: string): boolean {
+  if (key !== 'exclude-paths' && key !== 'exclude-extensions') {
+    console.error(fmt.error(`Unknown setting "${key}".`));
+    console.error(
+      fmt.dim('Available settings: exclude-paths, exclude-extensions')
+    );
+    process.exit(1);
+  }
+  return true;
 }
 
 /**
@@ -31,7 +291,8 @@ export async function configure(options: ConfigureOptions = {}): Promise<void> {
   }
 
   // Already authenticated - show config and offer to re-authenticate
-  await viewConfig();
+  await viewConfig({ json: options.json });
+  if (options.json) return;
   console.log(
     fmt.dim('To re-authenticate, run: firecrawl logout && firecrawl config\n')
   );
@@ -40,53 +301,43 @@ export async function configure(options: ConfigureOptions = {}): Promise<void> {
 /**
  * View current configuration (read-only)
  */
-export async function viewConfig(): Promise<void> {
-  const credentials = loadCredentials();
+export async function viewConfig(
+  options: { json?: boolean } = {}
+): Promise<void> {
+  const diagnostics = buildConfigDiagnostics();
+  if (options.json) {
+    console.log(JSON.stringify(diagnostics, null, 2));
+    return;
+  }
 
   console.log('');
   console.log(fmt.bold('Firecrawl Configuration'));
   console.log('');
 
-  if (isAuthenticated()) {
-    let maskedKey = 'Not set';
-    if (credentials?.apiKey) {
-      const key = credentials.apiKey;
-      // Only mask if key is long enough to safely show prefix/suffix
-      if (key.length >= 16) {
-        maskedKey = `${key.substring(0, 6)}...${key.slice(-4)}`;
-      } else {
-        // For short keys, show minimal information
-        maskedKey = '*'.repeat(Math.min(key.length, 8));
-      }
-    }
-
-    console.log(`${fmt.success(icons.success)} Authenticated`);
-    console.log('');
-    console.log(`  ${fmt.dim('API Key:')}  ${maskedKey}`);
+  if (diagnostics.authenticated) {
     console.log(
-      `  ${fmt.dim('API URL:')}  ${credentials?.apiUrl || DEFAULT_API_URL}`
+      `${fmt.success(icons.success)} Authenticated${diagnostics.authSourceLabel ? ` ${fmt.dim(diagnostics.authSourceLabel)}` : ''}`
     );
-    console.log(`  ${fmt.dim('Config:')}   ${getConfigDirectoryPath()}`);
+    console.log('');
+    console.log(`  ${fmt.dim('API Key:')}  ${diagnostics.apiKeyMasked}`);
+    console.log(`  ${fmt.dim('API URL:')}  ${diagnostics.apiUrl}`);
+    console.log(`  ${fmt.dim('Config:')}   ${diagnostics.configPath}`);
 
     // Show settings
-    const settings = loadSettings();
-    if (
-      settings.defaultExcludePaths &&
-      settings.defaultExcludePaths.length > 0
-    ) {
+    if (diagnostics.settings.excludePaths.length > 0) {
       console.log('');
       console.log(
-        `  ${fmt.dim('Exclude Paths:')} ${settings.defaultExcludePaths.join(', ')}`
+        `  ${fmt.dim('Exclude Paths:')} ${diagnostics.settings.excludePaths.join(', ')}`
       );
     }
-    if (
-      settings.defaultExcludeExtensions &&
-      settings.defaultExcludeExtensions.length > 0
-    ) {
+    if (diagnostics.settings.excludeExtensions.length > 0) {
       console.log(
-        `  ${fmt.dim('Exclude Extensions:')} ${settings.defaultExcludeExtensions.join(', ')}`
+        `  ${fmt.dim('Exclude Extensions:')} ${diagnostics.settings.excludeExtensions.join(', ')}`
       );
     }
+
+    printCommandDefaults();
+    printRuntimeEnvironment();
 
     console.log('');
     console.log(fmt.dim('Commands:'));
@@ -107,13 +358,7 @@ export async function viewConfig(): Promise<void> {
  * Handle config set <key> <value>
  */
 export function handleConfigSet(key: string, value: string): void {
-  if (key !== 'exclude-paths' && key !== 'exclude-extensions') {
-    console.error(fmt.error(`Unknown setting "${key}".`));
-    console.error(
-      fmt.dim('Available settings: exclude-paths, exclude-extensions')
-    );
-    process.exit(1);
-  }
+  validateSettingKey(key);
 
   const values = value
     .split(',')
@@ -244,13 +489,7 @@ export function handleConfigGet(key: string): void {
  * Handle config clear <key>
  */
 export function handleConfigClear(key: string): void {
-  if (key !== 'exclude-paths' && key !== 'exclude-extensions') {
-    console.error(fmt.error(`Unknown setting "${key}".`));
-    console.error(
-      fmt.dim('Available settings: exclude-paths, exclude-extensions')
-    );
-    process.exit(1);
-  }
+  validateSettingKey(key);
 
   if (key === 'exclude-paths') {
     clearSetting('defaultExcludePaths');
@@ -280,10 +519,12 @@ export function createConfigCommand(): Command {
       'API URL (default: https://api.firecrawl.dev)',
       'https://api.firecrawl.dev'
     )
+    .option('--json', 'Output configuration as JSON', false)
     .action(async (options) => {
       await configure({
         apiKey: options.apiKey,
         apiUrl: options.apiUrl,
+        json: options.json,
       });
     });
 
@@ -321,8 +562,9 @@ export function createConfigCommand(): Command {
 export function createViewConfigCommand(): Command {
   const viewConfigCmd = new Command('view-config')
     .description('View current configuration and authentication status')
-    .action(async () => {
-      await viewConfig();
+    .option('--json', 'Output configuration as JSON', false)
+    .action(async (options) => {
+      await viewConfig({ json: options.json });
     });
 
   return viewConfigCmd;

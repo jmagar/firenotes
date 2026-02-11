@@ -1142,13 +1142,6 @@ export function createStatusCommand(): Command {
   const statusCmd = new Command('status')
     .description('Show active jobs and embedding queue status')
     .option('-k, --api-key <key>', 'Firecrawl API key override')
-    .option('--crawl <job-ids>', 'Comma-separated crawl job IDs to check')
-    .option('--batch <job-ids>', 'Comma-separated batch job IDs to check')
-    .option('--extract <job-ids>', 'Comma-separated extract job IDs to check')
-    .option(
-      '--embed [job-id]',
-      'Show embedding queue status (optionally for job ID)'
-    )
     .option('--clear', 'Clear job history cache', false)
     .option('--json', 'Output JSON (compact)', false)
     .option('--pretty', 'Pretty print JSON output', false)
@@ -1166,10 +1159,6 @@ export function createStatusCommand(): Command {
 
       await handleJobStatusCommand(container, {
         apiKey: options.apiKey,
-        crawl: options.crawl,
-        batch: options.batch,
-        extract: options.extract,
-        embed: options.embed,
         output: options.output,
         json: options.json,
         pretty: options.pretty,

@@ -10,8 +10,12 @@ import type {
   QueryResultItem,
 } from '../types/query';
 import { processCommandResult } from '../utils/command';
-import { fmt, icons } from '../utils/theme';
-import { requireContainer, resolveCollectionName } from './shared';
+import { colorize, colors, fmt, icons } from '../utils/theme';
+import {
+  requireContainer,
+  resolveCollectionName,
+  validateEmbeddingUrls,
+} from './shared';
 
 /**
  * Execute query command
@@ -29,11 +33,11 @@ export async function executeQuery(
     const qdrantUrl = container.config.qdrantUrl;
     const collection = resolveCollectionName(container, options.collection);
 
-    if (!teiUrl || !qdrantUrl) {
+    const validation = validateEmbeddingUrls(teiUrl, qdrantUrl, 'query');
+    if (!validation.valid) {
       return {
         success: false,
-        error:
-          'TEI_URL and QDRANT_URL must be set in .env for the query command.',
+        error: validation.error,
       };
     }
 
@@ -81,7 +85,17 @@ export async function executeQuery(
       sourceCommand: getString(r.payload.source_command),
     }));
 
-    return { success: true, data: items };
+    // Group by base URL to deduplicate and respect --limit
+    // We keep ALL chunks for the top N unique URLs (by highest score)
+    const grouped = groupByBaseUrl(items);
+
+    // Rank URLs with light lexical signals, then keep top N URLs.
+    const topGroups = rankUrlGroups(grouped, options.query, requestedLimit);
+
+    // Flatten: return ALL chunks for the top N unique URLs
+    const limitedItems: QueryResultItem[] = topGroups.flatMap((g) => g.items);
+
+    return { success: true, data: limitedItems };
   } catch (error) {
     return {
       success: false,
@@ -100,45 +114,459 @@ function stripFragment(url: string): string {
   return hashIndex === -1 ? url : url.substring(0, hashIndex);
 }
 
+function canonicalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(stripFragment(url));
+    parsed.hash = '';
+    if (
+      (parsed.protocol === 'https:' && parsed.port === '443') ||
+      (parsed.protocol === 'http:' && parsed.port === '80')
+    ) {
+      parsed.port = '';
+    }
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+    const keepParams = new URLSearchParams();
+    for (const [key, value] of parsed.searchParams.entries()) {
+      const normalizedKey = key.toLowerCase();
+      if (
+        normalizedKey.startsWith('utm_') ||
+        normalizedKey === 'gclid' ||
+        normalizedKey === 'fbclid'
+      ) {
+        continue;
+      }
+      keepParams.append(key, value);
+    }
+    parsed.search = keepParams.toString() ? `?${keepParams.toString()}` : '';
+    return parsed.toString();
+  } catch {
+    return stripFragment(url).replace(/\/+$/, '');
+  }
+}
+
+/**
+ * Group query result items by base URL (without fragment)
+ */
+function groupByBaseUrl(
+  items: QueryResultItem[]
+): Map<string, QueryResultItem[]> {
+  const grouped = new Map<string, QueryResultItem[]>();
+  for (const item of items) {
+    const baseUrl = canonicalizeUrl(item.url);
+    const existing = grouped.get(baseUrl) || [];
+    existing.push(item);
+    grouped.set(baseUrl, existing);
+  }
+  return grouped;
+}
+
+function queryHeading(text: string): string {
+  return fmt.bold(colorize(colors.primary, text));
+}
+
+function formatScore(score: number): string {
+  const scoreText = `[${score.toFixed(2)}]`;
+  if (score >= 0.75) return fmt.success(scoreText);
+  if (score >= 0.65) return fmt.warning(scoreText);
+  if (score >= 0.55) return fmt.info(scoreText);
+  return fmt.dim(scoreText);
+}
+
 /**
  * Get meaningful snippet from chunk text
  * Skips formatting characters and finds substantive content
  * @param text Chunk text to extract snippet from
  * @returns Meaningful snippet or truncated text
  */
-function getMeaningfulSnippet(text: string): string {
-  // Clean up markdown and formatting
-  const cleaned = text
-    .replace(/\[​\]\([^)]+\)/g, '') // Remove empty markdown links
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Convert markdown links to just text
-    .replace(/^[\s\n\r\t*\-•]+/, '') // Remove leading whitespace and list markers
-    .replace(/^\s*#{1,6}\s+/, '') // Remove leading markdown headers
-    .replace(/^[-=_*]{3,}.*$/gm, '') // Remove horizontal rules
+function isRelevantSentence(sentence: string): boolean {
+  const trimmed = sentence.trim();
+  if (trimmed.length < 25) return false;
+  if (trimmed.split(/\s+/).length < 5) return false;
+  if (!/[a-zA-Z]/.test(trimmed)) return false;
+  if (/^https?:\/\//i.test(trimmed)) return false;
+  if (
+    /^(prev|next|home|menu|read more|copy|developer docs|subscribe|button text)$/i.test(
+      trimmed
+    )
+  ) {
+    return false;
+  }
+  if (/^[@#][a-z0-9_-]+$/i.test(trimmed)) return false;
+  if (/^[^a-zA-Z0-9]+$/.test(trimmed)) return false;
+  return true;
+}
+
+function cleanSnippetSource(text: string): string {
+  return text
+    .replace(
+      /^\s*(prev|next|home|menu|read more|copy|developer docs|subscribe|button text)\s*$/gim,
+      ' '
+    ) // remove standalone nav/cta lines
+    .replace(/!\[[^\]]*]\([^)]+\)/g, ' ') // remove markdown images
+    .replace(/\[​\]\([^)]+\)/g, ' ') // remove empty markdown links
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // keep link text only
+    .replace(/https?:\/\/\S+/g, ' ') // remove bare URLs
+    .replace(/^\s*#{1,6}\s+/gm, '') // remove markdown headers
+    .replace(/^\s*[-*_]{3,}\s*$/gm, ' ') // remove horizontal rules
+    .replace(/^\s*[*\-•]\s+/gm, '') // strip list markers
+    .replace(/\bwas this page helpful\?\b/gi, ' ') // remove docs feedback boilerplate
+    .replace(/\b(table of contents|on this page)\b/gi, ' ') // remove nav headings
+    .replace(/\s+/g, ' ')
     .trim();
+}
 
-  // Split into lines and find the first substantial line
-  const lines = cleaned
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => {
-      // Skip empty lines, horizontal rules, very short lines
-      if (l.length < 10) return false;
-      if (/^[-=_*]{3,}$/.test(l)) return false;
-      if (/^[*\-•]\s*$/.test(l)) return false;
-      // Skip lines that are just single words or very basic
-      if (l.split(/\s+/).length < 2) return false;
-      return true;
-    });
+const STOP_WORDS = new Set([
+  'the',
+  'and',
+  'for',
+  'with',
+  'that',
+  'this',
+  'from',
+  'your',
+  'you',
+  'are',
+  'was',
+  'were',
+  'how',
+  'what',
+  'when',
+  'where',
+  'why',
+  'who',
+  'can',
+  'could',
+  'would',
+  'should',
+  'into',
+  'about',
+  'over',
+  'under',
+  'just',
+  'more',
+  'less',
+  'very',
+  'use',
+  'using',
+  'used',
+  'get',
+  'set',
+  'via',
+  'not',
+  'all',
+  'any',
+  'but',
+  'too',
+  'out',
+  'our',
+  'their',
+  'them',
+  'they',
+  'its',
+  "it's",
+  'then',
+  'than',
+  'also',
+  'have',
+  'has',
+  'had',
+]);
 
-  if (lines.length === 0) {
-    // Fallback: clean markdown from original and truncate
-    const fallback = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
-    return fallback.slice(0, 120);
+function extractQueryTerms(query?: string): string[] {
+  if (!query) return [];
+  return query
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((term) => term.length >= 3 && !STOP_WORDS.has(term));
+}
+
+function scoreSentenceForQuery(
+  sentence: string,
+  queryTerms: string[],
+  queryLower: string
+): number {
+  const lower = sentence.toLowerCase();
+  let score = 0;
+
+  for (const term of queryTerms) {
+    if (lower.includes(term)) {
+      score += 2;
+    }
   }
 
-  // Use the first substantial line
-  const snippet = lines[0];
-  return snippet.length > 120 ? `${snippet.slice(0, 120)}...` : snippet;
+  if (
+    queryLower.length >= 6 &&
+    lower.includes(queryLower) &&
+    queryTerms.length >= 2
+  ) {
+    score += 4;
+  }
+
+  return score;
+}
+
+function countTermMatches(text: string, queryTerms: string[]): number {
+  if (queryTerms.length === 0) return 0;
+  const lower = text.toLowerCase();
+  let matches = 0;
+  for (const term of queryTerms) {
+    if (lower.includes(term)) matches++;
+  }
+  return matches;
+}
+
+function collectRelevantSentences(text: string): string[] {
+  return cleanSnippetSource(text)
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(isRelevantSentence);
+}
+
+function scoreChunkForPreview(text: string, query?: string): number {
+  const queryTerms = extractQueryTerms(query);
+  const queryLower = query?.toLowerCase().trim() || '';
+  const sentences = collectRelevantSentences(text);
+
+  let relevanceScore = 0;
+  for (const sentence of sentences) {
+    relevanceScore += scoreSentenceForQuery(sentence, queryTerms, queryLower);
+  }
+
+  const richnessScore =
+    Math.min(sentences.length, 5) * 2 +
+    Math.min(cleanSnippetSource(text).length, 500) / 100;
+
+  return relevanceScore * 10 + richnessScore;
+}
+
+type PreviewCandidate = {
+  item: QueryResultItem;
+  previewScore: number;
+  sentenceCount: number;
+  cleanedChars: number;
+};
+
+export type PreviewSelection = {
+  selected: QueryResultItem;
+  selectedPreviewScore: number;
+  candidates: PreviewCandidate[];
+};
+
+type RankedUrlGroup = {
+  baseUrl: string;
+  items: QueryResultItem[];
+  topScore: number;
+  rankScore: number;
+  coverageCount: number;
+};
+
+function scoreUrlGroupForQuery(
+  groupItems: QueryResultItem[],
+  query: string
+): { rankScore: number; coverageCount: number } {
+  const queryTerms = extractQueryTerms(query);
+  const queryLower = query.toLowerCase().trim();
+  const topVector = groupItems[0]?.score ?? 0;
+
+  if (groupItems.length === 0) {
+    return { rankScore: topVector, coverageCount: 0 };
+  }
+
+  let maxCoverage = 0;
+  let maxTitleHeaderCoverage = 0;
+  let phraseHit = 0;
+
+  for (const item of groupItems.slice(0, 6)) {
+    const merged = `${item.title} ${item.chunkHeader ?? ''} ${item.chunkText}`;
+    const titleAndHeader = `${item.title} ${item.chunkHeader ?? ''}`;
+    maxCoverage = Math.max(maxCoverage, countTermMatches(merged, queryTerms));
+    maxTitleHeaderCoverage = Math.max(
+      maxTitleHeaderCoverage,
+      countTermMatches(titleAndHeader, queryTerms)
+    );
+    if (
+      queryLower.length >= 6 &&
+      queryTerms.length >= 2 &&
+      merged.toLowerCase().includes(queryLower)
+    ) {
+      phraseHit = 1;
+    }
+  }
+
+  const queryTermCount = queryTerms.length || 1;
+  const coverageBoost = (maxCoverage / queryTermCount) * 0.16;
+  const titleHeaderBoost = (maxTitleHeaderCoverage / queryTermCount) * 0.06;
+  const phraseBoost = phraseHit ? 0.08 : 0;
+
+  return {
+    rankScore: topVector + coverageBoost + titleHeaderBoost + phraseBoost,
+    coverageCount: maxCoverage,
+  };
+}
+
+function rankUrlGroups(
+  grouped: Map<string, QueryResultItem[]>,
+  query: string,
+  limit: number
+): RankedUrlGroup[] {
+  return Array.from(grouped.entries())
+    .map(([baseUrl, groupItems]) => {
+      const sorted = [...groupItems].sort((a, b) => b.score - a.score);
+      const { rankScore, coverageCount } = scoreUrlGroupForQuery(sorted, query);
+      return {
+        baseUrl,
+        items: sorted,
+        topScore: sorted[0].score,
+        rankScore,
+        coverageCount,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.rankScore - a.rankScore ||
+        b.coverageCount - a.coverageCount ||
+        b.topScore - a.topScore
+    )
+    .slice(0, limit);
+}
+
+function buildPreviewCandidates(
+  groupItems: QueryResultItem[],
+  query: string
+): PreviewCandidate[] {
+  const candidates = groupItems.slice(0, 8);
+  return candidates.map((item) => {
+    const cleaned = cleanSnippetSource(item.chunkText);
+    const sentences = collectRelevantSentences(item.chunkText);
+    return {
+      item,
+      previewScore: scoreChunkForPreview(item.chunkText, query),
+      sentenceCount: sentences.length,
+      cleanedChars: cleaned.length,
+    };
+  });
+}
+
+export function selectBestPreviewItem(
+  groupItems: QueryResultItem[],
+  query: string
+): PreviewSelection {
+  const candidates = buildPreviewCandidates(groupItems, query);
+  let selected = candidates[0];
+
+  for (let i = 1; i < candidates.length; i++) {
+    const candidate = candidates[i];
+    if (
+      candidate.previewScore > selected.previewScore ||
+      (candidate.previewScore === selected.previewScore &&
+        candidate.item.score > selected.item.score)
+    ) {
+      selected = candidate;
+    }
+  }
+
+  return {
+    selected: selected.item,
+    selectedPreviewScore: selected.previewScore,
+    candidates,
+  };
+}
+
+/**
+ * Build a compact, relevant preview from chunk text.
+ * Targets ~3-5 sentences and filters navigation/boilerplate noise.
+ */
+export function getMeaningfulSnippet(text: string, query?: string): string {
+  const cleaned = cleanSnippetSource(text);
+  const sentences = collectRelevantSentences(text);
+
+  const queryTerms = extractQueryTerms(query);
+  const queryLower = query?.toLowerCase().trim() || '';
+
+  const scored = sentences.map((sentence, index) => ({
+    sentence,
+    index,
+    score: scoreSentenceForQuery(sentence, queryTerms, queryLower),
+  }));
+
+  const selected: string[] = [];
+  const selectedIndexes = new Set<number>();
+  let totalLength = 0;
+  const maxChars = 700;
+
+  // Prefer query-relevant sentences first, then nearby context to reach 3-5.
+  if (queryTerms.length > 0) {
+    const relevant = scored
+      .filter((s) => s.score > 0)
+      .sort((a, b) => b.score - a.score || a.index - b.index);
+
+    for (const candidate of relevant) {
+      if (selected.length === 5) break;
+      if (
+        totalLength + candidate.sentence.length > maxChars &&
+        selected.length >= 3
+      ) {
+        break;
+      }
+      if (selectedIndexes.has(candidate.index)) continue;
+      selected.push(candidate.sentence);
+      selectedIndexes.add(candidate.index);
+      totalLength += candidate.sentence.length;
+    }
+
+    if (selected.length > 0 && selected.length < 3) {
+      const anchor = Math.min(...Array.from(selectedIndexes));
+      const byDistance = scored
+        .filter((s) => !selectedIndexes.has(s.index))
+        .sort(
+          (a, b) =>
+            Math.abs(a.index - anchor) - Math.abs(b.index - anchor) ||
+            b.score - a.score
+        );
+
+      for (const candidate of byDistance) {
+        if (selected.length >= 3) break;
+        if (
+          totalLength + candidate.sentence.length > maxChars &&
+          selected.length >= 2
+        ) {
+          break;
+        }
+        selected.push(candidate.sentence);
+        selectedIndexes.add(candidate.index);
+        totalLength += candidate.sentence.length;
+      }
+    }
+  }
+
+  if (selected.length === 0) {
+    for (const sentence of sentences.slice(0, 5)) {
+      if (totalLength + sentence.length > maxChars && selected.length >= 3) {
+        break;
+      }
+      selected.push(sentence);
+      totalLength += sentence.length;
+    }
+  }
+
+  if (selected.length > 0) {
+    if (selectedIndexes.size > 0) {
+      return Array.from(selectedIndexes)
+        .sort((a, b) => a - b)
+        .map((i) => sentences[i])
+        .join(' ');
+    }
+    return selected.join(' ');
+  }
+
+  // Fallback: first relevant non-empty line with markdown stripped.
+  const fallbackLines = cleaned
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter((l) => l.length >= 20 && /[a-zA-Z]/.test(l));
+  const fallback = fallbackLines[0] || cleaned;
+  return fallback.length > 220 ? `${fallback.slice(0, 220)}...` : fallback;
 }
 
 /**
@@ -148,51 +576,66 @@ function getMeaningfulSnippet(text: string): string {
  * @param limit Maximum number of unique URLs to display
  * @returns Formatted string for compact display
  */
-function formatCompact(items: QueryResultItem[], limit: number = 10): string {
+function formatCompact(
+  items: QueryResultItem[],
+  query: string,
+  verboseSnippets: boolean,
+  limit: number = 10
+): string {
   if (items.length === 0) return fmt.dim('No results found.');
 
-  // Group by base URL (without fragment)
-  const grouped = new Map<string, QueryResultItem[]>();
-  for (const item of items) {
-    const baseUrl = stripFragment(item.url);
-    const existing = grouped.get(baseUrl) || [];
-    existing.push(item);
-    grouped.set(baseUrl, existing);
-  }
+  const grouped = groupByBaseUrl(items);
 
-  // Sort groups by highest score in each group, then limit to requested number
-  const sortedGroups = Array.from(grouped.entries())
-    .map(([baseUrl, groupItems]) => {
-      const sorted = [...groupItems].sort((a, b) => b.score - a.score);
-      return { baseUrl, items: sorted, topScore: sorted[0].score };
-    })
-    .sort((a, b) => b.topScore - a.topScore)
-    .slice(0, limit);
+  const sortedGroups = rankUrlGroups(grouped, query, limit);
 
   // Format each group (show highest-scoring chunk)
   const lines: string[] = [];
-  lines.push(`  ${fmt.primary('Query results')}`);
+  lines.push('');
+  lines.push(queryHeading('Query Results'));
+  lines.push(`  Query: ${fmt.dim(`"${query}"`)}`);
+  lines.push(`  ${fmt.primary('Results:')}`);
   lines.push('');
 
   const results: string[] = [];
   let index = 1;
   for (const { baseUrl, items: groupItems } of sortedGroups) {
-    const topItem = groupItems[0];
+    const selection = selectBestPreviewItem(groupItems, query);
+    const topItem = selection.selected;
     const chunkCount = groupItems.length;
 
-    const score = topItem.score.toFixed(2);
+    const score = topItem.score;
     const countPart = chunkCount > 1 ? ` (${chunkCount} chunks)` : ' (1 chunk)';
-    const snippet = getMeaningfulSnippet(topItem.chunkText);
+    const snippet = getMeaningfulSnippet(topItem.chunkText, query);
 
     results.push(
-      `  ${fmt.dim(`${index}.`)} [${score}] ${baseUrl}${countPart}\n     ${snippet}`
+      `    ${fmt.info(icons.bullet)} ${fmt.dim(`${index}.`)} ${formatScore(score)} ${fmt.primary(baseUrl)}${fmt.dim(countPart)}`
     );
+    results.push(`      ${snippet}`);
+    if (verboseSnippets) {
+      const topCandidates = selection.candidates
+        .slice()
+        .sort(
+          (a, b) =>
+            b.previewScore - a.previewScore || b.item.score - a.item.score
+        )
+        .slice(0, 3)
+        .map(
+          (c) =>
+            `#${c.item.chunkIndex}(v=${c.item.score.toFixed(2)},p=${c.previewScore.toFixed(2)},s=${c.sentenceCount})`
+        )
+        .join(', ');
+      results.push(
+        `      ${fmt.dim(`snippet debug: selected=#${topItem.chunkIndex} vector=${topItem.score.toFixed(2)} preview=${selection.selectedPreviewScore.toFixed(2)} candidates=${selection.candidates.length}`)}`
+      );
+      results.push(`      ${fmt.dim(`top candidates: ${topCandidates}`)}`);
+    }
+    results.push('');
     index++;
   }
 
-  lines.push(results.join('\n\n'));
-  lines.push('');
-  lines.push(getRetrievalHint());
+  lines.push(results.join('\n'));
+  lines.push(`  ${fmt.primary('Next:')}`);
+  lines.push(`    ${getRetrievalHint()}`);
   return lines.join('\n');
 }
 
@@ -202,21 +645,24 @@ function formatCompact(items: QueryResultItem[], limit: number = 10): string {
  * @param items Query result items to format
  * @returns Formatted string with full chunk text
  */
-function formatFull(items: QueryResultItem[]): string {
+function formatFull(items: QueryResultItem[], query: string): string {
   if (items.length === 0) return fmt.dim('No results found.');
   const lines: string[] = [];
-  lines.push(`  ${fmt.primary('Query results')}`);
+  lines.push('');
+  lines.push(queryHeading('Query Results'));
+  lines.push(`  Query: ${fmt.dim(`"${query}"`)}`);
+  lines.push(`  ${fmt.primary('Results:')}`);
   lines.push('');
   const results = items
     .map((item) => {
       const header = item.chunkHeader ? ` - ${item.chunkHeader}` : '';
-      const score = item.score.toFixed(2);
-      return `    ${fmt.info(icons.bullet)} [${score}] ${item.url}${header}\n\n${item.chunkText}`;
+      return `    ${fmt.info(icons.bullet)} ${formatScore(item.score)} ${fmt.primary(item.url)}${fmt.dim(header)}\n\n${item.chunkText}`;
     })
     .join('\n\n---\n\n');
   lines.push(results);
   lines.push('');
-  lines.push(getRetrievalHint());
+  lines.push(`  ${fmt.primary('Next:')}`);
+  lines.push(`    ${getRetrievalHint()}`);
   return lines.join('\n');
 }
 
@@ -227,42 +673,74 @@ function formatFull(items: QueryResultItem[]): string {
  * @param full Whether to show full chunk text or truncated
  * @returns Formatted string grouped by URL
  */
-function formatGrouped(items: QueryResultItem[], full: boolean): string {
+function formatGrouped(
+  items: QueryResultItem[],
+  full: boolean,
+  query: string,
+  verboseSnippets: boolean
+): string {
   if (items.length === 0) return fmt.dim('No results found.');
 
-  const groups = new Map<string, QueryResultItem[]>();
-  for (const item of items) {
-    const existing = groups.get(item.url) || [];
-    existing.push(item);
-    groups.set(item.url, existing);
-  }
+  const groups = rankUrlGroups(
+    groupByBaseUrl(items),
+    query,
+    Number.MAX_SAFE_INTEGER
+  );
 
   const parts: string[] = [];
-  parts.push(`  ${fmt.primary('Query results')}`);
   parts.push('');
-  for (const [url, groupItems] of groups) {
-    parts.push(`  ${fmt.primary(url)}`);
+  parts.push(queryHeading('Query Results'));
+  parts.push(`  Query: ${fmt.dim(`"${query}"`)}`);
+  parts.push(`  ${fmt.primary('Results:')}`);
+  parts.push('');
+  for (const group of groups) {
+    const baseUrl = group.baseUrl;
+    const groupItems = group.items;
+    parts.push(`  ${fmt.primary(baseUrl)}`);
+    const selection = !full
+      ? selectBestPreviewItem(groupItems, query)
+      : undefined;
     for (const item of groupItems) {
       const header = item.chunkHeader ? ` - ${item.chunkHeader}` : '';
-      const score = item.score.toFixed(2);
+      const score = item.score;
       if (full) {
         parts.push(
-          `    ${fmt.info(icons.bullet)} [${score}]${header}\n${item.chunkText}`
+          `    ${fmt.info(icons.bullet)} ${formatScore(score)}${fmt.dim(header)}\n${item.chunkText}`
         );
       } else {
-        const truncated =
-          item.chunkText.length > 120
-            ? `${item.chunkText.slice(0, 120)}...`
-            : item.chunkText;
+        const truncated = getMeaningfulSnippet(item.chunkText, query);
         parts.push(
-          `    ${fmt.info(icons.bullet)} [${score}]${header}\n      ${truncated}`
+          `    ${fmt.info(icons.bullet)} ${formatScore(score)}${fmt.dim(header)}\n      ${truncated}`
         );
+        if (
+          verboseSnippets &&
+          selection &&
+          item.chunkIndex === selection.selected.chunkIndex
+        ) {
+          const topCandidates = selection.candidates
+            .slice()
+            .sort(
+              (a, b) =>
+                b.previewScore - a.previewScore || b.item.score - a.item.score
+            )
+            .slice(0, 3)
+            .map(
+              (c) =>
+                `#${c.item.chunkIndex}(v=${c.item.score.toFixed(2)},p=${c.previewScore.toFixed(2)},s=${c.sentenceCount})`
+            )
+            .join(', ');
+          parts.push(
+            `      ${fmt.dim(`snippet debug: selected=#${selection.selected.chunkIndex} vector=${selection.selected.score.toFixed(2)} preview=${selection.selectedPreviewScore.toFixed(2)} candidates=${selection.candidates.length}`)}`
+          );
+          parts.push(`      ${fmt.dim(`top candidates: ${topCandidates}`)}`);
+        }
       }
     }
     parts.push('');
   }
 
-  parts.push(getRetrievalHint());
+  parts.push(`  ${fmt.primary('Next:')}`);
+  parts.push(`    ${getRetrievalHint()}`);
   return parts.join('\n');
 }
 
@@ -284,18 +762,60 @@ export async function handleQueryCommand(
   container: IContainer,
   options: QueryOptions
 ): Promise<void> {
-  processCommandResult(
-    await executeQuery(container, options),
-    options,
-    (data) => {
-      if (options.group) {
-        return formatGrouped(data, !!options.full);
-      }
-      if (options.full) {
-        return formatFull(data);
-      }
-      return formatCompact(data, options.limit || 10);
+  const requestStartTime = Date.now();
+  const result = await executeQuery(container, options);
+  const requestEndTime = Date.now();
+  const durationMs = requestEndTime - requestStartTime;
+
+  processCommandResult(result, options, (data) => {
+    if (options.group) {
+      return formatGrouped(
+        data,
+        !!options.full,
+        options.query,
+        !!options.verboseSnippets
+      );
     }
+    if (options.full) {
+      return formatFull(data, options.query);
+    }
+    return formatCompact(
+      data,
+      options.query,
+      !!options.verboseSnippets,
+      options.limit || 10
+    );
+  });
+
+  if (!options.timing) return;
+
+  // Keep JSON output machine-friendly (no extra stdout text).
+  if (options.json) {
+    const status = result.success ? 'success' : 'error';
+    const errorPart = result.success
+      ? ''
+      : ` (${result.error ?? 'Unknown error'})`;
+    console.error(`Timing: ${durationMs}ms [${status}]${errorPart}`);
+    return;
+  }
+
+  if (result.success) {
+    const totalChunks = result.data?.length ?? 0;
+    const uniqueUrls = groupByBaseUrl(result.data ?? []).size;
+    console.log('');
+    console.log(
+      fmt.dim(
+        `${icons.info} Query completed in ${durationMs}ms (${uniqueUrls} URLs, ${totalChunks} chunks scanned)`
+      )
+    );
+    return;
+  }
+
+  console.log('');
+  console.log(
+    fmt.dim(
+      `${icons.warning} Query failed after ${durationMs}ms (${result.error ?? 'Unknown error'})`
+    )
   );
 }
 
@@ -322,6 +842,16 @@ export function createQueryCommand(): Command {
     )
     .option('--group', 'Group results by URL', false)
     .option(
+      '--verbose-snippets',
+      'Show snippet selection diagnostics (chunk choice and candidate scores)',
+      false
+    )
+    .option(
+      '--timing',
+      'Show request timing and other useful information',
+      false
+    )
+    .option(
       '--collection <name>',
       'Qdrant collection name (default: firecrawl)'
     )
@@ -336,6 +866,8 @@ export function createQueryCommand(): Command {
         domain: options.domain,
         full: options.full,
         group: options.group,
+        verboseSnippets: options.verboseSnippets,
+        timing: options.timing,
         collection: options.collection,
         output: options.output,
         json: options.json,

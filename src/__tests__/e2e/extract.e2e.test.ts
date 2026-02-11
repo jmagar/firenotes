@@ -44,7 +44,7 @@ describe('E2E: extract command', () => {
       const result = await runCLIFailure(['extract'], {
         env: { FIRECRAWL_API_KEY: apiKey ?? 'test-key' },
       });
-      expect(result.stderr).toContain("required argument 'urls'");
+      expect(result.stderr).toContain('At least one URL is required.');
     });
 
     it('should accept URL as positional argument', async () => {
@@ -55,7 +55,7 @@ describe('E2E: extract command', () => {
       const result = await runCLI(['extract', 'https://example.com'], {
         env: { FIRECRAWL_API_KEY: apiKey ?? 'test-key' },
       });
-      expect(result.stderr).not.toContain("required argument 'urls'");
+      expect(result.stderr).not.toContain('At least one URL is required.');
     });
 
     it('should accept multiple URLs', async () => {
@@ -69,7 +69,7 @@ describe('E2E: extract command', () => {
           env: { FIRECRAWL_API_KEY: apiKey ?? 'test-key' },
         }
       );
-      expect(result.stderr).not.toContain("required argument 'urls'");
+      expect(result.stderr).not.toContain('At least one URL is required.');
     });
   });
 

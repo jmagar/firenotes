@@ -2,14 +2,24 @@
  * Tests for scrape command
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createScrapeCommand,
   executeScrape,
   handleScrapeCommand,
 } from '../../commands/scrape';
 import type { IContainer, IQdrantService } from '../../container/types';
-import type { MockFirecrawlClient } from '../utils/mock-client';
+import {
+  createMockContainer,
+  createMockFirecrawlClient,
+  createMockQdrantService,
+  createScrapeResponse,
+  expectCalledWithUrlAndOptions,
+  expectErrorResult,
+  expectSuccessResult,
+  setupTestLifecycle,
+} from '../helpers';
 import { createTestContainer } from '../utils/test-container';
 
 // Mock the output module to prevent console output in tests
@@ -18,49 +28,24 @@ vi.mock('../../utils/output', () => ({
 }));
 
 describe('executeScrape', () => {
-  let mockClient: MockFirecrawlClient;
+  let mockClient: ReturnType<typeof createMockFirecrawlClient>;
   let mockContainer: IContainer;
 
-  beforeEach(() => {
-    // Create mock client
-    mockClient = {
-      scrape: vi.fn(),
-    };
-
-    // Create mock container
-    mockContainer = {
-      config: {
-        apiKey: 'test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
-        teiUrl: 'http://localhost:8080',
-        qdrantUrl: 'http://localhost:6333',
-        qdrantCollection: 'test_collection',
-      },
-      getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
-      getEmbedPipeline: vi.fn().mockReturnValue({
-        autoEmbed: vi.fn().mockResolvedValue(undefined),
-      }),
-      getTeiService: vi.fn(),
-      getQdrantService: vi.fn(),
-      getHttpClient: vi.fn(),
-    } as unknown as IContainer;
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
+  setupTestLifecycle(() => {
+    mockClient = createMockFirecrawlClient();
+    mockContainer = createMockContainer({ scrape: mockClient.scrape });
   });
 
   describe('API call generation', () => {
     it('should call scrape with correct URL and default markdown format', async () => {
-      const mockResponse = { markdown: '# Test Content' };
+      const mockResponse = createScrapeResponse();
       mockClient.scrape.mockResolvedValue(mockResponse);
 
       await executeScrape(mockContainer, {
         url: 'https://example.com',
       });
 
-      expect(mockClient.scrape).toHaveBeenCalledTimes(1);
-      expect(mockClient.scrape).toHaveBeenCalledWith('https://example.com', {
+      expectCalledWithUrlAndOptions(mockClient.scrape, 'https://example.com', {
         formats: ['markdown'],
       });
     });
@@ -200,20 +185,15 @@ describe('executeScrape', () => {
 
   describe('Response handling', () => {
     it('should return success result with data when scrape succeeds', async () => {
-      const mockResponse = {
-        markdown: '# Test Content',
-        url: 'https://example.com',
-      };
+      const mockResponse = createScrapeResponse();
       mockClient.scrape.mockResolvedValue(mockResponse);
 
       const result = await executeScrape(mockContainer, {
         url: 'https://example.com',
       });
 
-      expect(result).toEqual({
-        success: true,
-        data: mockResponse,
-      });
+      expectSuccessResult(result);
+      expect(result.data).toEqual(mockResponse);
     });
 
     it('should handle complex response data', async () => {
@@ -244,10 +224,7 @@ describe('executeScrape', () => {
         url: 'https://example.com',
       });
 
-      expect(result).toEqual({
-        success: false,
-        error: errorMessage,
-      });
+      expectErrorResult(result, `Scrape failed: ${errorMessage}`);
     });
 
     it('should handle non-Error exceptions', async () => {
@@ -258,7 +235,7 @@ describe('executeScrape', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Unknown error occurred');
+      expect(result.error).toBe('Scrape failed: Unknown error occurred');
     });
 
     it('should include actionable self-hosted hint on local connectivity failures', async () => {
@@ -340,37 +317,18 @@ describe('createScrapeCommand', () => {
 });
 
 describe('handleScrapeCommand auto-embed', () => {
-  let mockClient: MockFirecrawlClient;
+  let mockClient: ReturnType<typeof createMockFirecrawlClient>;
   let mockContainer: IContainer;
-  let mockAutoEmbed: ReturnType<typeof vi.fn>;
+  let mockAutoEmbed: Mock;
 
-  beforeEach(async () => {
-    mockClient = {
-      scrape: vi.fn(),
-    };
-
+  setupTestLifecycle(() => {
+    mockClient = createMockFirecrawlClient();
     mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
-
-    mockContainer = {
-      config: {
-        apiKey: 'test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
-        teiUrl: 'http://localhost:8080',
-        qdrantUrl: 'http://localhost:6333',
-        qdrantCollection: 'test_collection',
-      },
-      getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
-      getEmbedPipeline: vi.fn().mockReturnValue({
-        autoEmbed: mockAutoEmbed,
-      }),
-      getTeiService: vi.fn(),
-      getQdrantService: vi.fn(),
-      getHttpClient: vi.fn(),
-    } as unknown as IContainer;
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
+    mockContainer = createMockContainer(
+      { scrape: mockClient.scrape },
+      undefined,
+      { autoEmbed: mockAutoEmbed }
+    );
   });
 
   it('should call autoEmbed when embed is not false and scrape succeeds', async () => {
@@ -481,37 +439,15 @@ describe('executeScrape --remove', () => {
   let container: IContainer;
   let mockQdrantService: IQdrantService;
 
-  beforeEach(() => {
-    mockQdrantService = {
-      ensureCollection: vi.fn().mockResolvedValue(undefined),
-      deleteByUrl: vi.fn().mockResolvedValue(undefined),
-      deleteByDomain: vi.fn().mockResolvedValue(undefined),
-      countByDomain: vi.fn().mockResolvedValue(42),
-      upsertPoints: vi.fn().mockResolvedValue(undefined),
-      queryPoints: vi.fn().mockResolvedValue([]),
-      scrollByUrl: vi.fn().mockResolvedValue([]),
-      getCollectionInfo: vi.fn().mockResolvedValue({
-        status: 'green',
-        vectorsCount: 0,
-        pointsCount: 0,
-        segmentsCount: 1,
-        config: { dimension: 1024, distance: 'Cosine' },
-      }),
-      scrollAll: vi.fn().mockResolvedValue([]),
-      countPoints: vi.fn().mockResolvedValue(0),
-      countByUrl: vi.fn().mockResolvedValue(0),
-      deleteAll: vi.fn().mockResolvedValue(undefined),
-    };
+  setupTestLifecycle(() => {
+    mockQdrantService = createMockQdrantService();
+    vi.mocked(mockQdrantService.countByDomain).mockResolvedValue(42);
 
     container = createTestContainer(undefined, {
       qdrantUrl: 'http://localhost:53333',
       qdrantCollection: 'test_col',
     });
     vi.spyOn(container, 'getQdrantService').mockReturnValue(mockQdrantService);
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
   });
 
   it('should delete by domain when --remove is set', async () => {

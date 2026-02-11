@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearJobHistory,
+  clearJobTypeHistory,
   getRecentJobIds,
   recordJob,
   removeJobIds,
@@ -49,7 +50,11 @@ describe('Job History Utilities', () => {
   afterEach(() => {
     vi.clearAllMocks();
     process.cwd = originalCwd;
-    process.env.FIRECRAWL_HOME = originalFirecrawlHome;
+    if (originalFirecrawlHome === undefined) {
+      delete process.env.FIRECRAWL_HOME;
+    } else {
+      process.env.FIRECRAWL_HOME = originalFirecrawlHome;
+    }
   });
 
   describe('Storage root support', () => {
@@ -347,6 +352,28 @@ describe('Job History Utilities', () => {
       await recordJob('extract', 'extract-job');
 
       expect(fs.writeFile).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe('clearJobTypeHistory', () => {
+    it('should clear only the specified job type', async () => {
+      const existingData = {
+        crawl: [{ id: 'crawl-1', updatedAt: '2024-01-01T00:00:00.000Z' }],
+        batch: [{ id: 'batch-1', updatedAt: '2024-01-02T00:00:00.000Z' }],
+        extract: [{ id: 'extract-1', updatedAt: '2024-01-03T00:00:00.000Z' }],
+      };
+
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(existingData));
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+      await clearJobTypeHistory('crawl');
+
+      const writeCall = vi.mocked(fs.writeFile).mock.calls[0];
+      const data = JSON.parse(writeCall[1] as string);
+      expect(data.crawl).toEqual([]);
+      expect(data.batch).toEqual(existingData.batch);
+      expect(data.extract).toEqual(existingData.extract);
     });
   });
 

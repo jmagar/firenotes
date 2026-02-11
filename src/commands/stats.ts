@@ -16,6 +16,7 @@ import { processCommandResult } from '../utils/command';
 import { fmt, icons } from '../utils/theme';
 import {
   addVectorOutputOptions,
+  aggregatePointsByDomain,
   getQdrantUrlError,
   requireContainer,
   resolveCollectionName,
@@ -51,21 +52,8 @@ export async function executeStats(
     // Scroll all points for aggregation
     const points = await qdrantService.scrollAll(collection);
 
-    // Aggregate by domain
-    const domainMap = new Map<string, { vectors: number; urls: Set<string> }>();
-    for (const point of points) {
-      const domain = String(point.payload.domain || 'unknown');
-      const url = String(point.payload.url || '');
-
-      if (!domainMap.has(domain)) {
-        domainMap.set(domain, { vectors: 0, urls: new Set() });
-      }
-      const entry = domainMap.get(domain);
-      if (entry) {
-        entry.vectors++;
-        if (url) entry.urls.add(url);
-      }
-    }
+    // Aggregate by domain using shared function
+    const domainMap = aggregatePointsByDomain(points, false);
 
     const byDomain: DomainStats[] = Array.from(domainMap.entries())
       .map(([domain, data]) => ({

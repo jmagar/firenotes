@@ -15,7 +15,11 @@ import { normalizeJobId } from '../utils/job';
 import { recordJob } from '../utils/job-history';
 import { buildApiErrorMessage } from '../utils/network-error';
 import { fmt } from '../utils/theme';
-import { requireContainer, requireContainerFromCommandTree } from './shared';
+import {
+  normalizeUrlArgs,
+  requireContainer,
+  requireContainerFromCommandTree,
+} from './shared';
 
 /**
  * Convert extracted data to human-readable text for embedding
@@ -190,7 +194,6 @@ export async function handleExtractCommand(
 }
 
 import { Command } from 'commander';
-import { normalizeUrl } from '../utils/url';
 
 /**
  * Handle extract status command
@@ -226,9 +229,8 @@ async function handleExtractStatusCommand(
     const outputContent = formatJson(result, options.pretty);
     writeCommandOutput(outputContent, options);
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error(fmt.error(message));
+    const errorMessage = buildApiErrorMessage(error, container.config.apiUrl);
+    console.error(fmt.error(errorMessage));
     process.exit(1);
   }
 }
@@ -256,19 +258,25 @@ export function createExtractCommand(container?: IContainer): Command {
     )
     .option(
       '--enable-web-search',
-      'Enable web search for additional context (default: false)',
-      false
+      'Enable web search for additional context (default: true)',
+      true
+    )
+    .option(
+      '--no-enable-web-search',
+      'Disable web search for additional context'
     )
     .option(
       '--include-subdomains',
-      'Include subdomains when extracting (default: false)',
-      false
+      'Include subdomains when extracting (default: true)',
+      true
     )
+    .option('--no-include-subdomains', 'Exclude subdomains when extracting')
     .option(
       '--show-sources',
-      'Include source URLs in result (default: false)',
-      false
+      'Include source URLs in result (default: true)',
+      true
     )
+    .option('--no-show-sources', 'Hide source URLs in result')
     .option(
       '-k, --api-key <key>',
       'Firecrawl API key (overrides global --api-key)'
@@ -280,12 +288,7 @@ export function createExtractCommand(container?: IContainer): Command {
     .action(async (rawUrls: string[], options, command: Command) => {
       const container = requireContainer(command);
 
-      // Flatten URLs that may contain newlines (e.g. zsh doesn't word-split variables)
-      const urls = rawUrls
-        .flatMap((u) =>
-          u.includes('\n') ? u.split('\n').filter(Boolean) : [u]
-        )
-        .map(normalizeUrl);
+      const urls = normalizeUrlArgs(rawUrls);
 
       // Validate at least one URL provided
       if (urls.length === 0) {

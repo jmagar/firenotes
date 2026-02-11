@@ -17,6 +17,11 @@ loadDotenv();
 
 const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:53333';
 
+/**
+ * NOTE: These interfaces duplicate types from src/container/types.ts
+ * This duplication is intentional - scripts should be standalone and not
+ * depend on src/ to avoid circular dependencies and keep scripts portable.
+ */
 interface QdrantPoint {
   id: string;
   payload: {
@@ -61,7 +66,9 @@ interface QdrantClusterInfo {
  * Get Qdrant cluster info
  */
 async function getClusterInfo(): Promise<QdrantClusterInfo> {
-  const response = await fetch(`${QDRANT_URL}/`);
+  const response = await fetch(`${QDRANT_URL}/`, {
+    signal: AbortSignal.timeout(10000),
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to get cluster info: ${response.statusText}`);
@@ -78,13 +85,21 @@ async function getClusterInfo(): Promise<QdrantClusterInfo> {
  * List all collections in Qdrant
  */
 async function listCollections(): Promise<string[]> {
-  const response = await fetch(`${QDRANT_URL}/collections`);
+  const response = await fetch(`${QDRANT_URL}/collections`, {
+    signal: AbortSignal.timeout(10000),
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to list collections: ${response.statusText}`);
   }
 
   const data = await response.json();
+
+  // Null-guard the result and collections array
+  if (!data.result || !data.result.collections) {
+    return [];
+  }
+
   return data.result.collections.map((c: CollectionInfo) => c.name);
 }
 
@@ -92,7 +107,9 @@ async function listCollections(): Promise<string[]> {
  * Get detailed collection info
  */
 async function getCollectionInfo(collection: string): Promise<CollectionInfo> {
-  const response = await fetch(`${QDRANT_URL}/collections/${collection}`);
+  const response = await fetch(`${QDRANT_URL}/collections/${collection}`, {
+    signal: AbortSignal.timeout(10000),
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to get collection info: ${response.statusText}`);
@@ -162,6 +179,7 @@ async function fetchAllPoints(collection: string): Promise<QdrantPoint[]> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scrollBody),
+        signal: AbortSignal.timeout(30000),
       }
     );
 
@@ -203,7 +221,8 @@ function findDuplicates(points: QdrantPoint[]): DuplicateGroup[] {
     if (!url) continue;
 
     // Create unique key: url + chunk_index
-    const key = `${url}:::${chunkIndex ?? 0}`;
+    // Use 'none' for missing chunk_index to avoid grouping with chunk 0
+    const key = `${url}:::${chunkIndex ?? 'none'}`;
 
     const existingIds = chunkMap.get(key);
     if (existingIds) {
@@ -215,7 +234,8 @@ function findDuplicates(points: QdrantPoint[]): DuplicateGroup[] {
 
   const duplicates: DuplicateGroup[] = [];
 
-  for (const [key, ids] of Array.from(chunkMap.entries())) {
+  // Map.entries() is already iterable, no need for Array.from()
+  for (const [key, ids] of chunkMap.entries()) {
     if (ids.length > 1) {
       const url = key.split(':::')[0];
       duplicates.push({ url, count: ids.length, ids });
@@ -241,6 +261,7 @@ async function deletePoints(collection: string, ids: string[]): Promise<void> {
       body: JSON.stringify({
         points: ids,
       }),
+      signal: AbortSignal.timeout(30000),
     }
   );
 

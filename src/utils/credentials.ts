@@ -4,6 +4,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   type StoredCredentials,
@@ -21,7 +22,7 @@ export type { StoredCredentials };
  * Legacy config directory paths (pre-FIRECRAWL_HOME unification).
  */
 function getLegacyConfigDirs(): string[] {
-  const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
+  const homeDir = os.homedir();
   return [
     path.join(homeDir, 'Library', 'Application Support', 'firecrawl-cli'),
     path.join(homeDir, 'AppData', 'Roaming', 'firecrawl-cli'),

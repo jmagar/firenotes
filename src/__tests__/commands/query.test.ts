@@ -3,7 +3,11 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { executeQuery } from '../../commands/query';
+import {
+  executeQuery,
+  getMeaningfulSnippet,
+  selectBestPreviewItem,
+} from '../../commands/query';
 import type {
   IContainer,
   IQdrantService,
@@ -142,5 +146,217 @@ describe('executeQuery', () => {
     const result = await executeQuery(container, { query: 'nonexistent' });
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(0);
+  });
+
+  it('should dedupe canonical URL variants into one group', async () => {
+    vi.mocked(mockTeiService.embedBatch).mockResolvedValue([[0.1]]);
+    vi.mocked(mockQdrantService.queryPoints).mockResolvedValue([
+      {
+        id: 'uuid-1',
+        vector: [0.1, 0.2, 0.3],
+        score: 0.9,
+        payload: {
+          url: 'https://example.com/docs/?utm_source=test#intro',
+          title: 'Docs Intro',
+          chunk_text: 'Chunk A',
+          chunk_index: 0,
+          total_chunks: 2,
+          domain: 'example.com',
+          source_command: 'crawl',
+        },
+      },
+      {
+        id: 'uuid-2',
+        vector: [0.1, 0.2, 0.3],
+        score: 0.88,
+        payload: {
+          url: 'https://example.com/docs',
+          title: 'Docs Intro',
+          chunk_text: 'Chunk B',
+          chunk_index: 1,
+          total_chunks: 2,
+          domain: 'example.com',
+          source_command: 'crawl',
+        },
+      },
+      {
+        id: 'uuid-3',
+        vector: [0.1, 0.2, 0.3],
+        score: 0.87,
+        payload: {
+          url: 'https://other.com/page',
+          title: 'Other',
+          chunk_text: 'Other chunk',
+          chunk_index: 0,
+          total_chunks: 1,
+          domain: 'other.com',
+          source_command: 'crawl',
+        },
+      },
+    ]);
+
+    const result = await executeQuery(container, {
+      query: 'docs intro',
+      limit: 1,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveLength(2);
+    expect(result.data?.every((item) => item.url.includes('example.com'))).toBe(
+      true
+    );
+  });
+
+  it('should rerank URL groups using lexical relevance', async () => {
+    vi.mocked(mockTeiService.embedBatch).mockResolvedValue([[0.1]]);
+    vi.mocked(mockQdrantService.queryPoints).mockResolvedValue([
+      {
+        id: 'uuid-1',
+        vector: [0.1, 0.2, 0.3],
+        score: 0.81,
+        payload: {
+          url: 'https://example.com/weak',
+          title: 'General docs',
+          chunk_text: 'This page is broadly about product updates.',
+          chunk_index: 0,
+          total_chunks: 1,
+          domain: 'example.com',
+          source_command: 'crawl',
+        },
+      },
+      {
+        id: 'uuid-2',
+        vector: [0.1, 0.2, 0.3],
+        score: 0.79,
+        payload: {
+          url: 'https://example.com/subagents',
+          title: 'Claude subagents guide',
+          chunk_text:
+            'This guide explains how Claude subagents are configured and used.',
+          chunk_index: 0,
+          total_chunks: 1,
+          domain: 'example.com',
+          source_command: 'crawl',
+        },
+      },
+    ]);
+
+    const result = await executeQuery(container, {
+      query: 'claude subagents',
+      limit: 1,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveLength(1);
+    expect(result.data?.[0].url).toBe('https://example.com/subagents');
+  });
+});
+
+describe('getMeaningfulSnippet', () => {
+  it('returns multiple relevant sentences and skips nav/link noise', () => {
+    const text = `
+*   ![@claude](https://github.com/claude)
+Prev
+Next
+Claude Code helps developers work directly in their codebase from the terminal.
+It can read files, run commands, and propose focused edits with context.
+Teams use it to reduce debugging time and speed up iteration cycles.
+Developer docs
+`;
+
+    const snippet = getMeaningfulSnippet(text);
+
+    expect(snippet).toContain('Claude Code helps developers');
+    expect(snippet).toContain('run commands');
+    expect(snippet).toContain('speed up iteration cycles');
+    expect(snippet).not.toContain('[@claude]');
+    expect(snippet).not.toContain('Prev');
+    expect(snippet).not.toContain('Next');
+  });
+
+  it('caps snippet to at most five sentences', () => {
+    const text = `
+Sentence one explains what the plugin system is and why it matters for extension workflows.
+Sentence two describes how agent teams coordinate work across specialized tasks.
+Sentence three covers how subagents are configured and invoked in practice.
+Sentence four explains best practices for safe command execution and review.
+Sentence five discusses debugging signals and operational visibility.
+Sentence six should not appear in the final snippet output.
+`;
+
+    const snippet = getMeaningfulSnippet(text);
+    const sentenceCount = (snippet.match(/[.!?](\s|$)/g) || []).length;
+
+    expect(sentenceCount).toBeLessThanOrEqual(5);
+    expect(snippet).not.toContain('Sentence six');
+  });
+
+  it('prioritizes sentences matching query terms', () => {
+    const text = `
+This section introduces the broader platform and product background.
+The plugins reference explains how to configure plugin manifests and capabilities.
+It also details plugin hooks, command wiring, and lifecycle behavior.
+Additional examples cover agent teams and subagent handoff patterns.
+`;
+
+    const snippet = getMeaningfulSnippet(text, 'plugin hooks lifecycle');
+
+    expect(snippet).toContain('plugin hooks');
+    expect(snippet).toContain('lifecycle behavior');
+  });
+
+  it('returns rich multi-sentence text instead of heading-only chunk', () => {
+    const shortHeadingChunk = 'Work with subagents';
+    const richChunk = `
+Subagents let you delegate focused tasks to specialized agents in your session.
+You can configure custom subagents for areas like testing, refactoring, or documentation.
+When a task starts, the subagent runs independently and reports back concise results.
+Use this to keep the main context clean while still exploring complex work.
+`;
+
+    const headingSnippet = getMeaningfulSnippet(
+      shortHeadingChunk,
+      'claude subagents'
+    );
+    const richSnippet = getMeaningfulSnippet(richChunk, 'claude subagents');
+
+    expect(richSnippet.split(/[.!?]\s+/).length).toBeGreaterThan(2);
+    expect(richSnippet.length).toBeGreaterThan(headingSnippet.length);
+    expect(richSnippet).toContain('delegate focused tasks');
+  });
+});
+
+describe('selectBestPreviewItem', () => {
+  it('chooses richer relevant chunk over short heading-only chunk', () => {
+    const candidates = [
+      {
+        score: 0.9,
+        url: 'https://example.com/docs',
+        title: 'Docs',
+        chunkHeader: null,
+        chunkText: 'Work with subagents',
+        chunkIndex: 1,
+        totalChunks: 3,
+        domain: 'example.com',
+        sourceCommand: 'crawl',
+      },
+      {
+        score: 0.82,
+        url: 'https://example.com/docs',
+        title: 'Docs',
+        chunkHeader: null,
+        chunkText:
+          'Subagents let you delegate focused tasks to specialized agents in your session. You can configure custom subagents for testing and refactoring. They report results back so your main context stays clean.',
+        chunkIndex: 2,
+        totalChunks: 3,
+        domain: 'example.com',
+        sourceCommand: 'crawl',
+      },
+    ];
+
+    const selection = selectBestPreviewItem(candidates, 'claude subagents');
+    expect(selection.selected.chunkIndex).toBe(2);
+    expect(selection.candidates).toHaveLength(2);
+    expect(selection.selectedPreviewScore).toBeGreaterThan(0);
   });
 });
