@@ -40,7 +40,8 @@ describe('doctor helpers', () => {
       ['firecrawl-redis', new Map([[53379, 53379]])],
     ]);
 
-    const resolved = __doctorTestables.resolveEndpoint(endpoint!, portMap);
+    if (!endpoint) throw new Error('Expected endpoint to be truthy');
+    const resolved = __doctorTestables.resolveEndpoint(endpoint, portMap);
     expect(resolved.resolution).toBe('compose-published-port');
     expect(resolved.resolvedHost).toBe('localhost');
     expect(resolved.resolvedPort).toBe(53379);
@@ -57,7 +58,8 @@ describe('doctor helpers', () => {
       ['firecrawl-redis', new Map([[6379, 53379]])],
     ]);
 
-    const resolved = __doctorTestables.resolveEndpoint(endpoint!, portMap);
+    if (!endpoint) throw new Error('Expected endpoint to be truthy');
+    const resolved = __doctorTestables.resolveEndpoint(endpoint, portMap);
     expect(resolved.resolution).toBe('host-unreachable');
     expect(resolved.reason).toContain('No published port');
   });

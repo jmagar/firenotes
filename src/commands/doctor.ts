@@ -276,16 +276,16 @@ async function runDockerNetworkTcpCheck(
   timeoutMs: number
 ): Promise<{ ok: boolean; error?: string }> {
   const script =
-    "const net=require('node:net');" +
-    'const host=process.argv[1];' +
-    'const port=Number.parseInt(process.argv[2],10);' +
-    'const timeout=Number.parseInt(process.argv[3],10);' +
-    'const s=net.createConnection({host,port});' +
-    'let done=false;' +
-    'function finish(code,msg){if(done)return;done=true;s.destroy();if(msg)console.error(msg);process.exit(code);}' +
-    's.setTimeout(timeout,()=>finish(1,`timeout after ${timeout}ms`));' +
-    "s.on('connect',()=>finish(0));" +
-    "s.on('error',(e)=>finish(1,e.message));";
+    `const net=require('node:net');` +
+    `const host=process.argv[1];` +
+    `const port=Number.parseInt(process.argv[2],10);` +
+    `const timeout=Number.parseInt(process.argv[3],10);` +
+    `const s=net.createConnection({host,port});` +
+    `let done=false;` +
+    `function finish(code,msg){if(done)return;done=true;s.destroy();if(msg)console.error(msg);process.exit(code);}` +
+    `s.setTimeout(timeout,()=>finish(1,\`timeout after \${timeout}ms\`));` +
+    `s.on('connect',()=>finish(0));` +
+    `s.on('error',(e)=>finish(1,e.message));`;
 
   return await new Promise((resolve) => {
     execFile(
@@ -580,7 +580,7 @@ function buildServiceEndpointInputs(
 
   return items
     .filter((item) => item.raw && item.raw.trim().length > 0)
-    .map((item) => ({ key: item.key, raw: item.raw!.trim() }));
+    .map((item) => ({ key: item.key, raw: item.raw?.trim() ?? '' }));
 }
 
 async function collectServiceChecks(

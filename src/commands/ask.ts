@@ -3,7 +3,7 @@
  * Q&A over embedded documents using Claude CLI
  */
 
-import { spawn } from 'child_process';
+import { spawn } from 'node:child_process';
 import { Command } from 'commander';
 import pLimit from 'p-limit';
 import type { IContainer } from '../container/types';
@@ -137,15 +137,17 @@ export async function executeAsk(
     const separator = '---';
     const documentsContext = successfulRetrieves
       .map((r, idx) => {
-        const data = r.data!;
+        if (!r.data) return '';
+        const data = r.data;
         return `## Document ${idx + 1}: ${data.url}\n\n${data.content}`;
       })
+      .filter(Boolean)
       .join(`\n\n${separator}\n\n`);
 
     const context = `I have a question about these documents:\n\n${documentsContext}\n\n${separator}\n\nQuestion: ${options.query}`;
 
     // Only include sources whose content was actually retrieved
-    const retrievedUrls = new Set(successfulRetrieves.map((r) => r.data!.url));
+    const retrievedUrls = new Set(successfulRetrieves.map((r) => r.data?.url));
     const sources: AskSource[] = uniqueUrls
       .filter((item) => retrievedUrls.has(item.url))
       .map((item) => ({

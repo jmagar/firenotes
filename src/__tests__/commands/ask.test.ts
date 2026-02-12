@@ -2,7 +2,7 @@
  * Tests for ask command
  */
 
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock child_process before importing the module under test
@@ -19,11 +19,13 @@ vi.mock('../../commands/retrieve', () => ({
   executeRetrieve: vi.fn(),
 }));
 
-import { spawn } from 'child_process';
+import { spawn } from 'node:child_process';
 import { executeAsk } from '../../commands/ask';
 import { executeQuery } from '../../commands/query';
 import { executeRetrieve } from '../../commands/retrieve';
 import type { IContainer } from '../../container/types';
+import type { QueryResultItem } from '../../types/query';
+import type { RetrieveResult } from '../../types/retrieve';
 import { createTestContainer } from '../utils/test-container';
 
 /**
@@ -48,7 +50,10 @@ function createMockProcess() {
 /**
  * Helper to create properly typed mock query result items
  */
-function createMockQueryResult(url: string, score: number = 0.9): any {
+function createMockQueryResult(
+  url: string,
+  score: number = 0.9
+): QueryResultItem {
   return {
     url,
     title: 'Doc',
@@ -65,11 +70,14 @@ function createMockQueryResult(url: string, score: number = 0.9): any {
 /**
  * Helper to create properly typed mock retrieve result
  */
-function createMockRetrieveResult(url: string): any {
+function createMockRetrieveResult(url: string): RetrieveResult {
   return {
-    url,
-    totalChunks: 1,
-    content: 'Document content',
+    success: true,
+    data: {
+      url,
+      totalChunks: 1,
+      content: 'Document content',
+    },
   };
 }
 
@@ -149,10 +157,9 @@ describe('executeAsk', () => {
       success: true,
       data: [createMockQueryResult('https://example.com/doc')],
     });
-    vi.mocked(executeRetrieve).mockResolvedValue({
-      success: true,
-      data: createMockRetrieveResult('https://example.com/doc'),
-    });
+    vi.mocked(executeRetrieve).mockResolvedValue(
+      createMockRetrieveResult('https://example.com/doc')
+    );
 
     // Simulate process completing after spawn
     const resultPromise = executeAsk(container, { query: 'what is this?' });
@@ -184,10 +191,9 @@ describe('executeAsk', () => {
       success: true,
       data: [createMockQueryResult('https://example.com/doc')],
     });
-    vi.mocked(executeRetrieve).mockResolvedValue({
-      success: true,
-      data: createMockRetrieveResult('https://example.com/doc'),
-    });
+    vi.mocked(executeRetrieve).mockResolvedValue(
+      createMockRetrieveResult('https://example.com/doc')
+    );
 
     const resultPromise = executeAsk(container, {
       query: 'what is this?',
@@ -218,10 +224,9 @@ describe('executeAsk', () => {
       success: true,
       data: [createMockQueryResult('https://example.com/doc')],
     });
-    vi.mocked(executeRetrieve).mockResolvedValue({
-      success: true,
-      data: createMockRetrieveResult('https://example.com/doc'),
-    });
+    vi.mocked(executeRetrieve).mockResolvedValue(
+      createMockRetrieveResult('https://example.com/doc')
+    );
 
     const resultPromise = executeAsk(container, { query: 'test' });
 
@@ -243,10 +248,9 @@ describe('executeAsk', () => {
       success: true,
       data: [createMockQueryResult('https://example.com/doc')],
     });
-    vi.mocked(executeRetrieve).mockResolvedValue({
-      success: true,
-      data: createMockRetrieveResult('https://example.com/doc'),
-    });
+    vi.mocked(executeRetrieve).mockResolvedValue(
+      createMockRetrieveResult('https://example.com/doc')
+    );
 
     const resultPromise = executeAsk(container, { query: 'test' });
 
@@ -267,10 +271,9 @@ describe('executeAsk', () => {
       success: true,
       data: [createMockQueryResult('https://example.com/doc')],
     });
-    vi.mocked(executeRetrieve).mockResolvedValue({
-      success: true,
-      data: createMockRetrieveResult('https://example.com/doc'),
-    });
+    vi.mocked(executeRetrieve).mockResolvedValue(
+      createMockRetrieveResult('https://example.com/doc')
+    );
 
     const resultPromise = executeAsk(container, { query: 'test' });
 
@@ -296,10 +299,9 @@ describe('executeAsk', () => {
       success: true,
       data: [createMockQueryResult('https://example.com/doc')],
     });
-    vi.mocked(executeRetrieve).mockResolvedValue({
-      success: true,
-      data: createMockRetrieveResult('https://example.com/doc'),
-    });
+    vi.mocked(executeRetrieve).mockResolvedValue(
+      createMockRetrieveResult('https://example.com/doc')
+    );
 
     const resultPromise = executeAsk(container, { query: 'test' });
 
@@ -325,14 +327,12 @@ describe('executeAsk', () => {
       ],
     });
     vi.mocked(executeRetrieve)
-      .mockResolvedValueOnce({
-        success: true,
-        data: createMockRetrieveResult('https://example.com/doc1'),
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        data: createMockRetrieveResult('https://example.com/doc2'),
-      });
+      .mockResolvedValueOnce(
+        createMockRetrieveResult('https://example.com/doc1')
+      )
+      .mockResolvedValueOnce(
+        createMockRetrieveResult('https://example.com/doc2')
+      );
 
     const resultPromise = executeAsk(container, { query: 'what is this?' });
 

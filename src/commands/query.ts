@@ -654,13 +654,13 @@ function formatCompact(
 function formatFull(
   items: QueryResultItem[],
   query: string,
-  limit: number = 10
+  _limit: number = 10
 ): string {
   if (items.length === 0) return fmt.dim('No results found.');
 
   // Items are already deduplicated and limited by executeQuery;
   // just re-group by URL for display.
-  const grouped = groupByBaseUrl(items);
+  const _grouped = groupByBaseUrl(items);
   const limitedItems = items;
 
   const lines: string[] = [];

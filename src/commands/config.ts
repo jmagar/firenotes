@@ -224,8 +224,7 @@ function buildConfigDiagnostics(): ConfigDiagnostics {
   const credentials = loadCredentials();
   const authSource = getAuthSource();
   const authenticated = isAuthenticated();
-  const envApiKey =
-    process.env.FIRECRAWL_API_KEY && process.env.FIRECRAWL_API_KEY.trim();
+  const envApiKey = process.env.FIRECRAWL_API_KEY?.trim();
   const storedApiKey = credentials?.apiKey?.trim();
   const activeApiKey =
     authSource === 'env'
