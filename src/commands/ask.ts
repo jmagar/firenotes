@@ -81,15 +81,15 @@ export async function executeAsk(
       };
     }
 
-    // Get unique URLs from query results (already deduplicated by query command)
-    const uniqueUrls = Array.from(
-      new Map(
-        queryResult.data.map((item) => [
-          item.url.split('#')[0], // Strip fragment
-          item,
-        ])
-      ).values()
-    ).slice(0, limit);
+    // Get unique URLs from query results, keeping highest-scoring item per URL
+    const urlMap = new Map<string, (typeof queryResult.data)[0]>();
+    for (const item of queryResult.data) {
+      const baseUrl = item.url.split('#')[0]; // Strip fragment
+      if (!urlMap.has(baseUrl)) {
+        urlMap.set(baseUrl, item); // Keep first (highest-scoring) occurrence
+      }
+    }
+    const uniqueUrls = Array.from(urlMap.values()).slice(0, limit);
 
     console.error(
       fmt.dim(`${icons.success} Found ${uniqueUrls.length} relevant documents`)
@@ -260,12 +260,14 @@ export async function handleAskCommand(
 
   if (!result.success) {
     console.error(fmt.error(`${icons.error} ${result.error}`));
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   if (!result.data) {
     console.error(fmt.error(`${icons.error} No data returned`));
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   // Claude's response was already streamed to stdout during executeAsk

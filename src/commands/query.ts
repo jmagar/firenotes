@@ -51,10 +51,16 @@ export async function executeQuery(
     // Build filter for Qdrant query
     const filter = options.domain ? { domain: options.domain } : undefined;
 
-    // Fetch MORE results than requested to account for deduplication
-    // After grouping by URL, we'll have fewer unique URLs than chunks
+    // Determine fetch strategy based on output mode
+    // Compact/grouped modes deduplicate by URL, so fetch extra chunks to ensure enough unique URLs
+    // Full mode shows all chunks, so no need to overfetch
     const requestedLimit = options.limit || 10;
-    const fetchLimit = requestedLimit * 10; // Fetch 10x to ensure enough unique URLs
+    const needsDeduplication = !options.full; // Compact and grouped modes deduplicate
+    const MAX_FETCH_LIMIT = 1000; // Cap to prevent excessive Qdrant queries
+    const rawFetchLimit = needsDeduplication
+      ? requestedLimit * 10
+      : requestedLimit;
+    const fetchLimit = Math.min(rawFetchLimit, MAX_FETCH_LIMIT);
 
     // Search Qdrant
     const results = await qdrantService.queryPoints(

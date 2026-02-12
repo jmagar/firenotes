@@ -777,8 +777,13 @@ function collectConfigFileChecks(): DoctorCheck[] {
     { name: 'job-history.json', path: getJobHistoryPath(), type: 'file' },
   ];
 
+  // Optional files that are created on-demand
+  const optionalFiles = ['settings.json', 'job-history.json'];
+
   for (const file of files) {
     const exists = existsSync(file.path);
+    const isOptional = optionalFiles.includes(file.name);
+
     if (file.name === 'credentials.json' && !exists) {
       const status: DoctorCheckStatus =
         authSource === 'stored' ? 'fail' : 'pass';
@@ -802,11 +807,26 @@ function collectConfigFileChecks(): DoctorCheck[] {
       continue;
     }
 
+    // Handle optional files differently - warn instead of fail when missing
+    let status: DoctorCheckStatus;
+    let message: string;
+
+    if (!exists && isOptional) {
+      status = 'warn';
+      message = 'Optional (not yet created)';
+    } else if (exists) {
+      status = 'pass';
+      message = 'Exists';
+    } else {
+      status = 'fail';
+      message = `Missing ${file.type}`;
+    }
+
     checks.push({
       category: 'config_files',
       name: file.name,
-      status: exists ? 'pass' : 'fail',
-      message: exists ? 'Exists' : `Missing ${file.type}`,
+      status,
+      message,
       details: {
         path: file.path,
         parentDir: dirname(file.path),

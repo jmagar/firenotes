@@ -31,7 +31,7 @@ pnpm test                     # Run unit tests
 ```
 src/
 ├── index.ts              # CLI entry point (Commander.js)
-├── commands/             # Command implementations (22 user commands)
+├── commands/             # Command implementations (26 user commands)
 │   ├── scrape.ts        # Single URL scraping
 │   ├── crawl/           # Multi-page crawling (8 supporting modules)
 │   ├── map.ts           # URL discovery (sitemap-like)
@@ -438,7 +438,7 @@ firecrawl <TAB>
 4. Once installed, tab completion works for all commands and common options
 
 **What's completed:**
-- All 19 top-level commands (scrape, crawl, map, search, extract, batch, embed, query, retrieve, list, status, config, view-config, login, logout, version, sources, stats, domains, delete, history, info, completion, help)
+- All 26 top-level commands (scrape, crawl, map, search, extract, batch, embed, query, retrieve, ask, list, status, config, view-config, login, logout, version, doctor, sources, stats, domains, delete, history, info, completion, help)
 - Common option flags (--help, --api-key, --output, --pretty, --json, -o, -k, -h)
 - Subcommands (batch status/cancel/errors, crawl status/cancel/errors, extract status)
 - File paths for --output option (via shell's native file completion)

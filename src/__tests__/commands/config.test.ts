@@ -3,6 +3,7 @@ import {
   handleConfigClear,
   handleConfigGet,
   handleConfigSet,
+  maskUrlCredentials,
 } from '../../commands/config';
 
 // Mock the settings module
@@ -383,6 +384,161 @@ describe('handleConfigClear', () => {
         expect.stringContaining('exclude-paths, exclude-extensions')
       );
       expect(process.exit).toHaveBeenCalledWith(1);
+    });
+  });
+});
+
+describe('maskUrlCredentials', () => {
+  describe('URLs with credentials', () => {
+    it('should mask username and password in connection string URLs', () => {
+      const url = 'redis://myuser:mypassword@localhost:6379';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toContain('@localhost:6379');
+      expect(masked).not.toContain('myuser');
+      expect(masked).not.toContain('mypassword');
+      expect(masked).toMatch(/^redis:\/\/.*:.*@localhost:6379$/);
+    });
+
+    it('should mask credentials in PostgreSQL connection strings', () => {
+      const url = 'postgresql://admin:secretpass123@db.example.com:5432/mydb';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toContain('@db.example.com:5432/mydb');
+      expect(masked).not.toContain('admin');
+      expect(masked).not.toContain('secretpass123');
+      expect(masked).toMatch(
+        /^postgresql:\/\/.*:.*@db\.example\.com:5432\/mydb$/
+      );
+    });
+
+    it('should mask credentials in RabbitMQ URLs', () => {
+      const url = 'amqp://guest:guest@rabbitmq:5672';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toContain('@rabbitmq:5672');
+      expect(masked).not.toContain('guest');
+      expect(masked).toMatch(/^amqp:\/\/.*:.*@rabbitmq:5672$/);
+    });
+
+    it('should mask credentials in URLs with path and query params', () => {
+      const url =
+        'https://user:pass@api.example.com:8080/v1/endpoint?key=value';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toContain('@api.example.com:8080/v1/endpoint?key=value');
+      expect(masked).not.toContain('user');
+      expect(masked).not.toContain('pass');
+    });
+
+    it('should mask credentials in URLs with hash fragments', () => {
+      const url = 'http://admin:secret@localhost:3000/path#section';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toContain('@localhost:3000/path#section');
+      expect(masked).not.toContain('admin');
+      expect(masked).not.toContain('secret');
+    });
+
+    it('should handle username-only URLs', () => {
+      const url = 'redis://myuser@localhost:6379';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toContain('@localhost:6379');
+      expect(masked).not.toContain('myuser');
+      expect(masked).toMatch(/^redis:\/\/.*@localhost:6379$/);
+    });
+
+    it('should mask long credentials properly', () => {
+      const url = 'redis://verylongusername:verylongpassword@localhost:6379';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toContain('@localhost:6379');
+      expect(masked).not.toContain('verylongusername');
+      expect(masked).not.toContain('verylongpassword');
+      // Verify it uses the maskValue pattern (first 6 chars + ... + last 4)
+      expect(masked).toMatch(/^redis:\/\/[^:]+\.\.\.[^@]+:[^:]+\.\.\.[^@]+@/);
+    });
+  });
+
+  describe('URLs without credentials', () => {
+    it('should return URL unchanged if no credentials', () => {
+      const url = 'http://localhost:3000';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toBe(url);
+    });
+
+    it('should return URL unchanged for https without credentials', () => {
+      const url = 'https://api.example.com:8080/v1/endpoint';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toBe(url);
+    });
+
+    it('should return URL unchanged for custom protocols without credentials', () => {
+      const url = 'redis://localhost:6379';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toBe(url);
+    });
+  });
+
+  describe('Edge cases', () => {
+    it('should handle empty string', () => {
+      const url = '';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toBe('');
+    });
+
+    it('should handle "Not set" string', () => {
+      const url = 'Not set';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toBe('Not set');
+    });
+
+    it('should handle whitespace-only string', () => {
+      const url = '   ';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toBe('');
+    });
+
+    it('should handle invalid URLs gracefully', () => {
+      const invalidUrl = 'not-a-url';
+      const masked = maskUrlCredentials(invalidUrl);
+
+      // Should return as-is since it's not a valid URL
+      expect(masked).toBe(invalidUrl);
+    });
+
+    it('should handle malformed URL strings gracefully', () => {
+      const invalidUrl = 'http://[invalid';
+      const masked = maskUrlCredentials(invalidUrl);
+
+      // Should return as-is since it's not a valid URL
+      expect(masked).toBe(invalidUrl);
+    });
+
+    it('should handle plain text that looks URL-like', () => {
+      const text = 'localhost:3000';
+      const masked = maskUrlCredentials(text);
+
+      // Should return as-is since it's not a valid URL (no protocol)
+      expect(masked).toBe(text);
+    });
+
+    it('should trim whitespace before processing', () => {
+      const url = '  redis://user:pass@localhost:6379  ';
+      const masked = maskUrlCredentials(url);
+
+      expect(masked).toContain('@localhost:6379');
+      expect(masked).not.toContain('user');
+      expect(masked).not.toContain('pass');
+      expect(masked).not.toMatch(/^\s/); // Should not start with whitespace
+      expect(masked).not.toMatch(/\s$/); // Should not end with whitespace
     });
   });
 });

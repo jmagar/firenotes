@@ -11,6 +11,7 @@
 import pLimit from 'p-limit';
 import { chunkText } from '../../utils/chunker';
 import { MAX_CONCURRENT_EMBEDS } from '../../utils/constants';
+import { DEFAULT_QDRANT_COLLECTION } from '../../utils/defaults';
 import { buildEmbeddingPoints, runEmbedSafely } from '../../utils/embed-core';
 import { fmt, icons } from '../../utils/theme';
 import type { IEmbedPipeline, IQdrantService, ITeiService } from '../types';
@@ -25,7 +26,7 @@ export class EmbedPipeline implements IEmbedPipeline {
   constructor(
     private readonly teiService: ITeiService,
     private readonly qdrantService: IQdrantService,
-    private readonly collectionName: string = 'firecrawl'
+    private readonly collectionName: string = DEFAULT_QDRANT_COLLECTION
   ) {}
 
   /**

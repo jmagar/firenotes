@@ -106,6 +106,37 @@ function maskValue(value: string): string {
   return '*'.repeat(Math.min(trimmed.length, 8));
 }
 
+/**
+ * Mask credentials in connection-string URLs.
+ * Handles formats like: protocol://user:password@host:port/path
+ * Returns the original string if it's not a valid URL.
+ */
+export function maskUrlCredentials(urlString: string): string {
+  const trimmed = urlString.trim();
+  if (trimmed.length === 0 || trimmed === 'Not set') return trimmed;
+
+  try {
+    const url = new URL(trimmed);
+    // If URL has username or password, mask them
+    if (url.username || url.password) {
+      const maskedUsername = url.username ? maskValue(url.username) : '';
+      const maskedPassword = url.password ? maskValue(url.password) : '';
+      const credentials =
+        maskedUsername && maskedPassword
+          ? `${maskedUsername}:${maskedPassword}`
+          : maskedUsername || maskedPassword;
+
+      // Reconstruct URL with masked credentials
+      return `${url.protocol}//${credentials}@${url.host}${url.pathname}${url.search}${url.hash}`;
+    }
+    // No credentials in URL, return as-is
+    return trimmed;
+  } catch {
+    // Not a valid URL, return as-is (could be a plain string like "Not set")
+    return trimmed;
+  }
+}
+
 function presentValue(value: string | undefined): string {
   if (!value || value.trim().length === 0) return 'Not set';
   return value.trim();
@@ -119,7 +150,7 @@ function buildRuntimeEnvItems(): EnvItem[] {
     { key: 'ASK_CLI', value: presentValue(process.env.ASK_CLI) },
     {
       key: 'SEARXNG_ENDPOINT',
-      value: presentValue(process.env.SEARXNG_ENDPOINT),
+      value: maskUrlCredentials(presentValue(process.env.SEARXNG_ENDPOINT)),
     },
     {
       key: 'SEARXNG_ENGINES',
@@ -136,7 +167,7 @@ function buildRuntimeEnvItems(): EnvItem[] {
     },
     {
       key: 'OPENAI_BASE_URL',
-      value: presentValue(process.env.OPENAI_BASE_URL),
+      value: maskUrlCredentials(presentValue(process.env.OPENAI_BASE_URL)),
     },
     {
       key: 'OPENAI_MODEL',
@@ -144,7 +175,9 @@ function buildRuntimeEnvItems(): EnvItem[] {
     },
     {
       key: 'FIRECRAWL_EMBEDDER_WEBHOOK_URL',
-      value: presentValue(process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL),
+      value: maskUrlCredentials(
+        presentValue(process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL)
+      ),
     },
     {
       key: 'FIRECRAWL_EMBEDDER_WEBHOOK_SECRET',
@@ -156,18 +189,23 @@ function buildRuntimeEnvItems(): EnvItem[] {
       key: 'QDRANT_DATA_DIR',
       value: presentValue(process.env.QDRANT_DATA_DIR),
     },
-    { key: 'REDIS_URL', value: presentValue(process.env.REDIS_URL) },
+    {
+      key: 'REDIS_URL',
+      value: maskUrlCredentials(presentValue(process.env.REDIS_URL)),
+    },
     {
       key: 'REDIS_RATE_LIMIT_URL',
-      value: presentValue(process.env.REDIS_RATE_LIMIT_URL),
+      value: maskUrlCredentials(presentValue(process.env.REDIS_RATE_LIMIT_URL)),
     },
     {
       key: 'PLAYWRIGHT_MICROSERVICE_URL',
-      value: presentValue(process.env.PLAYWRIGHT_MICROSERVICE_URL),
+      value: maskUrlCredentials(
+        presentValue(process.env.PLAYWRIGHT_MICROSERVICE_URL)
+      ),
     },
     {
       key: 'NUQ_RABBITMQ_URL',
-      value: presentValue(process.env.NUQ_RABBITMQ_URL),
+      value: maskUrlCredentials(presentValue(process.env.NUQ_RABBITMQ_URL)),
     },
     { key: 'POSTGRES_USER', value: presentValue(process.env.POSTGRES_USER) },
     {
@@ -178,8 +216,14 @@ function buildRuntimeEnvItems(): EnvItem[] {
     { key: 'POSTGRES_DB', value: presentValue(process.env.POSTGRES_DB) },
     { key: 'POSTGRES_HOST', value: presentValue(process.env.POSTGRES_HOST) },
     { key: 'POSTGRES_PORT', value: presentValue(process.env.POSTGRES_PORT) },
-    { key: 'TEI_URL', value: presentValue(process.env.TEI_URL) },
-    { key: 'QDRANT_URL', value: presentValue(process.env.QDRANT_URL) },
+    {
+      key: 'TEI_URL',
+      value: maskUrlCredentials(presentValue(process.env.TEI_URL)),
+    },
+    {
+      key: 'QDRANT_URL',
+      value: maskUrlCredentials(presentValue(process.env.QDRANT_URL)),
+    },
     {
       key: 'QDRANT_COLLECTION',
       value:
@@ -252,7 +296,7 @@ function buildConfigDiagnostics(): ConfigDiagnostics {
     authSource,
     authSourceLabel: getAuthSourceLabel(authSource),
     apiKeyMasked: activeApiKey ? maskValue(activeApiKey) : 'Not set',
-    apiUrl: activeApiUrl,
+    apiUrl: maskUrlCredentials(activeApiUrl),
     configPath: getConfigDirectoryPath(),
     settings: {
       excludePaths: settings.defaultExcludePaths ?? [],

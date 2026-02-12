@@ -21,6 +21,7 @@ vi.mock('node:fs', () => ({
     readFile: vi.fn(),
     writeFile: vi.fn(),
     mkdir: vi.fn(),
+    rename: vi.fn(),
   },
 }));
 
@@ -112,14 +113,16 @@ describe('Job History Utilities', () => {
       vi.mocked(fs.writeFile).mockImplementation(async () => {
         newFileCreated = true;
       });
+      vi.mocked(fs.rename).mockResolvedValue(undefined);
 
       const result = await getRecentJobIds('crawl');
 
       // Should have migrated data
       expect(result).toEqual(['old-crawl-1', 'old-crawl-2']);
+      // Migration writes directly (not atomic) since no existing file to corrupt
       expect(fs.writeFile).toHaveBeenCalledWith(
         expectedHistoryPath,
-        JSON.stringify(legacyData)
+        JSON.stringify(legacyData, null, 2)
       );
     });
 
@@ -201,11 +204,13 @@ describe('Job History Utilities', () => {
       vi.mocked(fs.readFile).mockRejectedValue(new Error('not found'));
       vi.mocked(fs.mkdir).mockResolvedValue(undefined);
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+      vi.mocked(fs.rename).mockResolvedValue(undefined);
 
       await recordJob('crawl', 'job-from-dir-a');
 
-      const firstWriteCall = vi.mocked(fs.writeFile).mock.calls[0];
-      const firstWritePath = firstWriteCall[0] as string;
+      // Check rename was called with correct final path (atomic write: temp -> final)
+      const renameCall = vi.mocked(fs.rename).mock.calls[0];
+      const finalPath = renameCall[1] as string;
 
       // Change to directory B
       mockCwd = '/completely/different/path';
@@ -227,10 +232,9 @@ describe('Job History Utilities', () => {
       expect(result).toContain('job-from-dir-a');
 
       // Verify paths are the same (using home directory, not cwd)
-      const secondWritePath = firstWritePath;
-      expect(secondWritePath).toBe(expectedHistoryPath);
-      expect(secondWritePath).not.toContain('/project/dir-a');
-      expect(secondWritePath).not.toContain('/completely/different/path');
+      expect(finalPath).toBe(expectedHistoryPath);
+      expect(finalPath).not.toContain('/project/dir-a');
+      expect(finalPath).not.toContain('/completely/different/path');
     });
   });
 

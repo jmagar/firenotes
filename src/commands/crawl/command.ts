@@ -273,8 +273,35 @@ async function handleCrawlErrorsCommand(
 
 async function handleCrawlClearCommand(
   container: IContainer,
-  options: { output?: string; pretty?: boolean }
+  options: { output?: string; pretty?: boolean; force?: boolean }
 ): Promise<void> {
+  // Safety check: require confirmation unless --force is used
+  if (!options.force) {
+    // For non-interactive environments (CI, piped output, --json), require --force flag
+    if (!process.stdout.isTTY) {
+      console.error(
+        fmt.error(
+          'Cannot clear queue in non-interactive mode. Use --force to bypass confirmation.'
+        )
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    // Interactive TTY: ask for confirmation
+    const { askForConfirmation } = await import('../../utils/prompts');
+    const confirmed = await askForConfirmation(
+      fmt.warning(
+        '\n  ⚠️  Are you sure you want to clear the entire crawl queue?\n  This action cannot be undone. (y/N) '
+      )
+    );
+
+    if (!confirmed) {
+      console.log(fmt.dim('  Cancelled.'));
+      return;
+    }
+  }
+
   const result = await executeCrawlClear(container);
   handleSubcommandResult(result, options, (data) =>
     formatJson({ success: true, data }, options.pretty)
@@ -487,6 +514,11 @@ export function createCrawlCommand(): Command {
     .description('Clear the entire crawl queue')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--pretty', 'Pretty print JSON output', false)
+    .option(
+      '--force',
+      'Skip confirmation prompt (required for non-interactive environments)',
+      false
+    )
     .action(async (options, command: Command) => {
       const container = requireContainerFromCommandTree(command);
       await handleCrawlClearCommand(container, options);

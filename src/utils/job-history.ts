@@ -23,6 +23,28 @@ interface JobHistoryData {
 
 const MAX_ENTRIES = 20;
 
+// In-process lock to prevent concurrent read-modify-write races
+let historyLock: Promise<void> = Promise.resolve();
+
+/**
+ * Execute a function with exclusive access to history file
+ * Prevents TOCTOU races from concurrent operations
+ */
+async function withHistoryLock<T>(fn: () => Promise<T>): Promise<T> {
+  const previousLock = historyLock;
+  let releaseLock: () => void;
+  historyLock = new Promise((resolve) => {
+    releaseLock = resolve;
+  });
+
+  try {
+    await previousLock;
+    return await fn();
+  } finally {
+    releaseLock!();
+  }
+}
+
 /**
  * Get legacy cache directory path for migration
  */
@@ -78,10 +100,16 @@ async function migrateLegacyHistory(): Promise<void> {
     try {
       const legacyData = await fs.readFile(legacyPath, 'utf-8');
       // Validate the data is valid JSON before migrating
-      JSON.parse(legacyData);
+      const parsed = JSON.parse(legacyData) as Partial<JobHistoryData>;
+      // Ensure valid structure
+      const validated: JobHistoryData = {
+        crawl: Array.isArray(parsed.crawl) ? parsed.crawl : [],
+        batch: Array.isArray(parsed.batch) ? parsed.batch : [],
+        extract: Array.isArray(parsed.extract) ? parsed.extract : [],
+      };
 
       await ensureHistoryDir();
-      await fs.writeFile(HISTORY_PATH, legacyData);
+      await fs.writeFile(HISTORY_PATH, JSON.stringify(validated, null, 2));
 
       console.error(
         fmt.dim(`[Job History] Migrated from ${legacyPath} to ${HISTORY_PATH}`)
@@ -112,21 +140,26 @@ async function loadHistory(): Promise<JobHistoryData> {
 
 async function saveHistory(history: JobHistoryData): Promise<void> {
   await ensureHistoryDir();
-  await fs.writeFile(HISTORY_PATH, JSON.stringify(history, null, 2));
+  // Write atomically: write to temp file then rename
+  const tempPath = `${HISTORY_PATH}.tmp`;
+  await fs.writeFile(tempPath, JSON.stringify(history, null, 2));
+  await fs.rename(tempPath, HISTORY_PATH);
 }
 
 export async function recordJob(type: JobType, id: string): Promise<void> {
   if (!id) return;
 
-  const history = await loadHistory();
-  const list = history[type];
-  const now = new Date().toISOString();
+  await withHistoryLock(async () => {
+    const history = await loadHistory();
+    const list = history[type];
+    const now = new Date().toISOString();
 
-  const filtered = list.filter((entry) => entry.id !== id);
-  filtered.unshift({ id, updatedAt: now });
-  history[type] = filtered.slice(0, MAX_ENTRIES);
+    const filtered = list.filter((entry) => entry.id !== id);
+    filtered.unshift({ id, updatedAt: now });
+    history[type] = filtered.slice(0, MAX_ENTRIES);
 
-  await saveHistory(history);
+    await saveHistory(history);
+  });
 }
 
 export async function getRecentJobIds(
@@ -142,17 +175,24 @@ export async function removeJobIds(
   ids: string[]
 ): Promise<void> {
   if (ids.length === 0) return;
-  const history = await loadHistory();
-  history[type] = history[type].filter((entry) => !ids.includes(entry.id));
-  await saveHistory(history);
+
+  await withHistoryLock(async () => {
+    const history = await loadHistory();
+    history[type] = history[type].filter((entry) => !ids.includes(entry.id));
+    await saveHistory(history);
+  });
 }
 
 export async function clearJobHistory(): Promise<void> {
-  await saveHistory({ crawl: [], batch: [], extract: [] });
+  await withHistoryLock(async () => {
+    await saveHistory({ crawl: [], batch: [], extract: [] });
+  });
 }
 
 export async function clearJobTypeHistory(type: JobType): Promise<void> {
-  const history = await loadHistory();
-  history[type] = [];
-  await saveHistory(history);
+  await withHistoryLock(async () => {
+    const history = await loadHistory();
+    history[type] = [];
+    await saveHistory(history);
+  });
 }
