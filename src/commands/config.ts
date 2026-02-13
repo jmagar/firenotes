@@ -15,6 +15,7 @@ import {
   loadSettings,
   saveSettings,
 } from '../utils/settings';
+import { formatAsOfEst } from '../utils/style-output';
 import { colorize, colors, fmt, icons } from '../utils/theme';
 
 export interface ConfigureOptions {
@@ -580,6 +581,10 @@ export async function viewConfig(
   );
   console.log('');
   console.log(`  ${configHeading('Configuration')}`);
+  console.log(
+    `  ${fmt.dim(`Authenticated: ${diagnostics.authenticated ? 'yes' : 'no'} | Source: ${diagnostics.authSource} | Config: ${diagnostics.configPath}`)}`
+  );
+  console.log(`  ${fmt.dim(`As of (EST): ${formatAsOfEst()}`)}`);
   console.log('');
 
   if (diagnostics.authenticated) {
@@ -600,7 +605,7 @@ export async function viewConfig(
       );
     } else {
       console.log(
-        `  ${icons.bullet} ${configLabel('Exclude Paths')} Not configured`
+        `  ${icons.bullet} ${configLabel('Exclude Paths')} No exclude paths found on current configuration`
       );
     }
     if (diagnostics.settings.excludeExtensions.length > 0) {
@@ -609,7 +614,7 @@ export async function viewConfig(
       );
     } else {
       console.log(
-        `  ${icons.bullet} ${configLabel('Exclude Extensions')} Not configured (using built-in defaults)`
+        `  ${icons.bullet} ${configLabel('Exclude Extensions')} No custom exclude extensions found on current configuration (using built-in defaults)`
       );
     }
 
@@ -733,7 +738,7 @@ export function handleConfigGet(key: string): void {
   if (key === 'exclude-paths') {
     const paths = settings.defaultExcludePaths;
     if (!paths || paths.length === 0) {
-      console.log(fmt.dim('No default exclude paths configured.'));
+      console.log(fmt.dim('No exclude paths found on current configuration.'));
     } else {
       console.log(`${icons.bullet} Default exclude paths: ${paths.join(', ')}`);
     }
@@ -741,10 +746,9 @@ export function handleConfigGet(key: string): void {
     const extensions = settings.defaultExcludeExtensions;
     if (!extensions || extensions.length === 0) {
       console.log(
-        fmt.dim(
-          'No default exclude extensions configured (using built-in defaults).'
-        )
+        fmt.dim('No custom exclude extensions found on current configuration.')
       );
+      console.log(fmt.dim('Using built-in defaults.'));
     } else {
       console.log(
         `${icons.bullet} Default exclude extensions: ${extensions.join(', ')}`
@@ -760,12 +764,17 @@ export function handleConfigGet(key: string): void {
 
     console.log('');
     console.log(fmt.bold('Exclude Configuration'));
+    console.log(
+      fmt.dim(
+        `Paths: ${paths?.length ?? 0} | Extensions: ${extensions?.length ?? activeExtensions.length}`
+      )
+    );
     console.log('');
 
     // Show paths
     console.log(fmt.primary('Paths:'));
     if (!paths || paths.length === 0) {
-      console.log(fmt.dim('  No custom exclude paths configured'));
+      console.log(fmt.dim('  No exclude paths found on current configuration'));
     } else {
       console.log(`  ${paths.join(', ')}`);
     }

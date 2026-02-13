@@ -11,7 +11,15 @@ import type {
   HistoryResult,
 } from '../types/history';
 import { processCommandResult } from '../utils/command';
-import { fmt, icons } from '../utils/theme';
+import {
+  buildFiltersEcho,
+  CANONICAL_EMPTY_STATE,
+  displayValue,
+  formatAlignedTable,
+  formatDateOnly,
+  formatHeaderBlock,
+  truncateWithEllipsis,
+} from '../utils/style-output';
 import {
   addDomainSourceFilterOptions,
   addVectorOutputOptions,
@@ -130,41 +138,30 @@ export async function executeHistory(
  * Format history as table
  */
 function formatTable(entries: HistoryEntry[]): string {
-  if (entries.length === 0) {
-    return fmt.dim('No history entries found in vector database.');
-  }
-
   const lines: string[] = [];
-  lines.push(`  ${fmt.primary('History')}`);
-  lines.push('');
-
-  // Header
-  const header = [
-    'Date'.padEnd(10),
-    'Domain'.padEnd(25),
-    'URL'.padEnd(45),
-    'Source'.padEnd(8),
-    'Chunks'.padStart(6),
-  ].join('  ');
-  lines.push(header);
-  lines.push('─'.repeat(header.length));
-
-  // Rows
-  for (const entry of entries) {
-    const date = entry.date ? entry.date.split('T')[0] : 'unknown';
-    const domain =
-      entry.domain.length > 24
-        ? `${entry.domain.slice(0, 22)}..`
-        : entry.domain.padEnd(25);
-    const url =
-      entry.url.length > 44
-        ? `${entry.url.slice(0, 42)}..`
-        : entry.url.padEnd(45);
-    const source = entry.sourceCommand.padEnd(8);
-    const chunks = String(entry.chunks).padStart(6);
-
-    lines.push([date, domain, url, source, chunks].join('  '));
+  if (entries.length === 0) {
+    lines.push(`  ${CANONICAL_EMPTY_STATE}`);
+    lines.push('');
   }
+
+  lines.push(
+    formatAlignedTable(
+      [
+        { header: 'Date', width: 10 },
+        { header: 'Domain', width: 25 },
+        { header: 'URL', width: 45 },
+        { header: 'Source', width: 8 },
+        { header: 'Chunks', width: 6, align: 'right' },
+      ],
+      entries.map((entry) => [
+        formatDateOnly(entry.date),
+        truncateWithEllipsis(displayValue(entry.domain), 25),
+        truncateWithEllipsis(displayValue(entry.url), 45),
+        truncateWithEllipsis(displayValue(entry.sourceCommand), 8),
+        String(entry.chunks),
+      ])
+    )
+  );
 
   return lines.join('\n');
 }
@@ -172,16 +169,30 @@ function formatTable(entries: HistoryEntry[]): string {
 /**
  * Format history summary
  */
-function formatSummary(data: NonNullable<HistoryResult['data']>): string {
-  const parts: string[] = [];
-
-  parts.push(`\n  ${fmt.info(icons.info)} ${data.totalEntries} entries`);
-
+function formatSummary(
+  data: NonNullable<HistoryResult['data']>,
+  options: HistoryOptions
+): string {
+  const filters = buildFiltersEcho([
+    ['collection', options.collection],
+    ['domain', options.domain],
+    ['source', options.source],
+    ['days', options.days],
+    ['limit', options.limit],
+  ]);
+  const parts = formatHeaderBlock({
+    title: 'History',
+    summary: `Showing ${data.entries.length} of ${data.totalEntries} entries`,
+    filters,
+  });
   if (data.dateRange.from && data.dateRange.to) {
-    const fromDate = data.dateRange.from.split('T')[0];
-    const toDate = data.dateRange.to.split('T')[0];
-    parts.push(`  ${fmt.dim('Date range:')} ${fromDate} to ${toDate}`);
+    const fromDate = formatDateOnly(data.dateRange.from);
+    const toDate = formatDateOnly(data.dateRange.to);
+    parts.push(`  Date range: ${fromDate} to ${toDate}`);
+    parts.push('');
   }
+
+  parts.push(formatTable(data.entries));
 
   return parts.join('\n');
 }
@@ -196,7 +207,7 @@ export async function handleHistoryCommand(
   processCommandResult(
     await executeHistory(container, options),
     options,
-    (resultData) => formatTable(resultData.entries) + formatSummary(resultData)
+    (resultData) => formatSummary(resultData, options)
   );
 }
 

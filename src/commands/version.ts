@@ -5,6 +5,7 @@
 
 import packageJson from '../../package.json';
 import { isAuthenticated } from '../utils/auth';
+import { formatHeaderBlock } from '../utils/display';
 import { fmt, icons } from '../utils/theme';
 
 export interface VersionOptions {
@@ -15,16 +16,23 @@ export interface VersionOptions {
  * Display version information
  */
 export function handleVersionCommand(options: VersionOptions = {}): void {
-  console.log(
-    `${fmt.primary('firecrawl')} ${fmt.dim(`v${packageJson.version}`)}`
-  );
+  const summary = [`version: v${packageJson.version}`];
 
-  if (options.authStatus) {
+  for (const line of formatHeaderBlock({
+    title: 'firecrawl Version',
+    summary,
+  })) {
+    console.log(line);
+  }
+
+  if (options.authStatus === true) {
     const authenticated = isAuthenticated();
     const statusIcon = authenticated ? icons.success : icons.pending;
     const statusColor = authenticated ? fmt.success : fmt.dim;
     console.log(
-      `${statusColor(`${statusIcon} ${authenticated ? 'authenticated' : 'not authenticated'}`)}`
+      statusColor(
+        `${statusIcon} ${authenticated ? 'authenticated' : 'not authenticated'}`
+      )
     );
   }
 }

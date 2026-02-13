@@ -83,15 +83,19 @@ type RenderStatusOptions = {
   compact: boolean;
   wide: boolean;
   changedKeys: Set<string>;
+  filtersEcho?: string;
 };
 
 function statusBucket(
   status: string,
   hasError: boolean
-): 'failed' | 'pending' | 'completed' | 'other' {
+): 'failed' | 'warn' | 'pending' | 'completed' | 'other' {
   if (hasError) return 'failed';
   const normalized = status.toLowerCase();
   if (['failed', 'error', 'cancelled'].includes(normalized)) return 'failed';
+  if (['stalled', 'degraded', 'partial', 'unknown'].includes(normalized)) {
+    return 'warn';
+  }
   if (['completed', 'success'].includes(normalized)) return 'completed';
   if (
     ['pending', 'queued', 'running', 'processing', 'scraping'].includes(
@@ -158,6 +162,51 @@ function computeChangedKeys(
     }
   }
   return changed;
+}
+
+function formatAsOfEst(date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(date);
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? '';
+
+  const time = `${getPart('hour')}:${getPart('minute')}:${getPart('second')}`;
+  const month = getPart('month');
+  const day = getPart('day');
+  const year = getPart('year');
+  return `${time} | ${month}/${day}/${year}`;
+}
+
+function buildStatusFiltersEcho(options: JobStatusOptions): string | undefined {
+  const filters: string[] = [];
+  if (options.crawl) {
+    filters.push(`crawl=${options.crawl}`);
+  }
+  if (options.batch) {
+    filters.push(`batch=${options.batch}`);
+  }
+  if (options.extract) {
+    filters.push(`extract=${options.extract}`);
+  }
+  if (typeof options.embed === 'string') {
+    filters.push(`embed=${options.embed}`);
+  } else if (options.embed === true) {
+    filters.push('embed=true');
+  }
+
+  if (filters.length === 0) {
+    return undefined;
+  }
+  return `Filters: ${filters.join(', ')}`;
 }
 
 /**
@@ -898,6 +947,9 @@ function renderCrawlStatusSection(
       (row) => !row.isFailed && !row.isCompleted
     );
     const staleCrawls = pendingCrawls.filter((row) => row.isStaleScraping);
+    const nonStalePendingCrawls = pendingCrawls.filter(
+      (row) => !row.isStaleScraping
+    );
 
     console.log(
       `  ${colorize(colors.primary, 'Failed crawls:')} ${fmt.dim(`(${failedCrawls.length})`)}`
@@ -910,22 +962,22 @@ function renderCrawlStatusSection(
       }
     }
 
-    console.log(
-      `  ${colorize(colors.primary, 'Pending crawls:')} ${fmt.dim(`(${pendingCrawls.length})`)}`
-    );
-    if (pendingCrawls.length === 0) {
-      console.log(fmt.dim('    No pending crawl jobs.'));
-    } else {
-      for (const row of pendingCrawls) {
+    if (staleCrawls.length > 0) {
+      console.log(
+        `  ${colorize(colors.warning, 'Warn crawls:')} ${fmt.dim(`(${staleCrawls.length})`)}`
+      );
+      for (const row of staleCrawls) {
         console.log(`    ${row.line}`);
       }
     }
 
-    if (staleCrawls.length > 0) {
-      console.log(
-        `  ${colorize(colors.warning, 'Stale pending crawls:')} ${fmt.dim(`(${staleCrawls.length})`)}`
-      );
-      for (const row of staleCrawls) {
+    console.log(
+      `  ${colorize(colors.primary, 'Pending crawls:')} ${fmt.dim(`(${nonStalePendingCrawls.length})`)}`
+    );
+    if (nonStalePendingCrawls.length === 0) {
+      console.log(fmt.dim('    No pending crawl jobs.'));
+    } else {
+      for (const row of nonStalePendingCrawls) {
         console.log(`    ${row.line}`);
       }
     }
@@ -1000,11 +1052,17 @@ function renderBatchSection(
     const completed = rows.filter((row) => row.bucket === 'completed');
     const other = rows.filter((row) => row.bucket === 'other');
 
+    const warn = rows.filter((row) => row.bucket === 'warn');
     const groups: Array<{ label: string; rows: typeof rows; color: string }> = [
       {
         label: `Failed batches (${failed.length})`,
         rows: failed,
         color: colors.primary,
+      },
+      {
+        label: `Warn batches (${warn.length})`,
+        rows: warn,
+        color: colors.warning,
       },
       {
         label: `Pending batches (${pending.length})`,
@@ -1083,15 +1141,37 @@ function renderExtractSection(
     const completed = rows.filter((row) => row.bucket === 'completed');
     const other = rows.filter((row) => row.bucket === 'other');
 
-    const groups: Array<{ label: string; rows: typeof rows }> = [
-      { label: `Failed extracts (${failed.length})`, rows: failed },
-      { label: `Pending extracts (${pending.length})`, rows: pending },
-      { label: `Completed extracts (${completed.length})`, rows: completed },
-      { label: `Other extracts (${other.length})`, rows: other },
+    const warn = rows.filter((row) => row.bucket === 'warn');
+    const groups: Array<{ label: string; rows: typeof rows; color: string }> = [
+      {
+        label: `Failed extracts (${failed.length})`,
+        rows: failed,
+        color: colors.primary,
+      },
+      {
+        label: `Warn extracts (${warn.length})`,
+        rows: warn,
+        color: colors.warning,
+      },
+      {
+        label: `Pending extracts (${pending.length})`,
+        rows: pending,
+        color: colors.primary,
+      },
+      {
+        label: `Completed extracts (${completed.length})`,
+        rows: completed,
+        color: colors.primary,
+      },
+      {
+        label: `Other extracts (${other.length})`,
+        rows: other,
+        color: colors.primary,
+      },
     ];
 
     for (const group of groups) {
-      console.log(`  ${colorize(colors.primary, `${group.label}:`)}`);
+      console.log(`  ${colorize(group.color, `${group.label}:`)}`);
       if (group.rows.length === 0) {
         console.log(fmt.dim('    None.'));
       } else {
@@ -1408,6 +1488,29 @@ function renderHumanStatus(
         ) === 'failed'
     ).length +
     data.embeddings.failed.length;
+  const completedCounts =
+    data.crawls.filter(
+      (c) =>
+        statusBucket(
+          c.status ?? 'unknown',
+          !!(c as { error?: string }).error
+        ) === 'completed'
+    ).length +
+    data.batches.filter(
+      (b) =>
+        statusBucket(
+          b.status ?? 'unknown',
+          !!(b as { error?: string }).error
+        ) === 'completed'
+    ).length +
+    data.extracts.filter(
+      (e) =>
+        statusBucket(
+          e.status ?? 'unknown',
+          !!(e as { error?: string }).error
+        ) === 'completed'
+    ).length +
+    data.embeddings.completed.length;
   const totalJobs =
     data.activeCrawls.crawls.length +
     data.crawls.length +
@@ -1419,9 +1522,18 @@ function renderHumanStatus(
   const activeCount =
     data.activeCrawls.crawls.length + data.embeddings.summary.processing;
 
+  console.log('');
+  console.log(statusHeading('Job Status (all)'));
   console.log(
-    `  ${fmt.dim('jobs:')} ${colorize(colors.materialLightBlue, String(totalJobs))} ${fmt.dim('| active:')} ${colorize(colors.warning, String(activeCount))} ${fmt.dim('| pending:')} ${colorize(colors.info, String(pendingCounts))} ${fmt.dim('| failed:')} ${colorize(colors.error, String(failedCounts))}`
+    `  ${fmt.dim('Total:')} ${colorize(colors.materialLightBlue, String(totalJobs))} ${fmt.dim('| Failed:')} ${colorize(colors.error, String(failedCounts))} ${fmt.dim('| Active:')} ${colorize(colors.warning, String(activeCount))} ${fmt.dim('| Pending:')} ${colorize(colors.info, String(pendingCounts))} ${fmt.dim('| Completed:')} ${colorize(colors.success, String(completedCounts))}`
   );
+  console.log(
+    `  ${fmt.dim('Legend:')} ${colorize(colors.error, icons.error)} failed  ${colorize(colors.warning, icons.warning)} warn  ${colorize(colors.info, icons.processing)} processing/pending  ${colorize(colors.success, icons.success)} completed`
+  );
+  if (options.filtersEcho) {
+    console.log(`  ${fmt.dim(options.filtersEcho)}`);
+  }
+  console.log(`  ${fmt.dim(`As of (EST): ${formatAsOfEst()}`)}`);
 
   // Render sections
   renderActiveCrawlsSection(data, options);
@@ -1430,11 +1542,6 @@ function renderHumanStatus(
   renderExtractSection(data, options);
   renderEmbeddingSection(data, crawlUrlById, crawlDataById, options);
 
-  if (process.stdout.isTTY) {
-    console.log(
-      `  ${fmt.dim('Legend:')} ${colorize(colors.success, icons.success)} completed  ${colorize(colors.warning, icons.processing)} processing  ${colorize(colors.info, icons.pending)} pending  ${colorize(colors.error, icons.error)} failed`
-    );
-  }
   console.log('');
   return statusSnapshot;
 }
@@ -1445,9 +1552,11 @@ export async function handleJobStatusCommand(
 ): Promise<void> {
   try {
     const wantsJson = options.json || options.pretty || options.output;
+    const filtersEcho = buildStatusFiltersEcho(options);
     const renderOptionsBase: Omit<RenderStatusOptions, 'changedKeys'> = {
       compact: options.compact ?? false,
       wide: options.wide ?? false,
+      filtersEcho,
     };
 
     if (options.watch && !wantsJson) {

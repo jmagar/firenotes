@@ -218,7 +218,7 @@ describe('executeQuery', () => {
     expect(result.error).toContain('timeout');
   });
 
-  it('should dedupe canonical URL variants into one group', async () => {
+  it('should enforce limit after dedupe when canonical URL variants collapse', async () => {
     vi.mocked(mockTeiService.embedBatch).mockResolvedValue([[0.1]]);
     vi.mocked(mockQdrantService.queryPoints).mockResolvedValue([
       {
@@ -271,14 +271,64 @@ describe('executeQuery', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(result.data).toHaveLength(2);
-    // Use exact hostname matching or subdomain check to avoid false positives
-    expect(
-      result.data?.every((item) => {
-        const hostname = new URL(item.url).hostname;
-        return hostname === 'example.com' || hostname.endsWith('.example.com');
-      })
-    ).toBe(true);
+    expect(result.data).toHaveLength(1);
+    expect(new URL(result.data?.[0].url ?? '').hostname).toBe('example.com');
+  });
+
+  it('should cap deduplicated results to requested limit', async () => {
+    vi.mocked(mockTeiService.embedBatch).mockResolvedValue([[0.1]]);
+    vi.mocked(mockQdrantService.queryPoints).mockResolvedValue([
+      {
+        id: 'uuid-1',
+        vector: [0.1, 0.2, 0.3],
+        score: 0.95,
+        payload: {
+          url: 'https://example.com/docs',
+          title: 'Docs',
+          chunk_text: 'Chunk A',
+          chunk_index: 0,
+          total_chunks: 4,
+          domain: 'example.com',
+          source_command: 'crawl',
+        },
+      },
+      {
+        id: 'uuid-2',
+        vector: [0.1, 0.2, 0.3],
+        score: 0.94,
+        payload: {
+          url: 'https://example.com/docs',
+          title: 'Docs',
+          chunk_text: 'Chunk B',
+          chunk_index: 1,
+          total_chunks: 4,
+          domain: 'example.com',
+          source_command: 'crawl',
+        },
+      },
+      {
+        id: 'uuid-3',
+        vector: [0.1, 0.2, 0.3],
+        score: 0.93,
+        payload: {
+          url: 'https://other.com/page',
+          title: 'Other',
+          chunk_text: 'Other chunk',
+          chunk_index: 0,
+          total_chunks: 1,
+          domain: 'other.com',
+          source_command: 'crawl',
+        },
+      },
+    ]);
+
+    const result = await executeQuery(container, {
+      query: 'docs',
+      limit: 1,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveLength(1);
   });
 
   it('should rerank URL groups using lexical relevance', async () => {

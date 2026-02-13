@@ -150,7 +150,9 @@ describe('handleCrawlCommand', () => {
 
     await handleCrawlCommand(container, options);
 
-    expect(formatCrawlStatus).toHaveBeenCalledWith(mockStatusData);
+    expect(formatCrawlStatus).toHaveBeenCalledWith(mockStatusData, {
+      filters: [['jobId', mockStatusData.id]],
+    });
     expect(writeOutput).toHaveBeenCalledWith(
       'Status: completed',
       undefined,

@@ -28,6 +28,12 @@ describe('formatCrawlStatus', () => {
 
     const result = formatCrawlStatus(data);
 
+    expect(result).toContain('Crawl Status for test-job-123');
+    expect(result).toContain('Status: completed | Progress: 50/50 pages');
+    expect(result).toContain('Filters: jobId=test-job-123');
+    expect(result).toMatch(
+      /As of \(EST\): \d{2}:\d{2}:\d{2} \| \d{2}\/\d{2}\/\d{4}/
+    );
     expect(result).toContain('Job ID: test-job-123');
     expect(result).toContain('Status: completed');
     expect(result).toContain('Progress: 50/50 pages');

@@ -76,46 +76,46 @@ function getLegacyDataPath(): string {
   return join(home, '.local', 'share', 'firecrawl-cli', 'job-history.json');
 }
 
-const HISTORY_DIR = getStorageRoot();
-const HISTORY_PATH = getJobHistoryPath();
-
 async function ensureHistoryDir(): Promise<void> {
-  await fs.mkdir(HISTORY_DIR, { recursive: true, mode: 0o700 });
+  await fs.mkdir(getStorageRoot(), { recursive: true, mode: 0o700 });
 }
 
 /**
  * Migrate job history from legacy cache directory if it exists
  */
 async function migrateLegacyHistory(): Promise<void> {
-  // Skip if already migrated (idempotency check)
-  try {
-    await fs.readFile(HISTORY_PATH, 'utf-8');
-    return; // Already migrated
-  } catch {
-    // HISTORY_PATH doesn't exist, proceed with migration
-  }
-
   const legacyPaths = [getLegacyDataPath(), getLegacyCachePath()];
   for (const legacyPath of legacyPaths) {
+    let legacyData: string;
     try {
-      const legacyData = await fs.readFile(legacyPath, 'utf-8');
-      // Validate the data is valid JSON before migrating
+      legacyData = await fs.readFile(legacyPath, 'utf-8');
+    } catch {
+      // Continue checking additional legacy paths
+      continue;
+    }
+
+    try {
       const parsed = JSON.parse(legacyData) as Partial<JobHistoryData>;
-      // Ensure valid structure
       const validated: JobHistoryData = {
         crawl: Array.isArray(parsed.crawl) ? parsed.crawl : [],
         batch: Array.isArray(parsed.batch) ? parsed.batch : [],
         extract: Array.isArray(parsed.extract) ? parsed.extract : [],
       };
+      const historyPath = getJobHistoryPath();
 
       await ensureHistoryDir();
-      await fs.writeFile(HISTORY_PATH, JSON.stringify(validated, null, 2));
+      await fs.writeFile(historyPath, JSON.stringify(validated, null, 2), {
+        flag: 'wx',
+      });
 
       console.error(
-        fmt.dim(`[Job History] Migrated from ${legacyPath} to ${HISTORY_PATH}`)
+        fmt.dim(`[Job History] Migrated from ${legacyPath} to ${historyPath}`)
       );
       return;
-    } catch {
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+        return;
+      }
       // Continue checking additional legacy paths
     }
   }
@@ -126,7 +126,7 @@ async function loadHistory(): Promise<JobHistoryData> {
   await migrateLegacyHistory();
 
   try {
-    const data = await fs.readFile(HISTORY_PATH, 'utf-8');
+    const data = await fs.readFile(getJobHistoryPath(), 'utf-8');
     const parsed = JSON.parse(data) as Partial<JobHistoryData>;
     return {
       crawl: parsed.crawl ?? [],
@@ -140,10 +140,11 @@ async function loadHistory(): Promise<JobHistoryData> {
 
 async function saveHistory(history: JobHistoryData): Promise<void> {
   await ensureHistoryDir();
+  const historyPath = getJobHistoryPath();
   // Write atomically: write to temp file then rename
-  const tempPath = `${HISTORY_PATH}.tmp`;
+  const tempPath = `${historyPath}.tmp`;
   await fs.writeFile(tempPath, JSON.stringify(history, null, 2));
-  await fs.rename(tempPath, HISTORY_PATH);
+  await fs.rename(tempPath, historyPath);
 }
 
 export async function recordJob(type: JobType, id: string): Promise<void> {

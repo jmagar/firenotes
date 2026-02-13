@@ -3,9 +3,14 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { executeSources } from '../../commands/sources';
+import { executeSources, handleSourcesCommand } from '../../commands/sources';
 import type { IContainer, IQdrantService } from '../../container/types';
+import { writeOutput } from '../../utils/output';
 import { createTestContainer } from '../utils/test-container';
+
+vi.mock('../../utils/output', () => ({
+  writeOutput: vi.fn(),
+}));
 
 describe('executeSources', () => {
   let container: IContainer;
@@ -138,5 +143,57 @@ describe('executeSources', () => {
     const result = await executeSources(container, { limit: 2 });
 
     expect(result.data?.sources).toHaveLength(2);
+  });
+});
+
+describe('handleSourcesCommand output', () => {
+  it('should render summary, filters, and truncated rows', async () => {
+    const mockQdrantService: IQdrantService = {
+      ensureCollection: vi.fn(),
+      deleteByUrl: vi.fn(),
+      deleteByDomain: vi.fn(),
+      countByDomain: vi.fn(),
+      countByUrl: vi.fn(),
+      upsertPoints: vi.fn(),
+      queryPoints: vi.fn(),
+      scrollByUrl: vi.fn(),
+      scrollAll: vi.fn().mockResolvedValue([
+        {
+          id: 'p1',
+          payload: {
+            url: 'https://very-long-domain.example.com/really/long/path/that/needs/truncation',
+            domain: 'very-long-domain.example.com',
+            total_chunks: 12,
+            source_command: 'crawl',
+            scraped_at: '2026-01-10T11:22:33Z',
+          },
+        },
+      ]),
+      getCollectionInfo: vi.fn(),
+      countPoints: vi.fn(),
+      deleteAll: vi.fn(),
+    };
+    const container = createTestContainer(undefined, {
+      qdrantUrl: 'http://localhost:53333',
+      qdrantCollection: 'test_col',
+    });
+    vi.spyOn(container, 'getQdrantService').mockReturnValue(mockQdrantService);
+
+    await handleSourcesCommand(container, {
+      collection: 'test_col',
+      domain: 'example.com',
+      source: 'crawl',
+      limit: 1,
+    });
+
+    const output = vi.mocked(writeOutput).mock.calls.at(-1)?.[0] as string;
+    expect(output).toContain('Sources');
+    expect(output).toContain('Showing 1 of 1 sources');
+    expect(output).toContain(
+      'Filters: collection=test_col, domain=example.com, source=crawl, limit=1'
+    );
+    expect(output).toContain('Domain');
+    expect(output).toContain('Chunks');
+    expect(output).toContain('…');
   });
 });

@@ -11,7 +11,13 @@ import type {
 } from '../types/query';
 import { processCommandResult } from '../utils/command';
 import { deduplicateQueryItems, groupByBaseUrl } from '../utils/deduplication';
-import { colorize, colors, fmt, icons } from '../utils/theme';
+import {
+  canonicalSymbols,
+  formatHeaderBlock,
+  formatOverflowCount,
+  truncateWithMarker,
+} from '../utils/display';
+import { fmt, icons } from '../utils/theme';
 import {
   requireContainer,
   resolveCollectionName,
@@ -101,19 +107,12 @@ export async function executeQuery(
       sourceCommand: getString(r.payload.source_command),
     }));
 
-    // Apply deduplication only for compact/grouped modes, not full mode
-    let limitedItems: QueryResultItem[];
-
-    if (needsDeduplication) {
-      limitedItems = deduplicateQueryItems(
-        items,
-        options.query,
-        requestedLimit
-      );
-    } else {
-      // Full mode: return raw chunks without deduplication, just apply limit
-      limitedItems = items.slice(0, requestedLimit);
-    }
+    // Apply mode-specific deduplication first, then enforce a hard output cap
+    // so overfetch (for dedupe quality) never leaks to command output modes.
+    const processedItems = needsDeduplication
+      ? deduplicateQueryItems(items, options.query, requestedLimit)
+      : items;
+    const limitedItems = processedItems.slice(0, requestedLimit);
 
     return { success: true, data: limitedItems };
   } catch (error) {
@@ -124,15 +123,39 @@ export async function executeQuery(
   }
 }
 
-function queryHeading(text: string): string {
-  return fmt.bold(colorize(colors.primary, text));
+type ScoreBand = 'high' | 'medium' | 'low';
+
+function scoreBand(score: number): ScoreBand {
+  if (score >= 0.75) return 'high';
+  if (score >= 0.55) return 'medium';
+  return 'low';
+}
+
+function scoreBandRank(score: number): number {
+  if (score >= 0.75) return 0;
+  if (score >= 0.55) return 1;
+  return 2;
+}
+
+function compareBySeverityThenScore(
+  left: Pick<QueryResultItem, 'score'>,
+  right: Pick<QueryResultItem, 'score'>
+): number {
+  const rankDelta = scoreBandRank(left.score) - scoreBandRank(right.score);
+  if (rankDelta !== 0) return rankDelta;
+  return right.score - left.score;
 }
 
 function formatScore(score: number): string {
-  const scoreText = `[${score.toFixed(2)}]`;
+  const indicator =
+    scoreBand(score) === 'high'
+      ? canonicalSymbols.running
+      : scoreBand(score) === 'medium'
+        ? canonicalSymbols.partial
+        : canonicalSymbols.stopped;
+  const scoreText = `${indicator} [${score.toFixed(2)}]`;
   if (score >= 0.75) return fmt.success(scoreText);
-  if (score >= 0.65) return fmt.warning(scoreText);
-  if (score >= 0.55) return fmt.info(scoreText);
+  if (score >= 0.55) return fmt.warning(scoreText);
   return fmt.dim(scoreText);
 }
 
@@ -447,7 +470,7 @@ export function getMeaningfulSnippet(text: string, query?: string): string {
     .map((l) => l.trim())
     .filter((l) => l.length >= 20 && /[a-zA-Z]/.test(l));
   const fallback = fallbackLines[0] || cleaned;
-  return fallback.length > 220 ? `${fallback.slice(0, 220)}...` : fallback;
+  return truncateWithMarker(fallback, 220);
 }
 
 /**
@@ -461,27 +484,45 @@ function formatCompact(
   items: QueryResultItem[],
   query: string,
   verboseSnippets: boolean,
-  _limit: number = 10
+  limit: number = 10,
+  filters?: Record<string, unknown>
 ): string {
   if (items.length === 0) return fmt.dim('No results found.');
 
   // Items are already deduplicated and limited by executeQuery;
   // just re-group by URL for display (no re-ranking needed).
   const grouped = groupByBaseUrl(items);
-  const sortedGroups = Array.from(grouped.entries()).map(
-    ([baseUrl, groupItems]) => {
-      const sorted = [...groupItems].sort((a, b) => b.score - a.score);
+  const sortedGroups = Array.from(grouped.entries())
+    .map(([baseUrl, groupItems]) => {
+      const sorted = [...groupItems].sort(compareBySeverityThenScore);
       return { baseUrl, items: sorted };
-    }
-  );
+    })
+    .sort((left, right) =>
+      compareBySeverityThenScore(left.items[0]!, right.items[0]!)
+    );
 
   // Format each group (show highest-scoring chunk)
   const lines: string[] = [];
-  lines.push('');
-  lines.push(queryHeading('Query Results'));
-  lines.push(`  Query: ${fmt.dim(`"${query}"`)}`);
-  lines.push(`  ${fmt.primary('Results:')}`);
-  lines.push('');
+  lines.push(
+    ...formatHeaderBlock({
+      title: `Query Results for "${query}"`,
+      summary: [
+        `Showing ${sortedGroups.length} of ${items.length} results`,
+        `mode: compact`,
+        `limit: ${limit}`,
+      ],
+      legend:
+        new Set(items.map((item) => scoreBand(item.score))).size > 1
+          ? [
+              { symbol: canonicalSymbols.running, label: 'high relevance' },
+              { symbol: canonicalSymbols.partial, label: 'medium relevance' },
+              { symbol: canonicalSymbols.stopped, label: 'low relevance' },
+            ]
+          : [],
+      filters,
+      freshness: true,
+    })
+  );
 
   const results: string[] = [];
   let index = 1;
@@ -499,13 +540,15 @@ function formatCompact(
     );
     results.push(`      ${snippet}`);
     if (verboseSnippets) {
-      const topCandidates = selection.candidates
+      const topCandidateItems = selection.candidates
         .slice()
         .sort(
           (a, b) =>
             b.previewScore - a.previewScore || b.item.score - a.item.score
         )
-        .slice(0, 3)
+        .slice(0, 3);
+      const hiddenCandidates = Math.max(selection.candidates.length - 3, 0);
+      const topCandidates = topCandidateItems
         .map(
           (c) =>
             `#${c.item.chunkIndex}(v=${c.item.score.toFixed(2)},p=${c.previewScore.toFixed(2)},s=${c.sentenceCount})`
@@ -514,7 +557,13 @@ function formatCompact(
       results.push(
         `      ${fmt.dim(`snippet debug: selected=#${topItem.chunkIndex} vector=${topItem.score.toFixed(2)} preview=${selection.selectedPreviewScore.toFixed(2)} candidates=${selection.candidates.length}`)}`
       );
-      results.push(`      ${fmt.dim(`top candidates: ${topCandidates}`)}`);
+      const overflowPart = formatOverflowCount(hiddenCandidates);
+      const topCandidatesWithOverflow = overflowPart
+        ? `${topCandidates}, ${overflowPart}`
+        : topCandidates;
+      results.push(
+        `      ${fmt.dim(`top candidates: ${topCandidatesWithOverflow}`)}`
+      );
     }
     results.push('');
     index++;
@@ -535,21 +584,36 @@ function formatCompact(
 function formatFull(
   items: QueryResultItem[],
   query: string,
-  _limit: number = 10
+  limit: number = 10,
+  filters?: Record<string, unknown>
 ): string {
   if (items.length === 0) return fmt.dim('No results found.');
 
   // Items are already deduplicated and limited by executeQuery;
   // just re-group by URL for display.
-  const _grouped = groupByBaseUrl(items);
-  const limitedItems = items;
+  const limitedItems = [...items].sort(compareBySeverityThenScore);
 
   const lines: string[] = [];
-  lines.push('');
-  lines.push(queryHeading('Query Results'));
-  lines.push(`  Query: ${fmt.dim(`"${query}"`)}`);
-  lines.push(`  ${fmt.primary('Results:')}`);
-  lines.push('');
+  lines.push(
+    ...formatHeaderBlock({
+      title: `Query Results for "${query}"`,
+      summary: [
+        `Showing ${limitedItems.length} of ${items.length} results`,
+        `mode: full`,
+        `limit: ${limit}`,
+      ],
+      legend:
+        new Set(items.map((item) => scoreBand(item.score))).size > 1
+          ? [
+              { symbol: canonicalSymbols.running, label: 'high relevance' },
+              { symbol: canonicalSymbols.partial, label: 'medium relevance' },
+              { symbol: canonicalSymbols.stopped, label: 'low relevance' },
+            ]
+          : [],
+      filters,
+      freshness: true,
+    })
+  );
   const results = limitedItems
     .map((item) => {
       const header = item.chunkHeader ? ` - ${item.chunkHeader}` : '';
@@ -575,24 +639,44 @@ function formatGrouped(
   full: boolean,
   query: string,
   verboseSnippets: boolean,
-  _limit: number = 10
+  limit: number = 10,
+  filters?: Record<string, unknown>
 ): string {
   if (items.length === 0) return fmt.dim('No results found.');
 
   // Items are already deduplicated and limited by executeQuery;
   // just re-group by URL for display (no re-ranking needed).
   const grouped = groupByBaseUrl(items);
-  const groups = Array.from(grouped.entries()).map(([baseUrl, groupItems]) => {
-    const sorted = [...groupItems].sort((a, b) => b.score - a.score);
-    return { baseUrl, items: sorted };
-  });
+  const groups = Array.from(grouped.entries())
+    .map(([baseUrl, groupItems]) => {
+      const sorted = [...groupItems].sort(compareBySeverityThenScore);
+      return { baseUrl, items: sorted };
+    })
+    .sort((left, right) =>
+      compareBySeverityThenScore(left.items[0]!, right.items[0]!)
+    );
 
   const parts: string[] = [];
-  parts.push('');
-  parts.push(queryHeading('Query Results'));
-  parts.push(`  Query: ${fmt.dim(`"${query}"`)}`);
-  parts.push(`  ${fmt.primary('Results:')}`);
-  parts.push('');
+  parts.push(
+    ...formatHeaderBlock({
+      title: `Query Results for "${query}"`,
+      summary: [
+        `Showing ${groups.length} of ${items.length} results`,
+        `mode: grouped${full ? '+full' : ''}`,
+        `limit: ${limit}`,
+      ],
+      legend:
+        new Set(items.map((item) => scoreBand(item.score))).size > 1
+          ? [
+              { symbol: canonicalSymbols.running, label: 'high relevance' },
+              { symbol: canonicalSymbols.partial, label: 'medium relevance' },
+              { symbol: canonicalSymbols.stopped, label: 'low relevance' },
+            ]
+          : [],
+      filters,
+      freshness: true,
+    })
+  );
   for (const group of groups) {
     const baseUrl = group.baseUrl;
     const groupItems = group.items;
@@ -617,13 +701,15 @@ function formatGrouped(
           selection &&
           item.chunkIndex === selection.selected.chunkIndex
         ) {
-          const topCandidates = selection.candidates
+          const topCandidateItems = selection.candidates
             .slice()
             .sort(
               (a, b) =>
                 b.previewScore - a.previewScore || b.item.score - a.item.score
             )
-            .slice(0, 3)
+            .slice(0, 3);
+          const hiddenCandidates = Math.max(selection.candidates.length - 3, 0);
+          const topCandidates = topCandidateItems
             .map(
               (c) =>
                 `#${c.item.chunkIndex}(v=${c.item.score.toFixed(2)},p=${c.previewScore.toFixed(2)},s=${c.sentenceCount})`
@@ -632,7 +718,13 @@ function formatGrouped(
           parts.push(
             `      ${fmt.dim(`snippet debug: selected=#${selection.selected.chunkIndex} vector=${selection.selected.score.toFixed(2)} preview=${selection.selectedPreviewScore.toFixed(2)} candidates=${selection.candidates.length}`)}`
           );
-          parts.push(`      ${fmt.dim(`top candidates: ${topCandidates}`)}`);
+          const overflowPart = formatOverflowCount(hiddenCandidates);
+          const topCandidatesWithOverflow = overflowPart
+            ? `${topCandidates}, ${overflowPart}`
+            : topCandidates;
+          parts.push(
+            `      ${fmt.dim(`top candidates: ${topCandidatesWithOverflow}`)}`
+          );
         }
       }
     }
@@ -666,6 +758,13 @@ export async function handleQueryCommand(
   const result = await executeQuery(container, options);
   const requestEndTime = Date.now();
   const durationMs = requestEndTime - requestStartTime;
+  const mode = options.group ? 'grouped' : options.full ? 'full' : 'compact';
+  const filters: Record<string, unknown> = {
+    mode,
+    limit: options.limit,
+    domain: options.domain,
+    collection: options.collection,
+  };
 
   processCommandResult(result, options, (data) => {
     if (options.group) {
@@ -674,17 +773,19 @@ export async function handleQueryCommand(
         !!options.full,
         options.query,
         !!options.verboseSnippets,
-        options.limit || 10
+        options.limit || 10,
+        filters
       );
     }
     if (options.full) {
-      return formatFull(data, options.query, options.limit || 10);
+      return formatFull(data, options.query, options.limit || 10, filters);
     }
     return formatCompact(
       data,
       options.query,
       !!options.verboseSnippets,
-      options.limit || 10
+      options.limit || 10,
+      filters
     );
   });
 

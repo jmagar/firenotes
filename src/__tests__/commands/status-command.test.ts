@@ -434,6 +434,11 @@ describe('handleJobStatusCommand', () => {
     await handleJobStatusCommand(container, {});
 
     const output = logSpy.mock.calls.map((call) => call[0]).join('\n');
+    expect(output).toContain('Job Status (all)');
+    expect(output).toContain('Legend:');
+    expect(output).toMatch(
+      /As of \(EST\): \d{2}:\d{2}:\d{2} \| \d{2}\/\d{2}\/\d{4}/
+    );
     expect(output).toContain('Failed crawls:');
     expect(output).toContain('Job not found');
     expect(output).toContain('Pending crawls:');
@@ -442,6 +447,30 @@ describe('handleJobStatusCommand', () => {
     expect(output).toContain('Completed crawls:');
     expect(output).toContain('2/2');
     expect(output).toContain('https://example.com');
+    expect(output.indexOf('Failed crawls:')).toBeLessThan(
+      output.indexOf('Pending crawls:')
+    );
+    expect(output.indexOf('Pending crawls:')).toBeLessThan(
+      output.indexOf('Completed crawls:')
+    );
+
+    logSpy.mockRestore();
+  });
+
+  it('should echo active filters in human output when filters are provided', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleJobStatusCommand(container, {
+      crawl: '019c161c-8a80-7051-a438-2ec8707e1bc9',
+      batch: 'batch-1',
+      extract: 'extract-1',
+      embed: 'embed-1',
+    });
+
+    const output = logSpy.mock.calls.map((call) => call[0]).join('\n');
+    expect(output).toContain(
+      'Filters: crawl=019c161c-8a80-7051-a438-2ec8707e1bc9, batch=batch-1, extract=extract-1, embed=embed-1'
+    );
 
     logSpy.mockRestore();
   });

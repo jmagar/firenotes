@@ -25,6 +25,7 @@ import {
   getSettingsPath,
   getStorageRoot,
 } from '../utils/storage-paths';
+import { buildFiltersEcho, formatAsOfEst } from '../utils/style-output';
 import {
   colorize,
   colors,
@@ -438,22 +439,38 @@ async function getCliVersion(
   });
 }
 
-function printHumanReport(report: DoctorReport): void {
-  const heading = (text: string): string =>
-    fmt.bold(colorize(colors.primary, text));
-  const toStatusWord = (status: DoctorCheckStatus): string =>
-    status === 'pass' ? 'completed' : status === 'warn' ? 'pending' : 'failed';
-  const shouldAccentCheckName = (category: DoctorCheck['category']): boolean =>
-    category === 'docker' ||
-    category === 'services' ||
-    category === 'directories' ||
-    category === 'config_files';
+function toStatusWord(status: DoctorCheckStatus): 'pass' | 'warn' | 'fail' {
+  return status;
+}
 
-  console.log('');
-  console.log(
-    `  ${fmt.primary(`${icons.success} firecrawl`)} ${fmt.dim('cli')} ${fmt.dim(`v${packageJson.version}`)}`
+function formatCheckStatus(status: DoctorCheckStatus): string {
+  if (status === 'pass') {
+    return colorize(colors.success, `${icons.success} pass`);
+  }
+  if (status === 'warn') {
+    return colorize(colors.warning, `${icons.warning} warn`);
+  }
+  return colorize(colors.error, `${icons.error} fail`);
+}
+
+function getCategoryTitle(category: DoctorCheck['category']): string {
+  if (category === 'ai_cli') return 'AI CLI';
+  if (category === 'config_files') return 'CONFIG FILES';
+  return category.replace('_', ' ').toUpperCase();
+}
+
+function shouldShowLegend(summary: DoctorSummaryCounts): boolean {
+  const nonZeroStates = [summary.pass, summary.warn, summary.fail].filter(
+    (count) => count > 0
   );
-  console.log('');
+  return nonZeroStates.length > 1;
+}
+
+function formatDoctorHuman(
+  report: DoctorReport,
+  options: DoctorOptions = {}
+): string {
+  const lines: string[] = [];
   const overallWord =
     report.overallStatus === 'ok'
       ? 'completed'
@@ -462,10 +479,35 @@ function printHumanReport(report: DoctorReport): void {
         : 'failed';
   const overallColor = getStatusColor(overallWord);
   const overallIcon = getStatusIcon(overallWord);
-  console.log(
-    `  ${colorize(overallColor, overallIcon)} doctor ${colorize(overallColor, report.overallStatus)} ${fmt.dim(`(pass ${report.summary.pass} | warn ${report.summary.warn} | fail ${report.summary.fail})`)}`
+  const filters = buildFiltersEcho([
+    [
+      'timeout_ms',
+      options.timeout && options.timeout !== DEFAULT_TIMEOUT_MS
+        ? options.timeout
+        : undefined,
+    ],
+  ]);
+
+  lines.push(
+    `  ${fmt.primary(`${icons.success} firecrawl`)} ${fmt.dim('cli')} ${fmt.dim(`v${packageJson.version}`)}`
   );
-  console.log('');
+  lines.push('');
+  lines.push(`  ${fmt.primary('Doctor Checks')}`);
+  lines.push(
+    `  ${fmt.dim(`Overall: ${colorize(overallColor, report.overallStatus)} ${colorize(overallColor, overallIcon)} | Pass: ${report.summary.pass} | Warn: ${report.summary.warn} | Fail: ${report.summary.fail}`)}`
+  );
+  if (shouldShowLegend(report.summary)) {
+    lines.push(
+      `  ${fmt.dim('Legend:')} ${colorize(colors.success, `${icons.success} pass`)}  ${colorize(colors.warning, `${icons.warning} warn`)}  ${colorize(colors.error, `${icons.error} fail`)}`
+    );
+  }
+  if (filters) {
+    lines.push(`  ${fmt.dim(`Filters: ${filters}`)}`);
+  }
+  lines.push(
+    `  ${fmt.dim(`As of (EST): ${formatAsOfEst(new Date(report.timestamp))}`)}`
+  );
+  lines.push('');
 
   for (const category of [
     'docker',
@@ -474,36 +516,51 @@ function printHumanReport(report: DoctorReport): void {
     'ai_cli',
     'config_files',
   ] as const) {
-    const checks = report.checks.filter((check) => check.category === category);
+    const checks = report.checks
+      .filter((check) => check.category === category)
+      .sort((a, b) => {
+        const score = (status: DoctorCheckStatus): number =>
+          status === 'fail' ? 0 : status === 'warn' ? 1 : 2;
+        const rank =
+          score(toStatusWord(a.status)) - score(toStatusWord(b.status));
+        return rank !== 0 ? rank : a.name.localeCompare(b.name);
+      });
     if (checks.length === 0) continue;
-    console.log(`  ${heading(category.replace('_', ' ').toUpperCase())}`);
+    lines.push(
+      `  ${fmt.bold(colorize(colors.primary, getCategoryTitle(category)))}`
+    );
     for (const check of checks) {
-      const statusWord = toStatusWord(check.status);
-      const statusColor = getStatusColor(statusWord);
-      const icon = getStatusIcon(statusWord);
-      const checkName = shouldAccentCheckName(check.category)
-        ? colorize(colors.materialLightBlue, check.name)
-        : check.name;
-      console.log(
-        `    ${colorize(statusColor, icon)} ${checkName} ${colorize(statusColor, statusWord)} ${fmt.dim(`(${check.message})`)}`
+      const checkName =
+        category === 'docker' ||
+        category === 'services' ||
+        category === 'directories' ||
+        category === 'config_files'
+          ? colorize(colors.materialLightBlue, check.name)
+          : check.name;
+      lines.push(
+        `    ${formatCheckStatus(check.status)} ${checkName} ${fmt.dim(`(${check.message})`)}`
       );
     }
-    console.log('');
+    lines.push('');
   }
 
   if (report.summary.fail > 0) {
     if (hasDoctorDebugBackendConfigured()) {
-      console.log(
-        `  ${fmt.warning(icons.active)} ${fmt.bold('Troubleshooting:')} run ${fmt.primary('firecrawl doctor debug')}`
+      lines.push(
+        `  ${fmt.warning(`${icons.warning} Troubleshooting`)}`,
+        `  ${fmt.dim(`Next: run ${fmt.primary('firecrawl doctor debug')}`)}`,
+        ''
       );
-      console.log('');
     } else {
-      console.log(
-        `  ${fmt.warning(icons.active)} ${fmt.bold('Troubleshooting:')} configure ${fmt.primary('ASK_CLI')} or ${fmt.primary('OPENAI_BASE_URL/OPENAI_API_KEY/OPENAI_MODEL')} to enable doctor debug`
+      lines.push(
+        `  ${fmt.warning(`${icons.warning} Troubleshooting`)}`,
+        `  ${fmt.dim(`Next: configure ${fmt.primary('ASK_CLI')} or ${fmt.primary('OPENAI_BASE_URL/OPENAI_API_KEY/OPENAI_MODEL')} to enable doctor debug`)}`,
+        ''
       );
-      console.log('');
     }
   }
+
+  return ['', ...lines].join('\n');
 }
 
 async function collectDockerChecks(timeoutMs: number): Promise<{
@@ -975,7 +1032,7 @@ export async function handleDoctorCommand(
     return;
   }
 
-  printHumanReport(report);
+  console.log(formatDoctorHuman(report, options));
 }
 
 export async function handleDoctorDebugCommand(
@@ -1029,7 +1086,9 @@ export function createDoctorCommand(): Command {
           );
           return;
         }
-        printHumanReport(failedReport);
+        console.log(
+          formatDoctorHuman(failedReport, { timeout: options.timeout })
+        );
       }
     });
 
@@ -1065,4 +1124,5 @@ export const __doctorTestables = {
   parseComposePsJson,
   parseServiceUrl,
   resolveEndpoint,
+  formatDoctorHuman,
 };

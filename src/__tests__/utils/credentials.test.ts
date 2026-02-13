@@ -29,9 +29,10 @@ vi.mock('node:os', () => ({
 }));
 
 describe('Credentials Utilities', () => {
-  const originalFirecrawlHome = process.env.FIRECRAWL_HOME;
+  let originalFirecrawlHome: string | undefined;
 
   beforeEach(() => {
+    originalFirecrawlHome = process.env.FIRECRAWL_HOME;
     vi.clearAllMocks();
     vi.mocked(os.homedir).mockReturnValue('/home/testuser');
     delete process.env.FIRECRAWL_HOME;
@@ -141,7 +142,7 @@ describe('Credentials Utilities', () => {
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         targetPath,
         expect.stringContaining('"apiKey": "fc-migrated-key"'),
-        'utf-8'
+        { encoding: 'utf-8', flag: 'wx' }
       );
       expect(result).toEqual({ apiKey: 'fc-migrated-key' });
     });
@@ -277,10 +278,16 @@ describe('Credentials Utilities', () => {
     });
 
     it('should not throw when credentials file does not exist', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false);
+      const enoent = new Error('ENOENT');
+      (enoent as NodeJS.ErrnoException).code = 'ENOENT';
+      vi.mocked(fs.unlinkSync).mockImplementation(() => {
+        throw enoent;
+      });
 
       expect(() => deleteCredentials()).not.toThrow();
-      expect(fs.unlinkSync).not.toHaveBeenCalled();
+      expect(fs.unlinkSync).toHaveBeenCalledWith(
+        expect.stringContaining('credentials.json')
+      );
     });
 
     it('should throw error when delete fails', () => {

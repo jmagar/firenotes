@@ -20,7 +20,7 @@ vi.mock('../../commands/retrieve', () => ({
 }));
 
 import { spawn } from 'node:child_process';
-import { executeAsk } from '../../commands/ask';
+import { executeAsk, handleAskCommand } from '../../commands/ask';
 import { executeQuery } from '../../commands/query';
 import { executeRetrieve } from '../../commands/retrieve';
 import type { IContainer } from '../../container/types';
@@ -465,5 +465,38 @@ describe('executeAsk', () => {
     expect(result.error).toContain('too small to include any documents');
     // Verify spawn was NOT called since we failed early
     expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it('should render sources in title/summary format after response streaming', async () => {
+    const mockProc = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mockProc as never);
+
+    vi.mocked(executeQuery).mockResolvedValue({
+      success: true,
+      data: [createMockQueryResult('https://example.com/doc1', 0.91)],
+    });
+    vi.mocked(executeRetrieve).mockResolvedValueOnce(
+      createMockRetrieveResult('https://example.com/doc1')
+    );
+
+    const commandPromise = handleAskCommand(container, {
+      query: 'summarize this',
+    });
+
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalled());
+    mockProc.stdout.emit('data', Buffer.from('Answer'));
+    mockProc.emit('close', 0);
+
+    await commandPromise;
+
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('Ask Sources for "summarize this"')
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('documents retrieved: 1 | sources: 1')
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('1. [0.91] https://example.com/doc1')
+    );
   });
 });

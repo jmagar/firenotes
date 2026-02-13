@@ -12,10 +12,15 @@ import type {
 import type { IContainer, IHttpClient } from '../container/types';
 import type { MapOptions, MapResult } from '../types/map';
 import { processCommandResult } from '../utils/command';
-import { displayCommandInfo } from '../utils/display';
+import { displayCommandInfo, formatHeaderBlock } from '../utils/display';
 import { extensionsToPaths } from '../utils/extensions';
 import { buildApiErrorMessage } from '../utils/network-error';
 import { getSettings } from '../utils/settings';
+import {
+  CANONICAL_EMPTY_STATE,
+  formatAlignedTable,
+  truncateWithEllipsis,
+} from '../utils/style-output';
 import { fmt } from '../utils/theme';
 import { filterUrls } from '../utils/url-filter';
 import { mergeExcludePaths } from './crawl/options';
@@ -433,34 +438,82 @@ export async function executeMap(
  * Format map data in human-readable way
  */
 function formatMapReadable(
+  options: MapOptions,
   data: MapResult['data'],
   filterStats?: { total: number; excluded: number; kept: number },
   excludedUrls?: Array<{ url: string; matchedPattern: string }>
 ): string {
-  if (!data || !data.links) return '';
-
-  let output = '';
-
-  // Show filter summary if URLs were excluded
+  const links = data?.links ?? [];
+  const summary = [
+    `Showing ${links.length} ${links.length === 1 ? 'result' : 'results'}`,
+    `state: discovered`,
+  ];
   if (filterStats && filterStats.excluded > 0) {
-    output += fmt.dim(
-      `Filtered: ${filterStats.kept}/${filterStats.total} URLs ` +
-        `(excluded ${filterStats.excluded})\n\n`
+    summary.push(`excluded: ${filterStats.excluded}`);
+  }
+
+  const lines = formatHeaderBlock({
+    title: `Map Results for ${options.urlOrJobId}`,
+    summary,
+    filters: {
+      limit: options.limit,
+      search: options.search,
+      sitemap: options.sitemap === 'include' ? undefined : options.sitemap,
+      includeSubdomains: options.includeSubdomains,
+      ignoreQueryParameters: options.noFiltering
+        ? undefined
+        : options.ignoreQueryParameters,
+      ignoreCache: options.ignoreCache,
+      timeout: options.timeout,
+      excludePaths: options.excludePaths,
+      excludeExtensions: options.excludeExtensions,
+      noDefaultExcludes: options.noDefaultExcludes || undefined,
+      noFiltering: options.noFiltering || undefined,
+    },
+    freshness: true,
+  });
+
+  if (links.length === 0) {
+    lines.push(`  ${fmt.dim(CANONICAL_EMPTY_STATE)}`);
+    lines.push('');
+  }
+
+  lines.push(
+    formatAlignedTable(
+      [
+        { header: '#', width: 3, align: 'right' },
+        { header: 'URL', width: 84 },
+        { header: 'Title', width: 32 },
+      ],
+      links.map((link, index) => [
+        String(index + 1),
+        truncateWithEllipsis(link.url, 84),
+        truncateWithEllipsis(link.title ?? '—', 32),
+      ])
+    )
+  );
+
+  if (excludedUrls && excludedUrls.length > 0) {
+    lines.push('');
+    lines.push(`  ${fmt.primary('Excluded URLs')}`);
+    lines.push('');
+    lines.push(
+      formatAlignedTable(
+        [
+          { header: '#', width: 3, align: 'right' },
+          { header: 'URL', width: 72 },
+          { header: 'Pattern', width: 28 },
+        ],
+        excludedUrls.map((item, index) => [
+          String(index + 1),
+          truncateWithEllipsis(item.url, 72),
+          truncateWithEllipsis(item.matchedPattern, 28),
+        ])
+      )
     );
   }
 
-  // Output URLs (one per line)
-  output += data.links.map((link) => link.url).join('\n');
-
-  // Show excluded URLs if verbose
-  if (excludedUrls && excludedUrls.length > 0) {
-    output += `\n\n${fmt.dim('Excluded URLs:\n')}`;
-    excludedUrls.forEach((item) => {
-      output += fmt.dim(`  ${item.url} (matched: ${item.matchedPattern})\n`);
-    });
-  }
-
-  return `${output}\n`;
+  return `${lines.join('\n')}\n`;
 }
 
 /**
@@ -482,7 +535,7 @@ export async function handleMapCommand(
 
   const result = await executeMap(container, options);
   processCommandResult(result, options, (data) =>
-    formatMapReadable(data, result.filterStats, result.excludedUrls)
+    formatMapReadable(options, data, result.filterStats, result.excludedUrls)
   );
 }
 

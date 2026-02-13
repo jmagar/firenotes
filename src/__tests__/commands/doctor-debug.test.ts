@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { hasDoctorDebugBackendConfigured } from '../../commands/doctor-debug';
+import {
+  __doctorDebugTestables,
+  hasDoctorDebugBackendConfigured,
+} from '../../commands/doctor-debug';
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -27,5 +30,23 @@ describe('doctor-debug backend selection', () => {
     process.env.OPENAI_API_KEY = 'sk-test';
     process.env.OPENAI_MODEL = 'gpt-4o-mini';
     expect(hasDoctorDebugBackendConfigured()).toBe(true);
+  });
+
+  it('formats debug header with style guide sections', () => {
+    const lines = __doctorDebugTestables.formatDoctorDebugHeader(
+      'claude (claude-3-7-sonnet)',
+      {
+        timestamp: '2026-02-13T19:42:10.000Z',
+        overallStatus: 'failed',
+        summary: { pass: 2, warn: 1, fail: 1 },
+        checks: [],
+      },
+      { aiTimeout: 180000 }
+    );
+    const output = lines.join('\n');
+    expect(output).toContain('Doctor Debug Chat');
+    expect(output).toContain('Legend:');
+    expect(output).toContain('Filters: ai_timeout_ms=180000');
+    expect(output).toContain('As of (EST):');
   });
 });

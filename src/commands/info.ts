@@ -20,7 +20,15 @@ import {
   getSettingsPath,
   getStorageRoot,
 } from '../utils/storage-paths';
-import { fmt, icons } from '../utils/theme';
+import {
+  buildFiltersEcho,
+  displayValue,
+  formatAlignedTable,
+  formatDateOnly,
+  formatHeaderBlock,
+  truncateWithEllipsis,
+} from '../utils/style-output';
+import { icons } from '../utils/theme';
 import { normalizeUrl } from '../utils/url';
 import {
   getQdrantUrlError,
@@ -123,39 +131,6 @@ export async function executeInfo(
   }
 }
 
-/**
- * Format info result for human-readable output
- *
- * @param info URL info data to format
- * @param full Whether to show full chunk text
- * @returns Formatted string output
- */
-function formatHuman(info: UrlInfo, _full: boolean): string {
-  const data = info;
-  const lines: string[] = [];
-
-  lines.push(`  ${fmt.primary('URL information')}`);
-  lines.push(`    ${fmt.dim('URL:')} ${data.url}`);
-  lines.push(`    ${fmt.dim('Domain:')} ${data.domain}`);
-  lines.push(`    ${fmt.dim('Title:')} ${data.title}`);
-  lines.push(`    ${fmt.dim('Source:')} ${data.sourceCommand}`);
-  lines.push(`    ${fmt.dim('Content type:')} ${data.contentType}`);
-  lines.push(`    ${fmt.dim('Scraped at:')} ${data.scrapedAt}`);
-  lines.push(`    ${fmt.dim('Total chunks:')} ${data.totalChunks}`);
-
-  lines.push('');
-  lines.push(`  ${fmt.primary('Chunks')}`);
-
-  for (const chunk of data.chunks) {
-    lines.push(
-      `    ${fmt.info(icons.bullet)} [${chunk.index}] ${chunk.header || '(no header)'}`
-    );
-    lines.push(`      ${chunk.textPreview.replace(/\n/g, '\n      ')}`);
-  }
-
-  return lines.join('\n');
-}
-
 function getStorageInfo(): StorageInfo {
   const storageRoot = getStorageRoot();
   const credentialsPath = getCredentialsPath();
@@ -180,29 +155,52 @@ function getStorageInfo(): StorageInfo {
 }
 
 function formatStorageHuman(info: StorageInfo): string {
-  const lines: string[] = [];
-  lines.push(`  ${fmt.primary('Storage')}`);
-  lines.push(`    ${fmt.dim('Root:')} ${info.storageRoot}`);
-  lines.push(`    ${fmt.dim('Credentials:')} ${info.credentialsPath}`);
-  lines.push(`    ${fmt.dim('Settings:')} ${info.settingsPath}`);
-  lines.push(`    ${fmt.dim('Job history:')} ${info.jobHistoryPath}`);
-  lines.push(`    ${fmt.dim('Embed queue:')} ${info.embedQueueDir}`);
-  lines.push('');
-  lines.push(`  ${fmt.primary('Exists')}`);
+  const existingCount = Object.values(info.exists).filter(Boolean).length;
+  const lines = formatHeaderBlock({
+    title: 'Storage',
+    summary: `Active local storage paths | Existing: ${existingCount}/5`,
+    includeFreshness: true,
+  });
   lines.push(
-    `    ${fmt.dim('Root:')} ${info.exists.storageRoot ? icons.success : icons.error}`
-  );
-  lines.push(
-    `    ${fmt.dim('Credentials:')} ${info.exists.credentialsPath ? icons.success : icons.error}`
-  );
-  lines.push(
-    `    ${fmt.dim('Settings:')} ${info.exists.settingsPath ? icons.success : icons.error}`
-  );
-  lines.push(
-    `    ${fmt.dim('Job history:')} ${info.exists.jobHistoryPath ? icons.success : icons.error}`
-  );
-  lines.push(
-    `    ${fmt.dim('Embed queue:')} ${info.exists.embedQueueDir ? icons.success : icons.error}`
+    formatAlignedTable(
+      [
+        { header: 'Path', width: 16 },
+        { header: 'Value', width: 80 },
+        { header: 'Exists', width: 6 },
+      ],
+      [
+        [
+          'Root',
+          info.storageRoot,
+          info.exists.storageRoot ? icons.success : '—',
+        ],
+        [
+          'Credentials',
+          info.credentialsPath,
+          info.exists.credentialsPath ? icons.success : '—',
+        ],
+        [
+          'Settings',
+          info.settingsPath,
+          info.exists.settingsPath ? icons.success : '—',
+        ],
+        [
+          'Job history',
+          info.jobHistoryPath,
+          info.exists.jobHistoryPath ? icons.success : '—',
+        ],
+        [
+          'Embed queue',
+          info.embedQueueDir,
+          info.exists.embedQueueDir ? icons.success : '—',
+        ],
+      ].map((row) => [
+        row[0],
+        truncateWithEllipsis(displayValue(row[1]), 80),
+        row[2],
+      ]),
+      false
+    )
   );
   return lines.join('\n');
 }
@@ -221,7 +219,63 @@ async function handleInfoCommand(
   processCommandResult(
     await executeInfo(container, options),
     options,
-    (resultData) => formatHuman(resultData, !!options.full)
+    (resultData) => {
+      const filters = buildFiltersEcho([
+        [
+          'collection',
+          options.collection && options.collection !== 'firecrawl'
+            ? options.collection
+            : undefined,
+        ],
+        ['full', options.full || undefined],
+      ]);
+
+      const data = resultData;
+      const lines = formatHeaderBlock({
+        title: 'URL Information',
+        summary: `Chunks: ${data.totalChunks} | Domain: ${displayValue(data.domain)} | Source: ${displayValue(data.sourceCommand)}`,
+        filters,
+      });
+      lines.push(
+        formatAlignedTable(
+          [
+            { header: 'Field', width: 14 },
+            { header: 'Value', width: 80 },
+          ],
+          [
+            ['URL', displayValue(data.url)],
+            ['Domain', displayValue(data.domain)],
+            ['Title', displayValue(data.title)],
+            ['Source', displayValue(data.sourceCommand)],
+            ['Content Type', displayValue(data.contentType)],
+            ['Scraped At', formatDateOnly(data.scrapedAt)],
+            ['Total Chunks', String(data.totalChunks)],
+          ].map((row) => [row[0], truncateWithEllipsis(row[1], 80)]),
+          false
+        )
+      );
+      lines.push('');
+      lines.push('Chunks');
+      lines.push(
+        formatAlignedTable(
+          [
+            { header: '#', width: 3, align: 'right' },
+            { header: 'Header', width: 24 },
+            { header: 'Preview', width: 80 },
+          ],
+          data.chunks.map((chunk) => [
+            String(chunk.index),
+            truncateWithEllipsis(displayValue(chunk.header), 24),
+            truncateWithEllipsis(
+              chunk.textPreview.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim(),
+              80
+            ),
+          ]),
+          false
+        )
+      );
+      return lines.join('\n');
+    }
   );
 }
 

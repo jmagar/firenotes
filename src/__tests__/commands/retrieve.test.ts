@@ -3,7 +3,10 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { executeRetrieve } from '../../commands/retrieve';
+import {
+  executeRetrieve,
+  handleRetrieveCommand,
+} from '../../commands/retrieve';
 import type { IContainer, IQdrantService } from '../../container/types';
 import { createTestContainer } from '../utils/test-container';
 
@@ -106,5 +109,76 @@ describe('executeRetrieve', () => {
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain('QDRANT_URL');
+  });
+
+  it('renders STYLE header structure for human-readable output', async () => {
+    const writes: string[] = [];
+    const stdoutSpy = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((chunk) => {
+        writes.push(String(chunk));
+        return true;
+      });
+
+    vi.mocked(mockQdrantService.scrollByUrl).mockResolvedValue([
+      {
+        id: '1',
+        vector: [],
+        payload: {
+          chunk_index: 0,
+          chunk_text: 'Intro text.',
+          chunk_header: 'Title',
+        },
+      },
+    ]);
+
+    await handleRetrieveCommand(container, {
+      url: 'https://example.com',
+      collection: 'test_col',
+    });
+
+    const output = writes.join('');
+    expect(output).toContain('Retrieve Result for https://example.com');
+    expect(output).toContain('Chunks: 1 | characters:');
+    expect(output).toContain('Filters: collection=test_col');
+    expect(output).toContain('Field');
+    expect(output).toContain('Value');
+    expect(output).toContain('Content');
+
+    stdoutSpy.mockRestore();
+  });
+
+  it('keeps json output machine-friendly', async () => {
+    const writes: string[] = [];
+    const stdoutSpy = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((chunk) => {
+        writes.push(String(chunk));
+        return true;
+      });
+
+    vi.mocked(mockQdrantService.scrollByUrl).mockResolvedValue([
+      {
+        id: '1',
+        vector: [],
+        payload: {
+          chunk_index: 0,
+          chunk_text: 'Intro text.',
+          chunk_header: 'Title',
+        },
+      },
+    ]);
+
+    await handleRetrieveCommand(container, {
+      url: 'https://example.com',
+      json: true,
+    });
+
+    const output = writes.join('');
+    expect(() => JSON.parse(output)).not.toThrow();
+    expect(output).not.toContain('Retrieve Result for');
+    expect(output).not.toContain('Filters:');
+
+    stdoutSpy.mockRestore();
   });
 });

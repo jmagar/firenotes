@@ -3,7 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { executeDelete } from '../../commands/delete';
+import { executeDelete, handleDeleteCommand } from '../../commands/delete';
 import type { IContainer } from '../../container/types';
 import type { DeleteOptions } from '../../types/delete';
 
@@ -269,6 +269,86 @@ describe('delete command', () => {
         'custom_collection',
         'https://example.com'
       );
+    });
+  });
+
+  describe('output formatting', () => {
+    it('renders title, summary, filters, and table for human output', async () => {
+      mockQdrantService.countByUrl.mockResolvedValue(42);
+      mockQdrantService.deleteByUrl.mockResolvedValue(undefined);
+
+      const writes: string[] = [];
+      const stdoutSpy = vi
+        .spyOn(process.stdout, 'write')
+        .mockImplementation((chunk) => {
+          writes.push(String(chunk));
+          return true;
+        });
+
+      await handleDeleteCommand(mockContainer, {
+        url: 'https://example.com/page',
+        collection: 'custom_collection',
+        yes: true,
+      });
+
+      const output = writes.join('');
+      expect(output).toContain('Delete Results for url');
+      expect(output).toContain('deleted: 42 vectors | target: url');
+      expect(output).toContain('Filters: collection=custom_collection');
+      expect(output).toContain('Field');
+      expect(output).toContain('Value');
+      expect(output).not.toContain('No results found.');
+
+      stdoutSpy.mockRestore();
+    });
+
+    it('uses canonical empty-state wording for zero deletions', async () => {
+      mockQdrantService.countByDomain.mockResolvedValue(0);
+      mockQdrantService.deleteByDomain.mockResolvedValue(undefined);
+
+      const writes: string[] = [];
+      const stdoutSpy = vi
+        .spyOn(process.stdout, 'write')
+        .mockImplementation((chunk) => {
+          writes.push(String(chunk));
+          return true;
+        });
+
+      await handleDeleteCommand(mockContainer, {
+        domain: 'example.com',
+        yes: true,
+      });
+
+      const output = writes.join('');
+      expect(output).toContain('No results found.');
+
+      stdoutSpy.mockRestore();
+    });
+
+    it('keeps json output machine-friendly', async () => {
+      mockQdrantService.countByUrl.mockResolvedValue(1);
+      mockQdrantService.deleteByUrl.mockResolvedValue(undefined);
+
+      const writes: string[] = [];
+      const stdoutSpy = vi
+        .spyOn(process.stdout, 'write')
+        .mockImplementation((chunk) => {
+          writes.push(String(chunk));
+          return true;
+        });
+
+      await handleDeleteCommand(mockContainer, {
+        url: 'https://example.com/page',
+        yes: true,
+        json: true,
+      });
+
+      const output = writes.join('');
+      expect(() => JSON.parse(output)).not.toThrow();
+      expect(output).not.toContain('Delete Results for');
+      expect(output).not.toContain('Filters:');
+
+      stdoutSpy.mockRestore();
     });
   });
 });

@@ -76,6 +76,13 @@ describe('handleListCommand', () => {
     await handleListCommand(container, {});
 
     expect(writeOutput).toHaveBeenCalledTimes(1);
+    const output = vi.mocked(writeOutput).mock.calls.at(-1)?.[0] as string;
+    expect(output).toContain('Active Crawls');
+    expect(output).toContain('Active jobs: 0');
+    expect(output).toContain('No results found.');
+    expect(output).toMatch(
+      /As of \(EST\): \d{2}:\d{2}:\d{2} \| \d{2}\/\d{2}\/\d{4}/
+    );
   });
 
   it('should write JSON output when json is true even if empty', async () => {
@@ -98,6 +105,27 @@ describe('handleListCommand', () => {
     await handleListCommand(container, {});
 
     expect(writeOutput).toHaveBeenCalledTimes(1);
+  });
+
+  it('should render aligned headers for active rows', async () => {
+    mockClient.getActiveCrawls.mockResolvedValue({
+      success: true,
+      crawls: [
+        {
+          id: 'job-1',
+          teamId: 'team-1',
+          url: 'https://example.com/this/is/a/very/long/path/that/will/truncate',
+        },
+      ],
+    });
+
+    await handleListCommand(container, {});
+
+    const output = vi.mocked(writeOutput).mock.calls.at(-1)?.[0] as string;
+    expect(output).toContain('Job ID');
+    expect(output).toContain('Team');
+    expect(output).toContain('URL');
+    expect(output).toContain('…');
   });
 });
 

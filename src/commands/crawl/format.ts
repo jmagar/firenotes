@@ -3,6 +3,11 @@
  */
 
 import type { CrawlStatusResult } from '../../types/crawl';
+import {
+  buildFiltersEcho,
+  CANONICAL_EMPTY_STATE,
+  formatHeaderBlock,
+} from '../../utils/style-output';
 
 /**
  * Format crawl status in human-readable way
@@ -22,44 +27,44 @@ import type { CrawlStatusResult } from '../../types/crawl';
  * });
  * ```
  */
-export function formatCrawlStatus(data: CrawlStatusResult['data']): string {
+export function formatCrawlStatus(
+  data: CrawlStatusResult['data'],
+  options?: { filters?: Array<[string, string | number | boolean | undefined]> }
+): string {
   if (!data) return '';
 
-  const lines: string[] = [];
+  const progress = `${data.completed}/${data.total}`;
+  const lines = formatHeaderBlock({
+    title: `Crawl Status for ${data.id}`,
+    summary: `Status: ${data.status} | Progress: ${progress} pages`,
+    filters: buildFiltersEcho(options?.filters ?? [['jobId', data.id]]),
+    includeFreshness: true,
+  });
+
+  if (
+    data.status !== 'completed' &&
+    data.status !== 'failed' &&
+    data.status !== 'cancelled' &&
+    data.total === 0
+  ) {
+    lines.push(`  ${CANONICAL_EMPTY_STATE}`);
+    lines.push('');
+    return lines.join('\n');
+  }
+
   lines.push(`Job ID: ${data.id}`);
   lines.push(`Status: ${data.status}`);
-  lines.push(`Progress: ${data.completed}/${data.total} pages`);
+  lines.push(`Progress: ${progress} pages`);
 
   if (data.creditsUsed !== undefined) {
     lines.push(`Credits Used: ${data.creditsUsed}`);
   }
 
   if (data.expiresAt) {
-    const expiresDate = new Date(data.expiresAt);
-    // Extract locale from LANG environment variable, handling formats like en_US.UTF-8, C, etc.
-    let locale = 'en-US';
-    const langEnv = process.env.LANG;
-    if (langEnv) {
-      const langPart = langEnv.split('.')[0];
-      // Only use if it looks like a valid locale (contains underscore or hyphen)
-      if (langPart && (langPart.includes('_') || langPart.includes('-'))) {
-        const candidateLocale = langPart.replace('_', '-');
-        // Validate locale using try-catch to handle RangeError
-        try {
-          // Test the locale by attempting to use it
-          new Intl.DateTimeFormat(candidateLocale);
-          locale = candidateLocale;
-        } catch (_error) {
-          // Fall back to 'en-US' if locale is invalid
-          // No need to log - silent fallback is acceptable for locale formatting
-        }
-      }
-    }
-
-    // Wrap toLocaleString in try-catch as additional safety
     try {
+      const expiresDate = new Date(data.expiresAt);
       lines.push(
-        `Expires: ${expiresDate.toLocaleString(locale, {
+        `Expires: ${expiresDate.toLocaleString('en-US', {
           year: 'numeric',
           month: 'short',
           day: 'numeric',
@@ -69,7 +74,7 @@ export function formatCrawlStatus(data: CrawlStatusResult['data']): string {
       );
     } catch (_error) {
       // Fall back to ISO string if locale formatting fails
-      lines.push(`Expires: ${expiresDate.toISOString()}`);
+      lines.push(`Expires: ${data.expiresAt}`);
     }
   }
 

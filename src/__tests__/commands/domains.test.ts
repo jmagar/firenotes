@@ -3,9 +3,14 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { executeDomains } from '../../commands/domains';
+import { executeDomains, handleDomainsCommand } from '../../commands/domains';
 import type { IContainer, IQdrantService } from '../../container/types';
+import { writeOutput } from '../../utils/output';
 import { createTestContainer } from '../utils/test-container';
+
+vi.mock('../../utils/output', () => ({
+  writeOutput: vi.fn(),
+}));
 
 describe('executeDomains', () => {
   let container: IContainer;
@@ -101,5 +106,41 @@ describe('executeDomains', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('QDRANT_URL');
+  });
+});
+
+describe('handleDomainsCommand output', () => {
+  it('should render title, summary, filters, and table with canonical empty state', async () => {
+    const mockQdrantService: IQdrantService = {
+      ensureCollection: vi.fn(),
+      deleteByUrl: vi.fn(),
+      deleteByDomain: vi.fn(),
+      countByDomain: vi.fn(),
+      countByUrl: vi.fn(),
+      upsertPoints: vi.fn(),
+      queryPoints: vi.fn(),
+      scrollByUrl: vi.fn(),
+      scrollAll: vi.fn().mockResolvedValue([]),
+      getCollectionInfo: vi.fn(),
+      countPoints: vi.fn(),
+      deleteAll: vi.fn(),
+    };
+
+    const container = createTestContainer(undefined, {
+      qdrantUrl: 'http://localhost:53333',
+      qdrantCollection: 'test_col',
+    });
+    vi.spyOn(container, 'getQdrantService').mockReturnValue(mockQdrantService);
+
+    await handleDomainsCommand(container, { collection: 'test_col', limit: 5 });
+
+    const output = vi.mocked(writeOutput).mock.calls.at(-1)?.[0] as string;
+    expect(output).toContain('Domains');
+    expect(output).toContain('Showing 0 of 0 domains');
+    expect(output).toContain('Filters: collection=test_col, limit=5');
+    expect(output).toContain('No results found.');
+    expect(output).toContain('Domain');
+    expect(output).toContain('Last Updated');
+    expect(output).toContain('—');
   });
 });

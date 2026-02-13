@@ -110,8 +110,22 @@ export async function executeCrawlErrors(
 ): Promise<CrawlErrorsResult> {
   try {
     const app = container.getFirecrawlClient();
-    const errors = await app.getCrawlErrors(jobId);
-    return { success: true, data: errors };
+    const raw = await app.getCrawlErrors(jobId);
+    const normalized = Array.isArray(raw)
+      ? { errors: raw, robotsBlocked: [] }
+      : {
+          errors: Array.isArray(raw?.errors) ? raw.errors : [],
+          robotsBlocked: Array.isArray(raw?.robotsBlocked)
+            ? raw.robotsBlocked
+            : [],
+        };
+
+    normalized.errors.sort((a, b) =>
+      String(a.url ?? '').localeCompare(String(b.url ?? ''))
+    );
+    normalized.robotsBlocked.sort((a, b) => a.localeCompare(b));
+
+    return { success: true, data: normalized };
   } catch (error) {
     return {
       success: false,

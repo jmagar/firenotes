@@ -4,7 +4,7 @@
  */
 
 import * as fs from 'node:fs';
-import * as os from 'node:os';
+import { homedir } from 'node:os';
 import * as path from 'node:path';
 import {
   type EffectiveUserSettings,
@@ -35,7 +35,7 @@ function getSettingsPath(): string {
 }
 
 function getLegacySettingsPaths(): string[] {
-  const homeDir = os.homedir();
+  const homeDir = homedir();
   return [
     path.join(
       homeDir,
@@ -134,17 +134,8 @@ function writeValidatedSettings(
 /**
  * Ensure settings file exists with valid default values.
  *
- * KNOWN LIMITATION (#89): TOCTOU race condition possible if multiple CLI processes
- * run simultaneously during initialization. This is acceptable for a single-user CLI
- * where concurrent execution is rare.
- *
- * Potential races:
- * 1. File creation: Multiple processes may create defaults simultaneously
- * 2. Backup creation: Timestamp-based backups may be overwritten
- * 3. Migration writes: Concurrent normalizations may interleave
- *
- * Impact: Benign - all operations are writing similar valid data. Settings are
- * re-loaded from disk on each access with mtime-based cache invalidation.
+ * Initialization uses direct file operations and exclusive create (`flag: 'wx'`)
+ * when materializing defaults to reduce cross-process race windows.
  */
 function ensureSettingsFileMaterialized(): void {
   const settingsPath = getSettingsPath();
@@ -153,17 +144,27 @@ function ensureSettingsFileMaterialized(): void {
     ensureConfigDir();
     const defaults = mergeWithDefaults({});
 
-    if (!fs.existsSync(settingsPath)) {
-      fs.writeFileSync(
-        settingsPath,
-        JSON.stringify(defaults, null, 2),
-        'utf-8'
-      );
-      setSecurePermissions(settingsPath);
-      return;
+    let raw: string;
+    try {
+      raw = fs.readFileSync(settingsPath, 'utf-8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
+      try {
+        fs.writeFileSync(settingsPath, JSON.stringify(defaults, null, 2), {
+          encoding: 'utf-8',
+          flag: 'wx',
+        });
+        setSecurePermissions(settingsPath);
+        return;
+      } catch (writeError) {
+        if ((writeError as NodeJS.ErrnoException).code !== 'EEXIST') {
+          throw writeError;
+        }
+        raw = fs.readFileSync(settingsPath, 'utf-8');
+      }
     }
-
-    const raw = fs.readFileSync(settingsPath, 'utf-8');
 
     let parsed: unknown;
     try {
@@ -216,19 +217,8 @@ function ensureSettingsFileMaterialized(): void {
 /**
  * Migrate settings from legacy paths to FIRECRAWL_HOME path.
  *
- * KNOWN LIMITATION (#89): TOCTOU race condition possible if multiple CLI processes
- * run simultaneously during migration. This is acceptable for a single-user CLI tool
- * where concurrent execution during first-time setup is extremely rare.
- *
- * Potential race:
- * - Process A: checks newPath doesn't exist
- * - Process B: checks newPath doesn't exist
- * - Process A: writes settings (wx flag ensures exclusive create)
- * - Process B: writes settings (EEXIST error caught and ignored)
- *
- * Impact: Benign - 'wx' flag ensures only one process wins the race. The loser
- * receives EEXIST which is caught and ignored. Both processes write the same data
- * from legacy source. Migration is idempotent and only runs once per process lifetime.
+ * Migration uses exclusive create (`flag: 'wx'`) through the shared migration helper
+ * to avoid overwrite races if multiple processes bootstrap simultaneously.
  */
 function migrateLegacySettings(): void {
   if (migrationDone) {
@@ -274,11 +264,16 @@ export function loadSettings(): UserSettings {
     ensureSettingsFileMaterialized();
 
     const settingsPath = getSettingsPath();
-    if (!fs.existsSync(settingsPath)) {
-      return {};
+    let data: string;
+    try {
+      data = fs.readFileSync(settingsPath, 'utf-8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return {};
+      }
+      throw error;
     }
 
-    const data = fs.readFileSync(settingsPath, 'utf-8');
     const parsed = JSON.parse(data);
     const result = UserSettingsSchema.safeParse(parsed);
     if (!result.success) {
@@ -299,9 +294,12 @@ export function loadSettings(): UserSettings {
  */
 export function getSettings(): EffectiveUserSettings {
   const settingsPath = getSettingsPath();
-  const mtimeMs = fs.existsSync(settingsPath)
-    ? fs.statSync(settingsPath).mtimeMs
-    : -1;
+  let mtimeMs = -1;
+  try {
+    mtimeMs = fs.statSync(settingsPath).mtimeMs;
+  } catch {
+    mtimeMs = -1;
+  }
 
   if (settingsCache && settingsCacheMtimeMs === mtimeMs) {
     return settingsCache;

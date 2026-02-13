@@ -2,7 +2,7 @@
  * Tests for embed queue helpers
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -725,5 +725,71 @@ describe('getQueueStats', () => {
     expect(stats.processing).toBe(0);
     expect(stats.completed).toBe(0);
     expect(stats.failed).toBe(0);
+  });
+});
+
+describe('legacy queue migration resilience', () => {
+  const originalFirecrawlHome = process.env.FIRECRAWL_HOME;
+  let testStorageRoot: string;
+  let testHome: string;
+
+  beforeEach(() => {
+    testStorageRoot = mkdtempSync(join(tmpdir(), 'firecrawl-storage-'));
+    testHome = mkdtempSync(join(tmpdir(), 'firecrawl-home-'));
+    process.env.FIRECRAWL_HOME = testStorageRoot;
+    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    vi.resetModules();
+    vi.doMock('node:os', async () => {
+      const actual = await vi.importActual<typeof import('node:os')>('node:os');
+      return {
+        ...actual,
+        homedir: vi.fn(() => testHome),
+      };
+    });
+  });
+
+  afterEach(() => {
+    rmSync(testStorageRoot, { recursive: true, force: true });
+    rmSync(testHome, { recursive: true, force: true });
+    if (originalFirecrawlHome === undefined) {
+      delete process.env.FIRECRAWL_HOME;
+    } else {
+      process.env.FIRECRAWL_HOME = originalFirecrawlHome;
+    }
+    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    vi.doUnmock('node:os');
+    vi.resetModules();
+  });
+
+  it('continues migration when one copyFile operation fails', async () => {
+    const legacyDir = join(testHome, '.config', 'firecrawl-cli', 'embed-queue');
+    mkdirSync(legacyDir, { recursive: true });
+
+    writeFileSync(
+      join(legacyDir, 'job-good.json'),
+      JSON.stringify({
+        id: 'job-good',
+        jobId: 'job-good',
+        url: 'https://example.com',
+        status: 'pending',
+        retries: 0,
+        maxRetries: 3,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+    );
+    mkdirSync(join(legacyDir, 'bad-entry'));
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { listEmbedJobs } = await import('../../utils/embed-queue');
+    const jobs = await listEmbedJobs();
+
+    expect(jobs.map((job) => job.jobId)).toContain('job-good');
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[Embed Queue] Failed to copy bad-entry')
+    );
+
+    errorSpy.mockRestore();
   });
 });

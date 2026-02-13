@@ -11,8 +11,14 @@ import { chunkText } from '../utils/chunker';
 import {
   formatJson,
   processCommandResult,
+  shouldOutputJson,
   writeCommandOutput,
 } from '../utils/command';
+import {
+  buildFiltersEcho,
+  CANONICAL_EMPTY_STATE,
+  formatHeaderBlock,
+} from '../utils/style-output';
 import { fmt, icons } from '../utils/theme';
 import { isUrl } from '../utils/url';
 import {
@@ -183,7 +189,19 @@ export async function handleEmbedCommand(
     await executeEmbed(container, options),
     options,
     (data) =>
-      `${icons.success} Embedded ${data.chunksEmbedded} chunks for ${fmt.dim(data.url)} into ${fmt.dim(data.collection)}`
+      [
+        ...formatHeaderBlock({
+          title: 'Embed Result',
+          summary: `Chunks embedded: ${data.chunksEmbedded} | Collection: ${data.collection}`,
+          filters: buildFiltersEcho([
+            ['collection', options.collection],
+            ['noChunk', options.noChunk],
+          ]),
+        }),
+        `${icons.success} Embedded ${data.chunksEmbedded} chunks`,
+        `URL: ${data.url}`,
+        `Collection: ${data.collection}`,
+      ].join('\n')
   );
 }
 
@@ -269,7 +287,7 @@ async function handleStatusCommand(
     };
   }
 
-  const useJson = options.json || options.pretty || Boolean(options.output);
+  const useJson = shouldOutputJson(options) || Boolean(options.output);
   if (useJson) {
     writeCommandOutput(
       formatJson({ success: true, data: job }, options.pretty),
@@ -283,16 +301,33 @@ async function handleStatusCommand(
       ? `${job.processedDocuments}/${job.totalDocuments}`
       : 'n/a';
 
-  console.log(`  ${fmt.primary('Job ID:')} ${fmt.dim(job.jobId)}`);
-  console.log(`  ${fmt.primary('Status:')} ${job.status}`);
-  console.log(`  ${fmt.primary('URL:')} ${fmt.dim(job.url)}`);
-  console.log(
-    `  ${fmt.primary('Retries:')} ${fmt.dim(`${job.retries}/${job.maxRetries}`)}`
-  );
-  console.log(`  ${fmt.primary('Progress:')} ${fmt.dim(progress)}`);
-  if (job.lastError) {
-    console.log(`  ${fmt.primary('Last Error:')} ${fmt.dim(job.lastError)}`);
+  const lines = formatHeaderBlock({
+    title: `Embed Status for ${job.jobId}`,
+    summary: `Status: ${job.status} | Progress: ${progress}`,
+    filters: buildFiltersEcho([['jobId', job.jobId]]),
+    includeFreshness: true,
+  });
+
+  if (
+    job.totalDocuments !== undefined &&
+    job.totalDocuments === 0 &&
+    job.processedDocuments === 0
+  ) {
+    lines.push(`  ${CANONICAL_EMPTY_STATE}`);
+    lines.push('');
+    console.log(lines.join('\n'));
+    return { success: true };
   }
+
+  lines.push(`Job ID: ${job.jobId}`);
+  lines.push(`Status: ${job.status}`);
+  lines.push(`URL: ${job.url}`);
+  lines.push(`Retries: ${job.retries}/${job.maxRetries}`);
+  lines.push(`Progress: ${progress}`);
+  if (job.lastError) {
+    lines.push(`Last Error: ${job.lastError}`);
+  }
+  console.log(lines.join('\n'));
   return { success: true };
 }
 

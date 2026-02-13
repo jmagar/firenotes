@@ -4,7 +4,7 @@
  */
 
 import * as fs from 'node:fs';
-import * as os from 'node:os';
+import { homedir } from 'node:os';
 import * as path from 'node:path';
 import {
   type StoredCredentials,
@@ -44,7 +44,7 @@ let migrationDone = false;
  * Legacy config directory paths (pre-FIRECRAWL_HOME unification).
  */
 function getLegacyConfigDirs(): string[] {
-  const homeDir = os.homedir();
+  const homeDir = homedir();
   return [
     path.join(homeDir, 'Library', 'Application Support', 'firecrawl-cli'),
     path.join(homeDir, 'AppData', 'Roaming', 'firecrawl-cli'),
@@ -162,18 +162,8 @@ export function migrateLegacyJsonFile<T>(
 /**
  * Migrate credentials from legacy paths to FIRECRAWL_HOME path.
  *
- * KNOWN LIMITATION (#74): TOCTOU race condition possible if multiple CLI processes
- * run simultaneously during migration. This is acceptable for a single-user CLI tool
- * where concurrent execution during first-time setup is extremely rare.
- *
- * Potential race:
- * - Process A: checks newPath doesn't exist
- * - Process B: checks newPath doesn't exist
- * - Process A: writes credentials
- * - Process B: writes credentials (overwrites A's write)
- *
- * Impact: Benign - both processes write the same data from legacy source.
- * Migration is idempotent and only runs once per process lifetime.
+ * Migration uses exclusive creation (`flag: 'wx'`) to avoid cross-process
+ * overwrite races during first-run bootstrap.
  */
 function migrateLegacyCredentials(): void {
   if (migrationDone) {
@@ -187,6 +177,7 @@ function migrateLegacyCredentials(): void {
     ensureTargetDir: ensureConfigDir,
     parseAndValidate: (raw) =>
       parseJsonWithSchema(raw, StoredCredentialsSchema),
+    writeMode: 'exclusive',
   });
 
   if (result.status === 'migrated') {
@@ -208,12 +199,15 @@ export function loadCredentials(): StoredCredentials | null {
   try {
     migrateLegacyCredentials();
     const credentialsPath = getCredentialsPath();
-
-    if (!fs.existsSync(credentialsPath)) {
-      return null;
+    let data: string;
+    try {
+      data = fs.readFileSync(credentialsPath, 'utf-8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null;
+      }
+      throw error;
     }
-
-    const data = fs.readFileSync(credentialsPath, 'utf-8');
     const parsed = JSON.parse(data);
 
     // Validate with Zod schema for runtime type safety
@@ -271,8 +265,12 @@ export function saveCredentials(credentials: StoredCredentials): void {
 export function deleteCredentials(): void {
   try {
     const credentialsPath = getCredentialsPath();
-    if (fs.existsSync(credentialsPath)) {
+    try {
       fs.unlinkSync(credentialsPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
     }
   } catch (error) {
     throw new Error(

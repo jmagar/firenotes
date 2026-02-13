@@ -31,12 +31,12 @@ export const icons = {
   // Status
   success: '✓',
   error: '✗',
-  warning: '!',
-  info: 'i',
+  warning: '⚠',
+  info: 'ℹ',
 
   // Progress
   pending: '○',
-  processing: '◉',
+  processing: '◐',
   active: '●',
   completed: '✓',
 

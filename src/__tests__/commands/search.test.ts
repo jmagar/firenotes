@@ -557,7 +557,7 @@ describe('executeSearch', () => {
 
       expect(result).toEqual({
         success: false,
-        error: `Search operation failed: ${errorMessage}`,
+        error: `Search failed: ${errorMessage}`,
       });
     });
 
@@ -569,9 +569,7 @@ describe('executeSearch', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe(
-        'Search operation failed: Unknown error occurred'
-      );
+      expect(result.error).toBe('Search failed: Unknown error occurred');
     });
 
     it('should include actionable self-hosted hint on local connectivity failures', async () => {

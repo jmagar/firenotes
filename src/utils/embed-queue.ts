@@ -70,7 +70,7 @@ function getLegacyQueueDir(): string {
 }
 
 async function migrateLegacyQueueDir(): Promise<void> {
-  if (process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR) {
+  if (process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR?.trim()) {
     return;
   }
 

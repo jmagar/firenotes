@@ -197,7 +197,10 @@ describe('executeCrawlErrors', () => {
     const result = await executeCrawlErrors(container, 'test-job-123');
 
     expect(result.success).toBe(true);
-    expect(result.data).toEqual(mockErrors);
+    expect(result.data).toEqual({
+      errors: mockErrors,
+      robotsBlocked: [],
+    });
     expect(mockClient.getCrawlErrors).toHaveBeenCalledWith('test-job-123');
   });
 
@@ -223,7 +226,7 @@ describe('executeCrawlErrors', () => {
     const result = await executeCrawlErrors(container, 'test-job');
 
     expect(result.success).toBe(true);
-    expect(result.data).toEqual([]);
+    expect(result.data).toEqual({ errors: [], robotsBlocked: [] });
   });
 
   it('should return error on exception', async () => {

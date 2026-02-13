@@ -7,7 +7,14 @@ import { Command } from 'commander';
 import type { IContainer } from '../container/types';
 import type { DeleteOptions, DeleteResult } from '../types/delete';
 import { processCommandResult } from '../utils/command';
+import { formatHeaderBlock } from '../utils/display';
 import { parseDeleteOptions } from '../utils/options';
+import {
+  CANONICAL_EMPTY_STATE,
+  formatAlignedTable,
+  truncateWithEllipsis,
+} from '../utils/style-output';
+import { fmt, icons } from '../utils/theme';
 import {
   addVectorOutputOptions,
   getQdrantUrlError,
@@ -122,23 +129,40 @@ export async function executeDelete(
 /**
  * Format delete result for human display
  */
-function formatHuman(data: NonNullable<DeleteResult['data']>): string {
-  const lines: string[] = [];
-
-  lines.push('');
-  lines.push('Delete Operation Complete');
-  lines.push('═'.repeat(50));
-  lines.push('');
+function formatHuman(
+  data: NonNullable<DeleteResult['data']>,
+  options: DeleteOptions
+): string {
+  const lines = formatHeaderBlock({
+    title: `Delete Results for ${data.targetType}`,
+    summary: [
+      `${data.deleted === 0 ? icons.pending : icons.success} deleted: ${data.deleted.toLocaleString()} vectors`,
+      `target: ${data.targetType}`,
+    ],
+    filters: {
+      collection: options.collection,
+    },
+  });
 
   if (data.deleted === 0) {
-    lines.push(`No vectors found for ${data.targetType}: ${data.target}`);
-  } else {
-    lines.push(`Deleted:        ${data.deleted.toLocaleString()} vectors`);
-    lines.push(`Target type:    ${data.targetType}`);
-    lines.push(`Target:         ${data.target}`);
+    lines.push(`  ${fmt.dim(CANONICAL_EMPTY_STATE)}`);
+    lines.push('');
   }
 
-  lines.push('');
+  lines.push(
+    formatAlignedTable(
+      [
+        { header: 'Field', width: 14 },
+        { header: 'Value', width: 72 },
+      ],
+      [
+        ['Deleted', data.deleted.toLocaleString()],
+        ['Target type', data.targetType],
+        ['Target', truncateWithEllipsis(data.target, 72)],
+      ],
+      false
+    )
+  );
 
   return lines.join('\n');
 }
@@ -153,7 +177,7 @@ export async function handleDeleteCommand(
   processCommandResult(
     await executeDelete(container, options),
     options,
-    formatHuman
+    (data) => formatHuman(data, options)
   );
 }
 

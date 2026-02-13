@@ -6,7 +6,12 @@ import { Command } from 'commander';
 import type { IContainer } from '../container/types';
 import type { CrawlActiveResult } from '../types/crawl';
 import { processCommandResult } from '../utils/command';
-import { fmt, icons } from '../utils/theme';
+import {
+  CANONICAL_EMPTY_STATE,
+  formatAlignedTable,
+  formatHeaderBlock,
+  truncateWithEllipsis,
+} from '../utils/style-output';
 import { requireContainer } from './shared';
 
 export interface ListOptions {
@@ -47,16 +52,29 @@ export async function handleListCommand(
     { ...options, json: options.json || !!options.output },
     (data) => {
       const crawls = data?.crawls ?? [];
+      const lines = formatHeaderBlock({
+        title: 'Active Crawls',
+        summary: `Active jobs: ${crawls.length}`,
+        includeFreshness: true,
+      });
       if (crawls.length === 0) {
-        return fmt.dim('No active crawls.');
+        lines.push(`  ${CANONICAL_EMPTY_STATE}`);
+        lines.push('');
       }
-      const lines: string[] = [];
-      lines.push(`  ${fmt.primary('Active crawls:')}`);
-      for (const crawl of crawls) {
-        lines.push(
-          `    ${fmt.warning(icons.processing)} ${fmt.dim(crawl.id)} ${crawl.url}`
-        );
-      }
+      lines.push(
+        formatAlignedTable(
+          [
+            { header: 'Job ID', width: 28 },
+            { header: 'Team', width: 16 },
+            { header: 'URL', width: 56 },
+          ],
+          crawls.map((crawl) => [
+            truncateWithEllipsis(crawl.id, 28),
+            truncateWithEllipsis(crawl.teamId, 16),
+            truncateWithEllipsis(crawl.url, 56),
+          ])
+        )
+      );
       return lines.join('\n');
     }
   );

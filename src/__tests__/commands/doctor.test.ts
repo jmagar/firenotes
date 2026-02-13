@@ -63,6 +63,64 @@ describe('doctor helpers', () => {
     expect(resolved.resolution).toBe('host-unreachable');
     expect(resolved.reason).toContain('No published port');
   });
+
+  it('formats human output with title, summary, legend, and freshness', () => {
+    const output = __doctorTestables.formatDoctorHuman(
+      {
+        timestamp: '2026-02-13T19:42:10.000Z',
+        overallStatus: 'failed',
+        summary: { pass: 1, warn: 1, fail: 1 },
+        checks: [
+          {
+            category: 'services',
+            name: 'QDRANT_URL',
+            status: 'fail',
+            message: 'Unreachable (connect ECONNREFUSED)',
+          },
+          {
+            category: 'docker',
+            name: 'firecrawl',
+            status: 'pass',
+            message: 'Container running (healthy)',
+          },
+          {
+            category: 'directories',
+            name: 'FIRECRAWL_HOME',
+            status: 'warn',
+            message: 'Path not configured',
+          },
+        ],
+      },
+      { timeout: 4500 }
+    );
+
+    expect(output).toContain('Doctor Checks');
+    expect(output).toContain('Overall: failed');
+    expect(output).toContain('Legend:');
+    expect(output).toContain('Filters: timeout_ms=4500');
+    expect(output).toContain('As of (EST):');
+    expect(output).toContain('✗ fail');
+    expect(output).toContain('⚠ warn');
+    expect(output).toContain('✓ pass');
+  });
+
+  it('omits legend when all checks share one state', () => {
+    const output = __doctorTestables.formatDoctorHuman({
+      timestamp: '2026-02-13T19:42:10.000Z',
+      overallStatus: 'ok',
+      summary: { pass: 2, warn: 0, fail: 0 },
+      checks: [
+        {
+          category: 'services',
+          name: 'QDRANT_URL',
+          status: 'pass',
+          message: 'Reachable (200)',
+        },
+      ],
+    });
+
+    expect(output).not.toContain('Legend:');
+  });
 });
 
 describe('createDoctorCommand', () => {

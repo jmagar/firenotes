@@ -7,6 +7,7 @@
 
 import { Command } from 'commander';
 import { detectShell, getShellRcPath } from '../utils/completion-helpers';
+import { formatHeaderBlock } from '../utils/display';
 import { fmt, icons } from '../utils/theme';
 
 /**
@@ -240,15 +241,27 @@ function installCompletion(shell: string): void {
     process.exit(1);
   }
 
+  for (const line of formatHeaderBlock({
+    title: `Completion Install for ${shell}`,
+    summary: ['state: script generated', `rc: ${rcPath}`],
+  })) {
+    console.log(line);
+  }
   console.log(
     fmt.success(`${icons.success} Completion script generated for ${shell}`)
   );
-  console.log(fmt.dim(`\nTo enable completion, add this to your ${rcPath}:\n`));
+  console.log('');
+  console.log(fmt.primary('Install:'));
+  console.log(fmt.dim(`To enable completion, add this to your ${rcPath}:`));
+  console.log('');
   console.log(fmt.primary(`# firecrawl CLI completion`));
   console.log(script);
-  console.log(fmt.dim(`\nOr run this command to append it automatically:`));
+  console.log('');
+  console.log(fmt.dim('Or run this command to append it automatically:'));
   console.log(fmt.primary(`firecrawl completion script ${shell} >> ${rcPath}`));
-  console.log(fmt.dim(`\nThen restart your shell or run: source ${rcPath}`));
+  console.log('');
+  console.log(fmt.primary('Next:'));
+  console.log(fmt.dim(`Then restart your shell or run: source ${rcPath}`));
 }
 
 /**
@@ -273,10 +286,18 @@ function outputScript(shell: string): void {
 function uninstallCompletion(shell: string): void {
   const rcPath = validateShellAndGetRcPath(shell);
 
+  for (const line of formatHeaderBlock({
+    title: `Completion Uninstall for ${shell}`,
+    summary: ['state: manual removal required', `rc: ${rcPath}`],
+  })) {
+    console.log(line);
+  }
   console.log(fmt.success(`${icons.success} To uninstall completion:`));
-  console.log(fmt.dim(`\n1. Open ${rcPath} in your editor`));
+  console.log('');
+  console.log(fmt.dim(`1. Open ${rcPath} in your editor`));
   console.log(fmt.dim(`2. Remove the firecrawl completion section`));
-  console.log(fmt.dim(`3. Save and restart your shell\n`));
+  console.log(fmt.dim('3. Save and restart your shell'));
+  console.log('');
 }
 
 /**

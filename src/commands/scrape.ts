@@ -243,12 +243,44 @@ export async function handleScrapeCommand(
     effectiveFormats.push('screenshot');
   }
 
+  const responseFormats =
+    result.success && result.data
+      ? effectiveFormats.filter((format) => {
+          if (format === 'html') {
+            return Boolean(result.data?.html || result.data?.rawHtml);
+          }
+          if (format === 'rawHtml') {
+            return Boolean(result.data?.rawHtml || result.data?.html);
+          }
+          return Boolean(
+            result.data?.[format as keyof typeof result.data] !== undefined
+          );
+        }).length
+      : 0;
+
   handleScrapeOutput(
     result,
     effectiveFormats,
     options.output,
     options.pretty,
-    options.json
+    options.json,
+    {
+      title: `Scrape Results for ${options.url}`,
+      summary: [
+        `Requested formats: ${effectiveFormats.length}`,
+        `returned: ${responseFormats}`,
+      ],
+      filters: {
+        formats: options.formats,
+        screenshot: options.screenshot || undefined,
+        onlyMainContent: options.onlyMainContent,
+        waitFor: options.waitFor,
+        timeout: options.timeout,
+        includeTags: options.includeTags,
+        excludeTags: options.excludeTags,
+      },
+      includeFreshness: true,
+    }
   );
 
   // Wait for embedding to complete

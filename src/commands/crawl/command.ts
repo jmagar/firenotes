@@ -14,6 +14,11 @@ import { displayCommandInfo } from '../../utils/display';
 import { isJobId, normalizeJobId } from '../../utils/job';
 import { recordJob } from '../../utils/job-history';
 import { getSettings } from '../../utils/settings';
+import {
+  buildFiltersEcho,
+  CANONICAL_EMPTY_STATE,
+  formatHeaderBlock,
+} from '../../utils/style-output';
 import { fmt, icons } from '../../utils/theme';
 import { normalizeUrl } from '../../utils/url';
 import { requireContainer, requireContainerFromCommandTree } from '../shared';
@@ -66,7 +71,9 @@ function handleSubcommandResult<T>(
     return;
   }
 
-  const outputContent = formatOutput(result.data);
+  const outputContent = options.output
+    ? formatJson({ success: true, data: result.data }, options.pretty)
+    : formatOutput(result.data);
   try {
     writeCommandOutput(outputContent, options);
   } catch (error) {
@@ -75,6 +82,138 @@ function handleSubcommandResult<T>(
     );
     process.exitCode = 1;
   }
+}
+
+function formatCrawlStartedResponse(
+  data: { jobId: string; status: string; url: string },
+  options: CrawlOptions
+): string {
+  const lines = formatHeaderBlock({
+    title: `Crawl Job ${data.jobId}`,
+    summary: `Status: ${data.status} | URL: ${data.url}`,
+    filters: buildFiltersEcho([
+      ['maxDepth', options.maxDepth],
+      ['limit', options.limit],
+      ['allowSubdomains', options.allowSubdomains],
+      ['onlyMainContent', options.onlyMainContent],
+      ['wait', options.wait],
+      ['progress', options.progress],
+    ]),
+  });
+
+  lines.push(`Job ID: ${data.jobId}`);
+  lines.push(`Status: ${data.status}`);
+  lines.push(`URL: ${data.url}`);
+  return lines.join('\n');
+}
+
+function formatCrawlErrorsHuman(
+  data: unknown,
+  jobId: string,
+  options: { output?: string; pretty?: boolean }
+): string {
+  if (options.output) {
+    return formatJson({ success: true, data }, options.pretty);
+  }
+
+  const normalized = Array.isArray(data)
+    ? { errors: data, robotsBlocked: [] }
+    : (data as {
+        errors?: Array<{ url?: string; error?: string; code?: string }>;
+        robotsBlocked?: string[];
+      });
+
+  const errors = Array.isArray(normalized.errors) ? normalized.errors : [];
+  const robotsBlocked = Array.isArray(normalized.robotsBlocked)
+    ? normalized.robotsBlocked
+    : [];
+
+  const summary = `Errors: ${errors.length} | Robots blocked: ${robotsBlocked.length}`;
+  const lines = formatHeaderBlock({
+    title: `Crawl Errors for ${jobId}`,
+    summary,
+    filters: buildFiltersEcho([['jobId', jobId]]),
+    includeFreshness: true,
+  });
+
+  if (errors.length > 0 && robotsBlocked.length > 0) {
+    lines.push('Legend: ✗ crawl error  ⚠ robots blocked');
+  }
+
+  type Row = { severity: number; line: string };
+  const rows: Row[] = [
+    ...errors.map((item) => ({
+      severity: 0,
+      line: `✗ ${String(item.url ?? '—')} (${String(item.error ?? item.code ?? 'unknown error')})`,
+    })),
+    ...robotsBlocked.map((url) => ({
+      severity: 1,
+      line: `⚠ ${url}`,
+    })),
+  ].sort((a, b) => a.severity - b.severity || a.line.localeCompare(b.line));
+
+  if (rows.length === 0) {
+    lines.push(`  ${CANONICAL_EMPTY_STATE}`);
+  } else {
+    for (const row of rows) {
+      lines.push(row.line);
+    }
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
+function formatCrawlClearHuman(data: {
+  clearedHistory: number;
+  cancelledActive: number;
+}): string {
+  const lines = formatHeaderBlock({
+    title: 'Crawl Queue Clear',
+    summary: `Cleared history: ${data.clearedHistory} | Cancelled active: ${data.cancelledActive}`,
+    includeFreshness: true,
+  });
+  lines.push(`Cleared history: ${data.clearedHistory}`);
+  lines.push(`Cancelled active crawls: ${data.cancelledActive}`);
+  return lines.join('\n');
+}
+
+function formatCrawlCleanupHuman(data: {
+  scanned: number;
+  removedFailed: number;
+  removedStale: number;
+  removedNotFound: number;
+  removedTotal: number;
+}): string {
+  const lines = formatHeaderBlock({
+    title: 'Crawl Queue Cleanup',
+    summary: `Scanned: ${data.scanned} | Removed: ${data.removedTotal}`,
+    includeFreshness: true,
+  });
+
+  const mixedStates =
+    data.removedFailed > 0 &&
+    (data.removedStale > 0 || data.removedNotFound > 0);
+  if (mixedStates) {
+    lines.push(
+      'Legend: ✗ failed/cancelled  ⚠ stale in-progress  ○ missing job'
+    );
+  }
+
+  const entries = [
+    {
+      label: 'Failed/Cancelled removed',
+      value: data.removedFailed,
+      severity: 0,
+    },
+    { label: 'Stale removed', value: data.removedStale, severity: 1 },
+    { label: 'Not found removed', value: data.removedNotFound, severity: 2 },
+  ].sort((a, b) => a.severity - b.severity);
+
+  for (const entry of entries) {
+    lines.push(`${entry.label}: ${entry.value}`);
+  }
+
+  return lines.join('\n');
 }
 
 /**
@@ -136,7 +275,9 @@ export async function handleCrawlCommand(
     if (statusResult.data) {
       const outputContent =
         options.pretty || !options.output
-          ? formatCrawlStatus(statusResult.data)
+          ? formatCrawlStatus(statusResult.data, {
+              filters: [['jobId', statusResult.data.id]],
+            })
           : formatJson(
               { success: true, data: statusResult.data },
               options.pretty
@@ -194,11 +335,7 @@ export async function handleCrawlCommand(
         options.pretty
       );
     } else {
-      outputContent = [
-        `  ${fmt.primary('Job ID:')} ${fmt.dim(jobData.jobId)}`,
-        `  ${fmt.primary('Status:')} ${jobData.status}`,
-        `  ${fmt.primary('URL:')} ${fmt.dim(jobData.url)}`,
-      ].join('\n');
+      outputContent = formatCrawlStartedResponse(jobData, options);
     }
   } else {
     // Completed crawl - output the data
@@ -230,9 +367,7 @@ async function handleCrawlStatusCommand(
 ): Promise<void> {
   const result = await checkCrawlStatus(container, jobId);
   handleSubcommandResult(result, options, (data) =>
-    options.pretty || !options.output
-      ? formatCrawlStatus(data)
-      : formatJson({ success: true, data }, options.pretty)
+    formatCrawlStatus(data, { filters: [['jobId', jobId]] })
   );
 }
 
@@ -250,7 +385,15 @@ async function handleCrawlCancelCommand(
 ): Promise<void> {
   const result = await executeCrawlCancel(container, jobId);
   handleSubcommandResult(result, options, (data) =>
-    formatJson({ success: true, data }, options.pretty)
+    [
+      ...formatHeaderBlock({
+        title: `Crawl Cancel for ${jobId}`,
+        summary: `Status: ${data.status}`,
+        filters: buildFiltersEcho([['jobId', jobId]]),
+        includeFreshness: true,
+      }),
+      `Status: ${data.status}`,
+    ].join('\n')
   );
 }
 
@@ -268,7 +411,7 @@ async function handleCrawlErrorsCommand(
 ): Promise<void> {
   const result = await executeCrawlErrors(container, jobId);
   handleSubcommandResult(result, options, (data) =>
-    formatJson({ success: true, data }, options.pretty)
+    formatCrawlErrorsHuman(data, jobId, options)
   );
 }
 
@@ -304,9 +447,7 @@ async function handleCrawlClearCommand(
   }
 
   const result = await executeCrawlClear(container);
-  handleSubcommandResult(result, options, (data) =>
-    formatJson({ success: true, data }, options.pretty)
-  );
+  handleSubcommandResult(result, options, formatCrawlClearHuman);
 }
 
 async function handleCrawlCleanupCommand(
@@ -314,9 +455,7 @@ async function handleCrawlCleanupCommand(
   options: { output?: string; pretty?: boolean }
 ): Promise<void> {
   const result = await executeCrawlCleanup(container);
-  handleSubcommandResult(result, options, (data) =>
-    formatJson({ success: true, data }, options.pretty)
-  );
+  handleSubcommandResult(result, options, formatCrawlCleanupHuman);
 }
 
 /**

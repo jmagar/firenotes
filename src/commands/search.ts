@@ -23,7 +23,12 @@ import {
   validateAllowedValues,
   writeCommandOutput,
 } from '../utils/command';
-import { displayCommandInfo } from '../utils/display';
+import {
+  canonicalSymbols,
+  displayCommandInfo,
+  formatHeaderBlock,
+  truncateWithMarker,
+} from '../utils/display';
 import { buildApiErrorMessage } from '../utils/network-error';
 import { getSettings } from '../utils/settings';
 import { fmt, icons } from '../utils/theme';
@@ -155,7 +160,7 @@ export async function executeSearch(
     const errorMessage = buildApiErrorMessage(error, container.config.apiUrl);
     return {
       success: false,
-      error: `Search operation failed: ${errorMessage}`,
+      error: `Search failed: ${errorMessage}`,
     };
   }
 }
@@ -165,20 +170,62 @@ export async function executeSearch(
  */
 function formatSearchReadable(
   data: SearchResultData,
-  _options: SearchOptions
+  options: SearchOptions
 ): string {
+  const webResults = data.web ?? [];
+  const imageResults = data.images ?? [];
+  const newsResults = data.news ?? [];
+  const total = webResults.length + imageResults.length + newsResults.length;
+  const activeSources = [
+    webResults.length > 0 ? 'web' : '',
+    imageResults.length > 0 ? 'images' : '',
+    newsResults.length > 0 ? 'news' : '',
+  ].filter(Boolean);
+
   const lines: string[] = [];
+  lines.push(
+    ...formatHeaderBlock({
+      title: `Search Results for "${options.query}"`,
+      summary: [
+        `Showing ${total} results`,
+        `web: ${webResults.length}`,
+        `images: ${imageResults.length}`,
+        `news: ${newsResults.length}`,
+      ],
+      legend:
+        activeSources.length > 1
+          ? [
+              { symbol: canonicalSymbols.running, label: 'web' },
+              { symbol: canonicalSymbols.partial, label: 'news' },
+              { symbol: canonicalSymbols.stopped, label: 'images' },
+            ]
+          : [],
+      filters: {
+        limit: options.limit,
+        sources: options.sources,
+        categories: options.categories,
+        tbs: options.tbs,
+        location: options.location,
+        country: options.country,
+        timeout: options.timeout,
+        scrape: options.scrape,
+      },
+      freshness: true,
+    })
+  );
 
   // Format web results
-  if (data.web && data.web.length > 0) {
+  if (webResults.length > 0) {
     lines.push(`  ${fmt.primary('Web results')}`);
     lines.push('');
 
-    for (const result of data.web) {
-      lines.push(`    ${fmt.info(icons.bullet)} ${result.title || 'Untitled'}`);
+    for (const result of webResults) {
+      lines.push(
+        `    ${fmt.info(icons.bullet)} ${truncateWithMarker(result.title || 'Untitled', 96)}`
+      );
       lines.push(`      ${fmt.dim('URL:')} ${result.url}`);
       if (result.description) {
-        lines.push(`      ${result.description}`);
+        lines.push(`      ${truncateWithMarker(result.description, 240)}`);
       }
       if (result.category) {
         lines.push(`      ${fmt.dim('Category:')} ${result.category}`);
@@ -197,15 +244,17 @@ function formatSearchReadable(
   }
 
   // Format image results
-  if (data.images && data.images.length > 0) {
+  if (imageResults.length > 0) {
     if (lines.length > 0) {
       lines.push('');
     }
     lines.push(`  ${fmt.primary('Image results')}`);
     lines.push('');
 
-    for (const result of data.images) {
-      lines.push(`    ${fmt.info(icons.bullet)} ${result.title || 'Untitled'}`);
+    for (const result of imageResults) {
+      lines.push(
+        `    ${fmt.info(icons.bullet)} ${truncateWithMarker(result.title || 'Untitled', 96)}`
+      );
       lines.push(`      ${fmt.dim('Image URL:')} ${result.imageUrl}`);
       lines.push(`      ${fmt.dim('Source:')} ${result.url}`);
       if (result.imageWidth && result.imageHeight) {
@@ -218,21 +267,23 @@ function formatSearchReadable(
   }
 
   // Format news results
-  if (data.news && data.news.length > 0) {
+  if (newsResults.length > 0) {
     if (lines.length > 0) {
       lines.push('');
     }
     lines.push(`  ${fmt.primary('News results')}`);
     lines.push('');
 
-    for (const result of data.news) {
-      lines.push(`    ${fmt.info(icons.bullet)} ${result.title || 'Untitled'}`);
+    for (const result of newsResults) {
+      lines.push(
+        `    ${fmt.info(icons.bullet)} ${truncateWithMarker(result.title || 'Untitled', 96)}`
+      );
       lines.push(`      ${fmt.dim('URL:')} ${result.url}`);
       if (result.date) {
         lines.push(`      ${fmt.dim('Date:')} ${result.date}`);
       }
       if (result.snippet) {
-        lines.push(`      ${result.snippet}`);
+        lines.push(`      ${truncateWithMarker(result.snippet, 240)}`);
       }
       if (result.markdown) {
         const indentedMarkdown = result.markdown
@@ -319,10 +370,9 @@ export async function handleSearchCommand(
   try {
     writeCommandOutput(outputContent, options);
   } catch (error) {
-    console.error(
-      fmt.error(error instanceof Error ? error.message : 'Invalid output path')
+    throw new Error(
+      error instanceof Error ? error.message : 'Invalid output path'
     );
-    process.exit(1);
   }
 
   // Auto-embed only when --scrape was used (snippets are too noisy)
@@ -431,63 +481,69 @@ export function createSearchCommand(): Command {
       false
     )
     .action(async (query, options, command: Command) => {
-      const container = requireContainer(command);
+      try {
+        const container = requireContainer(command);
 
-      // Parse sources
-      let sources: SearchSource[] | undefined;
-      if (options.sources) {
-        sources = options.sources
-          .split(',')
-          .map((s: string) => s.trim().toLowerCase()) as SearchSource[];
+        // Parse sources
+        let sources: SearchSource[] | undefined;
+        if (options.sources) {
+          sources = options.sources
+            .split(',')
+            .map((s: string) => s.trim().toLowerCase()) as SearchSource[];
 
-        // Validate sources
-        const validSources = ['web', 'images', 'news'];
-        validateAllowedValues(sources, validSources, 'source');
+          // Validate sources
+          const validSources = ['web', 'images', 'news'];
+          validateAllowedValues(sources, validSources, 'source');
+        }
+
+        // Parse categories
+        let categories: SearchCategory[] | undefined;
+        if (options.categories) {
+          categories = options.categories
+            .split(',')
+            .map((c: string) => c.trim().toLowerCase()) as SearchCategory[];
+
+          // Validate categories
+          const validCategories = ['github', 'research', 'pdf'];
+          validateAllowedValues(categories, validCategories, 'category');
+        }
+
+        // Parse scrape formats
+        let scrapeFormats: ScrapeFormat[] | undefined;
+        if (options.scrapeFormats) {
+          scrapeFormats = options.scrapeFormats
+            .split(',')
+            .map((f: string) => f.trim()) as ScrapeFormat[];
+        } else {
+          scrapeFormats = settings.search.scrapeFormats as ScrapeFormat[];
+        }
+
+        const searchOptions = {
+          query,
+          limit: options.limit,
+          sources,
+          categories,
+          tbs: options.tbs,
+          location: options.location,
+          country: options.country,
+          timeout: options.timeout,
+          ignoreInvalidUrls: options.ignoreInvalidUrls,
+          embed: options.embed,
+          scrape: options.scrape,
+          scrapeFormats,
+          onlyMainContent: options.onlyMainContent,
+          apiKey: options.apiKey,
+          output: options.output,
+          json: options.json,
+          pretty: options.pretty,
+        };
+
+        await handleSearchCommand(container, searchOptions);
+      } catch (error) {
+        command.error(
+          error instanceof Error ? error.message : 'Search command failed'
+        );
       }
-
-      // Parse categories
-      let categories: SearchCategory[] | undefined;
-      if (options.categories) {
-        categories = options.categories
-          .split(',')
-          .map((c: string) => c.trim().toLowerCase()) as SearchCategory[];
-
-        // Validate categories
-        const validCategories = ['github', 'research', 'pdf'];
-        validateAllowedValues(categories, validCategories, 'category');
-      }
-
-      // Parse scrape formats
-      let scrapeFormats: ScrapeFormat[] | undefined;
-      if (options.scrapeFormats) {
-        scrapeFormats = options.scrapeFormats
-          .split(',')
-          .map((f: string) => f.trim()) as ScrapeFormat[];
-      } else {
-        scrapeFormats = settings.search.scrapeFormats as ScrapeFormat[];
-      }
-
-      const searchOptions = {
-        query,
-        limit: options.limit,
-        sources,
-        categories,
-        tbs: options.tbs,
-        location: options.location,
-        country: options.country,
-        timeout: options.timeout,
-        ignoreInvalidUrls: options.ignoreInvalidUrls,
-        embed: options.embed,
-        scrape: options.scrape,
-        scrapeFormats,
-        onlyMainContent: options.onlyMainContent,
-        apiKey: options.apiKey,
-        output: options.output,
-        json: options.json,
-        pretty: options.pretty,
-      };
-
-      await handleSearchCommand(container, searchOptions);
     });
 
   return searchCmd;

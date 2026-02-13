@@ -22,9 +22,11 @@ import {
 } from '../helpers';
 import { createTestContainer } from '../utils/test-container';
 
+const mockHandleScrapeOutput = vi.hoisted(() => vi.fn());
+
 // Mock the output module to prevent console output in tests
 vi.mock('../../utils/output', () => ({
-  handleScrapeOutput: vi.fn(),
+  handleScrapeOutput: mockHandleScrapeOutput,
 }));
 
 describe('executeScrape', () => {
@@ -322,6 +324,7 @@ describe('handleScrapeCommand auto-embed', () => {
   let mockAutoEmbed: Mock;
 
   setupTestLifecycle(() => {
+    mockHandleScrapeOutput.mockReset();
     mockClient = createMockFirecrawlClient();
     mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
     mockContainer = createMockContainer(
@@ -430,6 +433,34 @@ describe('handleScrapeCommand auto-embed', () => {
       expect.objectContaining({
         url: 'https://example.com',
         sourceCommand: 'scrape',
+      })
+    );
+  });
+
+  it('passes style header context to readable scrape output', async () => {
+    const mockResponse = {
+      markdown: '# Test Content',
+      metadata: { title: 'Test Page' },
+    };
+    mockClient.scrape.mockResolvedValue(mockResponse);
+
+    await handleScrapeCommand(mockContainer, {
+      url: 'https://example.com',
+      formats: ['markdown'],
+      onlyMainContent: true,
+      waitFor: 1000,
+      timeout: 30,
+    });
+
+    expect(mockHandleScrapeOutput).toHaveBeenCalledWith(
+      expect.anything(),
+      ['markdown'],
+      undefined,
+      undefined,
+      undefined,
+      expect.objectContaining({
+        title: 'Scrape Results for https://example.com',
+        includeFreshness: true,
       })
     );
   });

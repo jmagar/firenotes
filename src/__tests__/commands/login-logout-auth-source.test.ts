@@ -18,6 +18,8 @@ vi.mock('../../utils/theme', () => ({
     dim: (msg: string) => msg,
     success: (msg: string) => msg,
     error: (msg: string) => msg,
+    primary: (msg: string) => msg,
+    bold: (msg: string) => msg,
   },
   icons: {
     success: '✓',
@@ -44,6 +46,9 @@ describe('login/logout auth source messaging', () => {
     await handleLoginCommand();
 
     expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('Login Status')
+    );
+    expect(console.log).toHaveBeenCalledWith(
       expect.stringContaining('Authentication source: FIRECRAWL_API_KEY')
     );
     expect(console.log).toHaveBeenCalledWith(
@@ -59,6 +64,9 @@ describe('login/logout auth source messaging', () => {
     await handleLogoutCommand();
 
     expect(deleteCredentials).not.toHaveBeenCalled();
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('Logout Status')
+    );
     expect(console.log).toHaveBeenCalledWith(
       expect.stringContaining('Authentication is from environment')
     );

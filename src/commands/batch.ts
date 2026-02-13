@@ -15,6 +15,11 @@ import {
 import { recordJob } from '../utils/job-history';
 import { parseFormats } from '../utils/options';
 import { getSettings } from '../utils/settings';
+import {
+  buildFiltersEcho,
+  CANONICAL_EMPTY_STATE,
+  formatHeaderBlock,
+} from '../utils/style-output';
 import { fmt, icons } from '../utils/theme';
 import { normalizeUrlArgs, requireContainerFromCommandTree } from './shared';
 
@@ -72,19 +77,6 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function formatBatchSummary(
-  title: string,
-  details: Array<[string, unknown]>
-): string {
-  const lines: string[] = [];
-  lines.push(`  ${fmt.primary(title)}`);
-  for (const [label, value] of details) {
-    if (value === undefined || value === null || value === '') continue;
-    lines.push(`    ${fmt.dim(`${label}:`)} ${String(value)}`);
-  }
-  return lines.join('\n');
-}
-
 function formatBatchResultHuman(data: unknown): string {
   const record = asRecord(data);
   const completed = record.completed;
@@ -94,15 +86,26 @@ function formatBatchResultHuman(data: unknown): string {
       ? `${completed}/${total}`
       : undefined;
 
-  return formatBatchSummary('Batch job', [
-    ['Job ID', record.id],
-    ['Status', record.status ?? 'processing'],
-    ['Progress', progress],
-    ['URL', record.url],
-  ]);
+  const lines = formatHeaderBlock({
+    title: `Batch Job ${String(record.id ?? '—')}`,
+    summary: `Status: ${String(record.status ?? 'processing')} | Progress: ${progress ?? '—'}`,
+    includeFreshness: true,
+  });
+  lines.push(`Job ID: ${String(record.id ?? '—')}`);
+  lines.push(`Status: ${String(record.status ?? 'processing')}`);
+  if (progress) {
+    lines.push(`Progress: ${progress}`);
+  }
+  if (record.url) {
+    lines.push(`URL: ${String(record.url)}`);
+  }
+  return lines.join('\n');
 }
 
-function formatBatchErrorsHuman(data: unknown): string {
+function formatBatchErrorsHuman(
+  data: unknown,
+  context?: { jobId?: string }
+): string {
   const record = asRecord(data);
   const errors = Array.isArray(record.errors)
     ? (record.errors as Array<Record<string, unknown>>)
@@ -111,16 +114,34 @@ function formatBatchErrorsHuman(data: unknown): string {
     ? (record.robotsBlocked as string[])
     : [];
 
-  const lines: string[] = [];
-  lines.push(`  ${fmt.primary('Batch errors')}`);
-  lines.push(`    ${fmt.dim('Errors:')} ${errors.length}`);
-  lines.push(`    ${fmt.dim('Robots blocked:')} ${robotsBlocked.length}`);
+  const lines = formatHeaderBlock({
+    title: `Batch Errors${context?.jobId ? ` for ${context.jobId}` : ''}`,
+    summary: `Errors: ${errors.length} | Robots blocked: ${robotsBlocked.length}`,
+    filters: buildFiltersEcho(context?.jobId ? [['jobId', context.jobId]] : []),
+    includeFreshness: true,
+  });
 
-  if (errors.length > 0) {
-    for (const err of errors) {
-      lines.push(
-        `    ${fmt.error(icons.error)} ${String(err.url ?? 'unknown')} ${fmt.dim(`(${String(err.error ?? 'unknown error')})`)}`
-      );
+  if (errors.length > 0 && robotsBlocked.length > 0) {
+    lines.push('Legend: ✗ request error  ⚠ robots blocked');
+  }
+
+  type Row = { severity: number; text: string };
+  const rows: Row[] = [
+    ...errors.map((err) => ({
+      severity: 0,
+      text: `${icons.error} ${String(err.url ?? '—')} (${String(err.error ?? 'unknown error')})`,
+    })),
+    ...robotsBlocked.map((url) => ({
+      severity: 1,
+      text: `${icons.warning} ${url}`,
+    })),
+  ].sort((a, b) => a.severity - b.severity || a.text.localeCompare(b.text));
+
+  if (rows.length === 0) {
+    lines.push(`  ${CANONICAL_EMPTY_STATE}`);
+  } else {
+    for (const row of rows) {
+      lines.push(row.text);
     }
   }
 
@@ -256,16 +277,23 @@ async function handleBatchStatusCommand(
       const statusRecord = asRecord(status);
       const completed = statusRecord.completed;
       const total = statusRecord.total;
-      return formatBatchSummary('Batch status', [
-        ['Job ID', statusRecord.id ?? jobId],
-        ['Status', statusRecord.status],
-        [
-          'Progress',
-          typeof completed === 'number' && typeof total === 'number'
-            ? `${String(completed)}/${String(total)}`
-            : undefined,
-        ],
-      ]);
+      const progress =
+        typeof completed === 'number' && typeof total === 'number'
+          ? `${String(completed)}/${String(total)}`
+          : undefined;
+
+      const lines = formatHeaderBlock({
+        title: `Batch Status for ${jobId}`,
+        summary: `Status: ${String(statusRecord.status ?? 'processing')} | Progress: ${progress ?? '—'}`,
+        filters: buildFiltersEcho([['jobId', jobId]]),
+        includeFreshness: true,
+      });
+      lines.push(`Job ID: ${String(statusRecord.id ?? jobId)}`);
+      lines.push(`Status: ${String(statusRecord.status ?? 'processing')}`);
+      if (progress) {
+        lines.push(`Progress: ${progress}`);
+      }
+      return lines.join('\n');
     }
   );
 }
@@ -289,7 +317,16 @@ async function handleBatchCancelCommand(
       }
       return { success: true, message: 'cancelled' };
     },
-    () => `${fmt.success(icons.success)} Cancelled batch job ${fmt.dim(jobId)}`
+    () =>
+      [
+        ...formatHeaderBlock({
+          title: `Batch Cancel for ${jobId}`,
+          summary: 'Status: cancelled',
+          filters: buildFiltersEcho([['jobId', jobId]]),
+          includeFreshness: true,
+        }),
+        `${icons.success} Cancelled batch job ${jobId}`,
+      ].join('\n')
   );
 }
 
@@ -306,7 +343,7 @@ async function handleBatchErrorsCommand(
     jobId,
     options,
     (app) => app.getBatchScrapeErrors(jobId),
-    formatBatchErrorsHuman
+    (data) => formatBatchErrorsHuman(data, { jobId })
   );
 }
 

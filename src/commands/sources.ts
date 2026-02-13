@@ -11,7 +11,15 @@ import type {
   SourcesResult,
 } from '../types/sources';
 import { processCommandResult } from '../utils/command';
-import { fmt, icons } from '../utils/theme';
+import {
+  buildFiltersEcho,
+  CANONICAL_EMPTY_STATE,
+  displayValue,
+  formatAlignedTable,
+  formatDateOnly,
+  formatHeaderBlock,
+  truncateWithEllipsis,
+} from '../utils/style-output';
 import {
   addDomainSourceFilterOptions,
   addVectorOutputOptions,
@@ -107,41 +115,30 @@ export async function executeSources(
  * Format sources as table
  */
 function formatTable(sources: SourceInfo[]): string {
-  if (sources.length === 0) {
-    return fmt.dim('No sources found in vector database.');
-  }
-
   const lines: string[] = [];
-  lines.push(`  ${fmt.primary('Sources')}`);
-  lines.push('');
-
-  // Header
-  const header = [
-    'Domain'.padEnd(25),
-    'URL'.padEnd(50),
-    'Chunks'.padStart(6),
-    'Source'.padEnd(8),
-    'Added',
-  ].join('  ');
-  lines.push(header);
-  lines.push('─'.repeat(header.length));
-
-  // Rows
-  for (const source of sources) {
-    const domain =
-      source.domain.length > 24
-        ? `${source.domain.slice(0, 22)}..`
-        : source.domain.padEnd(25);
-    const url =
-      source.url.length > 49
-        ? `${source.url.slice(0, 47)}..`
-        : source.url.padEnd(50);
-    const chunks = String(source.totalChunks).padStart(6);
-    const cmd = source.sourceCommand.padEnd(8);
-    const added = source.scrapedAt ? source.scrapedAt.split('T')[0] : 'unknown';
-
-    lines.push([domain, url, chunks, cmd, added].join('  '));
+  if (sources.length === 0) {
+    lines.push(`  ${CANONICAL_EMPTY_STATE}`);
+    lines.push('');
   }
+
+  lines.push(
+    formatAlignedTable(
+      [
+        { header: 'Domain', width: 25 },
+        { header: 'URL', width: 50 },
+        { header: 'Chunks', width: 6, align: 'right' },
+        { header: 'Source', width: 8 },
+        { header: 'Added', width: 10 },
+      ],
+      sources.map((source) => [
+        truncateWithEllipsis(displayValue(source.domain), 25),
+        truncateWithEllipsis(displayValue(source.url), 50),
+        String(source.totalChunks),
+        truncateWithEllipsis(displayValue(source.sourceCommand), 8),
+        formatDateOnly(source.scrapedAt),
+      ])
+    )
+  );
 
   return lines.join('\n');
 }
@@ -149,8 +146,23 @@ function formatTable(sources: SourceInfo[]): string {
 /**
  * Format sources summary
  */
-function formatSummary(data: NonNullable<SourcesResult['data']>): string {
-  return `\n  ${fmt.info(icons.info)} ${data.totalSources} sources, ${data.totalChunks} chunks across ${data.uniqueDomains} domains`;
+function formatSummary(
+  data: NonNullable<SourcesResult['data']>,
+  options: SourcesOptions
+): string {
+  const filters = buildFiltersEcho([
+    ['collection', options.collection],
+    ['domain', options.domain],
+    ['source', options.source],
+    ['limit', options.limit],
+  ]);
+  const lines = formatHeaderBlock({
+    title: 'Sources',
+    summary: `Showing ${data.sources.length} of ${data.totalSources} sources | Chunks: ${data.totalChunks} | Domains: ${data.uniqueDomains}`,
+    filters,
+  });
+  lines.push(formatTable(data.sources));
+  return lines.join('\n');
 }
 
 /**
@@ -163,7 +175,7 @@ export async function handleSourcesCommand(
   processCommandResult(
     await executeSources(container, options),
     options,
-    (resultData) => formatTable(resultData.sources) + formatSummary(resultData)
+    (resultData) => formatSummary(resultData, options)
   );
 }
 

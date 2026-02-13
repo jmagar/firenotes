@@ -6,7 +6,13 @@
 import type { IContainer } from '../container/types';
 import type { RetrieveOptions, RetrieveResult } from '../types/retrieve';
 import { processCommandResult } from '../utils/command';
-import { fmt, isTTY } from '../utils/theme';
+import { formatHeaderBlock } from '../utils/display';
+import {
+  CANONICAL_EMPTY_STATE,
+  formatAlignedTable,
+  truncateWithEllipsis,
+} from '../utils/style-output';
+import { fmt } from '../utils/theme';
 import {
   addVectorOutputOptions,
   getQdrantUrlError,
@@ -117,16 +123,42 @@ export async function handleRetrieveCommand(
     await executeRetrieve(container, options),
     options,
     (data: { url: string; totalChunks: number; content: string }) => {
-      if (!options.output && isTTY()) {
-        return [
-          `  ${fmt.primary('Retrieved document')}`,
-          `    ${fmt.dim('URL:')} ${data.url}`,
-          `    ${fmt.dim('Chunks:')} ${data.totalChunks}`,
-          '',
-          data.content,
-        ].join('\n');
+      if (options.output) {
+        return data.content;
       }
-      return data.content;
+
+      const lines = formatHeaderBlock({
+        title: `Retrieve Result for ${data.url}`,
+        summary: [
+          `Chunks: ${data.totalChunks}`,
+          `characters: ${data.content.length}`,
+        ],
+        filters: {
+          collection: options.collection,
+        },
+      });
+
+      lines.push(
+        formatAlignedTable(
+          [
+            { header: 'Field', width: 14 },
+            { header: 'Value', width: 90 },
+          ],
+          [
+            ['URL', truncateWithEllipsis(data.url, 90)],
+            ['Chunks', String(data.totalChunks)],
+          ],
+          false
+        )
+      );
+      lines.push('');
+      lines.push(`  ${fmt.primary('Content')}`);
+      lines.push('');
+      lines.push(
+        data.content.trim().length > 0 ? data.content : CANONICAL_EMPTY_STATE
+      );
+
+      return lines.join('\n');
     }
   );
 }

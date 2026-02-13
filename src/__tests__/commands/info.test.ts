@@ -2,11 +2,12 @@
  * Tests for info command
  */
 
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInfoCommand, executeInfo } from '../../commands/info';
 import type { IContainer, IQdrantService } from '../../container/types';
+import type { CommandWithContainer } from '../../types/test';
 import { createTestContainer } from '../utils/test-container';
 
 describe('executeInfo', () => {
@@ -383,7 +384,10 @@ describe('createInfoCommand', () => {
 
   it('should respect custom FIRECRAWL_HOME path for info storage', async () => {
     const originalHome = process.env.FIRECRAWL_HOME;
-    const customPath = join(homedir(), 'custom-firecrawl-dir');
+    const customPath = join(
+      tmpdir(),
+      `firecrawl-custom-home-${process.pid}-${Date.now()}`
+    );
     process.env.FIRECRAWL_HOME = customPath;
 
     try {
@@ -408,6 +412,13 @@ describe('createInfoCommand', () => {
         settingsPath: string;
         jobHistoryPath: string;
         embedQueueDir: string;
+        exists: {
+          storageRoot: boolean;
+          credentialsPath: boolean;
+          settingsPath: boolean;
+          jobHistoryPath: boolean;
+          embedQueueDir: boolean;
+        };
       };
 
       expect(parsed.storageRoot).toBe(customPath);
@@ -415,6 +426,11 @@ describe('createInfoCommand', () => {
       expect(parsed.settingsPath).toBe(join(customPath, 'settings.json'));
       expect(parsed.jobHistoryPath).toBe(join(customPath, 'job-history.json'));
       expect(parsed.embedQueueDir).toBe(join(customPath, 'embed-queue'));
+      expect(parsed.exists.storageRoot).toBe(false);
+      expect(parsed.exists.credentialsPath).toBe(false);
+      expect(parsed.exists.settingsPath).toBe(false);
+      expect(parsed.exists.jobHistoryPath).toBe(false);
+      expect(parsed.exists.embedQueueDir).toBe(false);
     } finally {
       if (originalHome === undefined) {
         delete process.env.FIRECRAWL_HOME;
@@ -422,5 +438,69 @@ describe('createInfoCommand', () => {
         process.env.FIRECRAWL_HOME = originalHome;
       }
     }
+  });
+
+  it('should render styled text output for URL info with filters', async () => {
+    const command = createInfoCommand() as CommandWithContainer;
+    const mockQdrantService: IQdrantService = {
+      ensureCollection: vi.fn(),
+      deleteByUrl: vi.fn(),
+      deleteByDomain: vi.fn(),
+      countByDomain: vi.fn(),
+      countByUrl: vi.fn(),
+      upsertPoints: vi.fn(),
+      queryPoints: vi.fn(),
+      scrollByUrl: vi.fn().mockResolvedValue([
+        {
+          id: '1',
+          vector: [],
+          payload: {
+            url: 'https://example.com/page',
+            domain: 'example.com',
+            title: 'Example Page',
+            source_command: 'scrape',
+            content_type: 'text/html',
+            scraped_at: '2026-02-11T12:00:00Z',
+            chunk_index: 0,
+            chunk_header: 'Intro',
+            chunk_text:
+              'This is a long preview line that should be rendered in the table body for command output tests.',
+          },
+        },
+      ]),
+      scrollAll: vi.fn(),
+      getCollectionInfo: vi.fn(),
+      countPoints: vi.fn(),
+      deleteAll: vi.fn(),
+    };
+    const container = createTestContainer(undefined, {
+      qdrantUrl: 'http://localhost:53333',
+      qdrantCollection: 'test_col',
+    });
+    vi.spyOn(container, 'getQdrantService').mockReturnValue(mockQdrantService);
+    command._container = container as IContainer;
+
+    let output = '';
+    const writeSpy = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((chunk: string | Uint8Array) => {
+        output += String(chunk);
+        return true;
+      });
+
+    await command.parseAsync(
+      ['node', 'test', 'https://example.com/page', '--full'],
+      { from: 'node' }
+    );
+    writeSpy.mockRestore();
+
+    expect(output).toContain('URL Information');
+    expect(output).toContain(
+      'Chunks: 1 | Domain: example.com | Source: scrape'
+    );
+    expect(output).toContain('Filters: full=true');
+    expect(output).toContain('Field');
+    expect(output).toContain('Chunks');
+    expect(output).toContain('Preview');
   });
 });

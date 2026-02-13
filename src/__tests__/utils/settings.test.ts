@@ -7,18 +7,25 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   __resetSettingsStateForTests,
   getSettings,
   loadSettings,
 } from '../../utils/settings';
 
+vi.mock('node:os', async () => {
+  const actual = await vi.importActual<typeof import('node:os')>('node:os');
+  return {
+    ...actual,
+    homedir: vi.fn(),
+  };
+});
+
 describe('settings materialization', () => {
   const originalHome = process.env.FIRECRAWL_HOME;
-  const originalUserHome = process.env.HOME;
   let testHome: string;
   let testUserHome: string;
 
@@ -26,7 +33,7 @@ describe('settings materialization', () => {
     testHome = mkdtempSync(join(tmpdir(), 'firecrawl-settings-'));
     testUserHome = mkdtempSync(join(tmpdir(), 'firecrawl-legacy-home-'));
     process.env.FIRECRAWL_HOME = testHome;
-    process.env.HOME = testUserHome;
+    vi.mocked(homedir).mockReturnValue(testUserHome);
     __resetSettingsStateForTests();
   });
 
@@ -37,11 +44,6 @@ describe('settings materialization', () => {
       delete process.env.FIRECRAWL_HOME;
     } else {
       process.env.FIRECRAWL_HOME = originalHome;
-    }
-    if (originalUserHome === undefined) {
-      delete process.env.HOME;
-    } else {
-      process.env.HOME = originalUserHome;
     }
     __resetSettingsStateForTests();
   });

@@ -165,6 +165,32 @@ describe('batch status subcommand', () => {
     expect(mockClient.getBatchScrapeStatus).toHaveBeenCalledWith('batch-1');
     expect(writeOutput).toHaveBeenCalled();
   });
+
+  it('should render STYLE header fields for status output', async () => {
+    mockClient.getBatchScrapeStatus?.mockResolvedValue({
+      id: 'batch-9',
+      status: 'processing',
+      completed: 1,
+      total: 4,
+      data: [],
+    });
+
+    const cmd = createBatchCommand() as unknown as CommandWithContainer;
+    cmd.exitOverride();
+    cmd._container = container;
+
+    await cmd.parseAsync(['node', 'test', 'status', 'batch-9'], {
+      from: 'node',
+    });
+
+    const output = vi.mocked(writeOutput).mock.calls.at(-1)?.[0];
+    expect(output).toContain('Batch Status for batch-9');
+    expect(output).toContain('Status: processing | Progress: 1/4');
+    expect(output).toContain('Filters: jobId=batch-9');
+    expect(output).toMatch(
+      /As of \(EST\): \d{2}:\d{2}:\d{2} \| \d{2}\/\d{2}\/\d{4}/
+    );
+  });
 });
 
 describe('batch cancel subcommand', () => {
@@ -270,5 +296,24 @@ describe('batch errors subcommand', () => {
 
     expect(mockClient.getBatchScrapeErrors).toHaveBeenCalledWith('batch-1');
     expect(writeOutput).toHaveBeenCalled();
+  });
+
+  it('should include canonical empty-state for empty errors', async () => {
+    mockClient.getBatchScrapeErrors?.mockResolvedValue({
+      errors: [],
+      robotsBlocked: [],
+    });
+
+    const cmd = createBatchCommand() as unknown as CommandWithContainer;
+    cmd.exitOverride();
+    cmd._container = container;
+
+    await cmd.parseAsync(['node', 'test', 'errors', 'batch-empty'], {
+      from: 'node',
+    });
+
+    const output = vi.mocked(writeOutput).mock.calls.at(-1)?.[0];
+    expect(output).toContain('Batch Errors for batch-empty');
+    expect(output).toContain('No results found.');
   });
 });

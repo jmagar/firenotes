@@ -13,7 +13,14 @@ import type {
   StatsResult,
 } from '../types/stats';
 import { processCommandResult } from '../utils/command';
-import { fmt, icons } from '../utils/theme';
+import {
+  buildFiltersEcho,
+  CANONICAL_EMPTY_STATE,
+  displayValue,
+  formatAlignedTable,
+  formatHeaderBlock,
+  truncateWithEllipsis,
+} from '../utils/style-output';
 import {
   addVectorOutputOptions,
   aggregatePointsByDomain,
@@ -101,49 +108,78 @@ export async function executeStats(
 /**
  * Format stats for human display
  */
-function formatHuman(data: StatsData, verbose: boolean): string {
-  const lines: string[] = [];
+function formatHuman(
+  data: StatsData,
+  options: StatsOptions & { verbose: boolean }
+): string {
+  const lines = formatHeaderBlock({
+    title: 'Vector Database Statistics',
+    summary: `Collection: ${data.collection} | Status: ${displayValue(data.status)} | Vectors: ${data.vectorsCount.toLocaleString()}`,
+    filters: buildFiltersEcho([
+      ['collection', options.collection],
+      ['verbose', options.verbose || undefined],
+    ]),
+    includeFreshness: true,
+  });
 
-  lines.push(`  ${fmt.primary('Vector database statistics')}`);
-  lines.push(`    ${fmt.dim('Collection:')} ${data.collection}`);
-  lines.push(`    ${fmt.dim('Status:')} ${data.status}`);
+  const overviewRows: string[][] = [
+    ['Distance', displayValue(data.distance)],
+    ['Dimension', String(data.dimension)],
+    ['Points', data.pointsCount.toLocaleString()],
+  ];
+  if (options.verbose) {
+    overviewRows.push(['Segments', String(data.segmentsCount)]);
+  }
   lines.push(
-    `    ${fmt.dim('Vectors:')} ${data.vectorsCount.toLocaleString()}`
+    formatAlignedTable(
+      [
+        { header: 'Metric', width: 12 },
+        { header: 'Value', width: 24 },
+      ],
+      overviewRows
+    )
   );
-  lines.push(`    ${fmt.dim('Dimension:')} ${data.dimension}`);
-  lines.push(`    ${fmt.dim('Distance:')} ${data.distance}`);
+  lines.push('');
 
-  if (verbose) {
-    lines.push(
-      `    ${fmt.dim('Points:')} ${data.pointsCount.toLocaleString()}`
-    );
-    lines.push(`    ${fmt.dim('Segments:')} ${data.segmentsCount}`);
+  lines.push('By domain');
+  lines.push(
+    formatAlignedTable(
+      [
+        { header: 'Domain', width: 30 },
+        { header: 'Vectors', width: 8, align: 'right' },
+        { header: 'Sources', width: 7, align: 'right' },
+      ],
+      data.byDomain
+        .slice(0, 10)
+        .map((domain: DomainStats) => [
+          truncateWithEllipsis(displayValue(domain.domain), 30),
+          domain.vectorCount.toLocaleString(),
+          String(domain.sourceCount),
+        ])
+    )
+  );
+  if (data.byDomain.length === 0) {
+    lines.push(`  ${CANONICAL_EMPTY_STATE}`);
+  } else if (data.byDomain.length > 10) {
+    lines.push(`  ${data.byDomain.length - 10} additional domains not shown`);
   }
 
-  if (data.byDomain.length > 0) {
-    lines.push('');
-    lines.push(`  ${fmt.primary('By domain')}`);
-    for (const d of data.byDomain.slice(0, 10)) {
-      const sources = d.sourceCount > 1 ? ` (${d.sourceCount} sources)` : '';
-      lines.push(
-        `    ${fmt.info(icons.bullet)} ${d.domain.padEnd(30)} ${d.vectorCount.toLocaleString().padStart(8)} vectors${sources}`
-      );
-    }
-    if (data.byDomain.length > 10) {
-      lines.push(
-        `    ${fmt.dim(`... and ${data.byDomain.length - 10} more domains`)}`
-      );
-    }
-  }
-
-  if (data.bySourceCommand.length > 0) {
-    lines.push('');
-    lines.push(`  ${fmt.primary('By source command')}`);
-    for (const c of data.bySourceCommand) {
-      lines.push(
-        `    ${fmt.info(icons.bullet)} ${c.command.padEnd(15)} ${c.vectorCount.toLocaleString().padStart(8)} vectors`
-      );
-    }
+  lines.push('');
+  lines.push('By source command');
+  lines.push(
+    formatAlignedTable(
+      [
+        { header: 'Source', width: 15 },
+        { header: 'Vectors', width: 8, align: 'right' },
+      ],
+      data.bySourceCommand.map((command: SourceCommandStats) => [
+        truncateWithEllipsis(displayValue(command.command), 15),
+        command.vectorCount.toLocaleString(),
+      ])
+    )
+  );
+  if (data.bySourceCommand.length === 0) {
+    lines.push(`  ${CANONICAL_EMPTY_STATE}`);
   }
 
   return lines.join('\n');
@@ -159,7 +195,8 @@ export async function handleStatsCommand(
   processCommandResult(
     await executeStats(container, options),
     options,
-    (resultData) => formatHuman(resultData, !!options.verbose)
+    (resultData) =>
+      formatHuman(resultData, { ...options, verbose: !!options.verbose })
   );
 }
 

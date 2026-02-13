@@ -18,6 +18,7 @@ import {
   mergeExcludePaths,
 } from '../src/commands/crawl/options';
 import { extensionsToPaths } from '../src/utils/extensions';
+import { fetchWithTimeout } from '../src/utils/http';
 import { matchesPattern } from '../src/utils/url-filter';
 
 loadDotenv();
@@ -76,13 +77,19 @@ interface QdrantClusterInfo {
   commit?: string;
 }
 
+async function qdrantFetch(
+  path: string,
+  init?: RequestInit,
+  timeoutMs?: number
+): Promise<Response> {
+  return fetchWithTimeout(`${QDRANT_URL}${path}`, init, timeoutMs);
+}
+
 /**
  * Get Qdrant cluster info
  */
 async function getClusterInfo(): Promise<QdrantClusterInfo> {
-  const response = await fetch(`${QDRANT_URL}/`, {
-    signal: AbortSignal.timeout(10000),
-  });
+  const response = await qdrantFetch('/', undefined, 10000);
 
   if (!response.ok) {
     throw new Error(`Failed to get cluster info: ${response.statusText}`);
@@ -99,9 +106,7 @@ async function getClusterInfo(): Promise<QdrantClusterInfo> {
  * List all collections in Qdrant
  */
 async function listCollections(): Promise<string[]> {
-  const response = await fetch(`${QDRANT_URL}/collections`, {
-    signal: AbortSignal.timeout(10000),
-  });
+  const response = await qdrantFetch('/collections', undefined, 10000);
 
   if (!response.ok) {
     throw new Error(`Failed to list collections: ${response.statusText}`);
@@ -110,7 +115,11 @@ async function listCollections(): Promise<string[]> {
   const data = await response.json();
 
   // Null-guard the result and collections array
-  if (!data.result || !data.result.collections) {
+  if (
+    !data?.result ||
+    !Array.isArray(data.result.collections) ||
+    data.result.collections.length === 0
+  ) {
     return [];
   }
 
@@ -121,9 +130,11 @@ async function listCollections(): Promise<string[]> {
  * Get detailed collection info
  */
 async function getCollectionInfo(collection: string): Promise<CollectionInfo> {
-  const response = await fetch(`${QDRANT_URL}/collections/${collection}`, {
-    signal: AbortSignal.timeout(10000),
-  });
+  const response = await qdrantFetch(
+    `/collections/${collection}`,
+    undefined,
+    10000
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to get collection info: ${response.statusText}`);
@@ -220,7 +231,7 @@ function checkExcludeViolations(
     }
   }
 
-  const topUrls = Array.from(matchedByUrl.entries())
+  const topUrls = [...matchedByUrl]
     .map(([url, value]) => ({
       url,
       points: value.points,
@@ -265,14 +276,14 @@ async function fetchAllPoints(collection: string): Promise<QdrantPoint[]> {
       scrollBody.offset = offset;
     }
 
-    const response = await fetch(
-      `${QDRANT_URL}/collections/${collection}/points/scroll`,
+    const response = await qdrantFetch(
+      `/collections/${collection}/points/scroll`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scrollBody),
-        signal: AbortSignal.timeout(30000),
-      }
+      },
+      30000
     );
 
     if (!response.ok) {
@@ -345,16 +356,16 @@ async function deletePoints(collection: string, ids: string[]): Promise<void> {
 
   console.log(`Deleting ${ids.length} points...`);
 
-  const response = await fetch(
-    `${QDRANT_URL}/collections/${collection}/points/delete`,
+  const response = await qdrantFetch(
+    `/collections/${collection}/points/delete`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         points: ids,
       }),
-      signal: AbortSignal.timeout(30000),
-    }
+    },
+    30000
   );
 
   if (!response.ok) {

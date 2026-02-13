@@ -3,9 +3,14 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { executeStats } from '../../commands/stats';
+import { executeStats, handleStatsCommand } from '../../commands/stats';
 import type { IContainer, IQdrantService } from '../../container/types';
+import { writeOutput } from '../../utils/output';
 import { createTestContainer } from '../utils/test-container';
+
+vi.mock('../../utils/output', () => ({
+  writeOutput: vi.fn(),
+}));
 
 describe('executeStats', () => {
   let container: IContainer;
@@ -127,5 +132,61 @@ describe('executeStats', () => {
     const aDomain = result.data?.byDomain.find((d) => d.domain === 'a.com');
     expect(aDomain?.vectorCount).toBe(2);
     expect(aDomain?.sourceCount).toBe(2);
+  });
+});
+
+describe('handleStatsCommand output', () => {
+  it('should include title, summary, freshness, and tables', async () => {
+    const mockQdrantService: IQdrantService = {
+      ensureCollection: vi.fn(),
+      deleteByUrl: vi.fn(),
+      deleteByDomain: vi.fn(),
+      countByDomain: vi.fn(),
+      countByUrl: vi.fn(),
+      upsertPoints: vi.fn(),
+      queryPoints: vi.fn(),
+      scrollByUrl: vi.fn(),
+      scrollAll: vi.fn().mockResolvedValue([
+        {
+          id: 'p1',
+          payload: {
+            domain: 'example.com',
+            source_command: 'crawl',
+            url: 'https://example.com/a',
+          },
+        },
+      ]),
+      getCollectionInfo: vi.fn().mockResolvedValue({
+        status: 'green',
+        vectorsCount: 1,
+        pointsCount: 1,
+        segmentsCount: 1,
+        config: { dimension: 768, distance: 'Cosine' },
+      }),
+      countPoints: vi.fn().mockResolvedValue(1),
+      deleteAll: vi.fn(),
+    };
+    const container = createTestContainer(undefined, {
+      qdrantUrl: 'http://localhost:53333',
+      qdrantCollection: 'test_col',
+    });
+    vi.spyOn(container, 'getQdrantService').mockReturnValue(mockQdrantService);
+
+    await handleStatsCommand(container, {
+      verbose: true,
+      collection: 'test_col',
+    });
+
+    const output = vi.mocked(writeOutput).mock.calls.at(-1)?.[0] as string;
+    expect(output).toContain('Vector Database Statistics');
+    expect(output).toContain(
+      'Collection: test_col | Status: green | Vectors: 1'
+    );
+    expect(output).toContain('Filters: collection=test_col, verbose=true');
+    expect(output).toMatch(
+      /As of \(EST\): \d{2}:\d{2}:\d{2} \| \d{2}\/\d{2}\/\d{4}/
+    );
+    expect(output).toContain('By domain');
+    expect(output).toContain('By source command');
   });
 });

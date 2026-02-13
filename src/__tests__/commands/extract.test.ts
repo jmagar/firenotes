@@ -400,4 +400,30 @@ describe('handleExtractCommand', () => {
     expect(mockAutoEmbed).not.toHaveBeenCalled();
     expect(writeOutput).toHaveBeenCalled();
   });
+
+  it('should render STYLE header fields in human output mode', async () => {
+    mockClient.extract.mockResolvedValue({
+      success: true,
+      data: { product: 'Widget' },
+      sources: ['https://example.com/source'],
+    });
+
+    await handleExtractCommand(mockContainer, {
+      urls: ['https://example.com'],
+      allowExternalLinks: true,
+      enableWebSearch: false,
+      includeSubdomains: true,
+      showSources: true,
+    });
+
+    const output = vi.mocked(writeOutput).mock.calls.at(-1)?.[0];
+    expect(output).toContain('Extract Results');
+    expect(output).toContain('URLs: 1 | Sources: 1');
+    expect(output).toContain(
+      'Filters: allowExternalLinks=true, enableWebSearch=false, includeSubdomains=true, showSources=true'
+    );
+    expect(output).toMatch(
+      /As of \(EST\): \d{2}:\d{2}:\d{2} \| \d{2}\/\d{2}\/\d{4}/
+    );
+  });
 });

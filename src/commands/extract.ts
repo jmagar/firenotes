@@ -8,12 +8,18 @@ import type { ExtractOptions, ExtractResult } from '../types/extract';
 import {
   formatJson,
   handleCommandError,
+  shouldOutputJson,
   writeCommandOutput,
 } from '../utils/command';
 import { normalizeJobId } from '../utils/job';
 import { recordJob } from '../utils/job-history';
 import { buildApiErrorMessage } from '../utils/network-error';
 import { getSettings } from '../utils/settings';
+import {
+  buildFiltersEcho,
+  CANONICAL_EMPTY_STATE,
+  formatHeaderBlock,
+} from '../utils/style-output';
 import {
   normalizeUrlArgs,
   requireContainer,
@@ -233,6 +239,8 @@ export async function handleExtractCommand(
     await Promise.all(embedTasks);
   }
 
+  const useJson = shouldOutputJson(options) || !!options.output;
+
   // Format output using shared utility
   const outputData: Record<string, unknown> = {
     success: true,
@@ -245,7 +253,55 @@ export async function handleExtractCommand(
     outputData.warning = result.data.warning;
   }
 
-  const outputContent = formatJson(outputData, options.pretty);
+  let outputContent: string;
+  if (useJson) {
+    outputContent = formatJson(outputData, options.pretty);
+  } else {
+    const sources = Array.isArray(result.data.sources)
+      ? result.data.sources
+      : [];
+    const lines = formatHeaderBlock({
+      title: 'Extract Results',
+      summary: `URLs: ${options.urls.length} | Sources: ${sources.length}`,
+      filters: buildFiltersEcho([
+        ['allowExternalLinks', options.allowExternalLinks],
+        ['enableWebSearch', options.enableWebSearch],
+        ['includeSubdomains', options.includeSubdomains],
+        ['showSources', options.showSources],
+      ]),
+      includeFreshness: true,
+    });
+
+    if (result.data.warning) {
+      lines.push(`Warning: ${result.data.warning}`);
+    }
+
+    if (
+      result.data.extracted === null ||
+      result.data.extracted === undefined ||
+      (typeof result.data.extracted === 'string' &&
+        result.data.extracted.trim().length === 0)
+    ) {
+      lines.push(`  ${CANONICAL_EMPTY_STATE}`);
+    } else {
+      lines.push('Data');
+      lines.push(
+        typeof result.data.extracted === 'string'
+          ? result.data.extracted
+          : JSON.stringify(result.data.extracted, null, 2)
+      );
+    }
+
+    if (sources.length > 0) {
+      lines.push('');
+      lines.push('Sources');
+      for (const source of [...sources].sort((a, b) => a.localeCompare(b))) {
+        lines.push(source);
+      }
+    }
+
+    outputContent = lines.join('\n');
+  }
   writeCommandOutput(outputContent, options);
 }
 
@@ -282,7 +338,28 @@ async function handleExtractStatusCommand(
       },
     };
 
-    const outputContent = formatJson(result, options.pretty);
+    const useJson =
+      options.pretty ||
+      Boolean(options.output?.toLowerCase().endsWith('.json'));
+    const outputContent = useJson
+      ? formatJson(result, options.pretty)
+      : formatHeaderBlock({
+          title: `Extract Status for ${jobId}`,
+          summary: `Status: ${String(status.status ?? 'processing')} | Sources: ${Array.isArray(status.sources) ? status.sources.length : 0}`,
+          filters: buildFiltersEcho([['jobId', jobId]]),
+          includeFreshness: true,
+        })
+          .concat(
+            Array.isArray(status.sources) && status.sources.length === 0
+              ? [`  ${CANONICAL_EMPTY_STATE}`]
+              : [
+                  `Job ID: ${jobId}`,
+                  `Status: ${String(status.status ?? 'processing')}`,
+                  `Tokens Used: ${String((status as { tokensUsed?: number }).tokensUsed ?? '—')}`,
+                  `Expires At: ${String(status.expiresAt ?? '—')}`,
+                ]
+          )
+          .join('\n');
     writeCommandOutput(outputContent, options);
   } catch (error: unknown) {
     const errorMessage = buildApiErrorMessage(error, container.config.apiUrl);

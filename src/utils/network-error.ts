@@ -22,9 +22,19 @@ function isLocalApiUrl(apiUrl: string | undefined): boolean {
 
   try {
     const parsed = new URL(apiUrl);
-    return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(
-      parsed.hostname
-    );
+    const hostname = parsed.hostname.toLowerCase();
+    const normalizedHostname =
+      hostname.startsWith('[') && hostname.endsWith(']')
+        ? hostname.slice(1, -1)
+        : hostname;
+
+    return [
+      'localhost',
+      'ip6-localhost',
+      '127.0.0.1',
+      '0.0.0.0',
+      '::1',
+    ].includes(normalizedHostname);
   } catch {
     return false;
   }

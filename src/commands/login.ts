@@ -14,6 +14,7 @@ import {
   saveCredentials,
 } from '../utils/credentials';
 import { DEFAULT_API_URL } from '../utils/defaults';
+import { formatHeaderBlock } from '../utils/display';
 import { fmt, icons } from '../utils/theme';
 
 export interface LoginOptions {
@@ -34,7 +35,15 @@ export async function handleLoginCommand(
     const authSource = getAuthSource();
     const storedCredentials = loadCredentials();
 
-    console.log(`${icons.success} You are already logged in.`);
+    for (const line of formatHeaderBlock({
+      title: 'Login Status',
+      summary: [
+        'state: already authenticated',
+        `source: ${authSource === 'env' ? 'FIRECRAWL_API_KEY' : 'stored credentials'}`,
+      ],
+    })) {
+      console.log(line);
+    }
     if (authSource === 'env') {
       console.log(fmt.dim('Authentication source: FIRECRAWL_API_KEY'));
       if (storedCredentials?.apiKey) {
@@ -45,6 +54,7 @@ export async function handleLoginCommand(
         );
       }
       console.log('');
+      console.log(fmt.primary('Next:'));
       console.log(fmt.dim('To login with a different account, either:'));
       console.log(fmt.dim('  unset FIRECRAWL_API_KEY'));
       console.log(fmt.dim('  firecrawl login'));
@@ -58,6 +68,7 @@ export async function handleLoginCommand(
       );
     }
     console.log('');
+    console.log(fmt.primary('Next:'));
     console.log(fmt.dim('To login with a different account, run:'));
     console.log(fmt.dim('  firecrawl logout'));
     console.log(fmt.dim('  firecrawl login'));
@@ -71,6 +82,12 @@ export async function handleLoginCommand(
         apiKey: options.apiKey,
         apiUrl: apiUrl,
       });
+      for (const line of formatHeaderBlock({
+        title: 'Login',
+        summary: ['state: credentials saved', 'method: --api-key'],
+      })) {
+        console.log(line);
+      }
       console.log(fmt.success(`${icons.success} Login successful!`));
     } catch (error) {
       console.error(
@@ -92,7 +109,12 @@ export async function handleLoginCommand(
       apiUrl: result.apiUrl || apiUrl,
     });
 
-    console.log('');
+    for (const line of formatHeaderBlock({
+      title: 'Login',
+      summary: ['state: credentials saved', 'method: interactive'],
+    })) {
+      console.log(line);
+    }
     console.log(fmt.success(`${icons.success} Login successful!`));
   } catch (error) {
     console.error('');

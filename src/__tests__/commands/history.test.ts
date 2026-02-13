@@ -3,9 +3,14 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { executeHistory } from '../../commands/history';
+import { executeHistory, handleHistoryCommand } from '../../commands/history';
 import type { IContainer } from '../../container/types';
 import type { HistoryOptions } from '../../types/history';
+import { writeOutput } from '../../utils/output';
+
+vi.mock('../../utils/output', () => ({
+  writeOutput: vi.fn(),
+}));
 
 describe('History Command', () => {
   let mockContainer: IContainer;
@@ -280,5 +285,58 @@ describe('History Command', () => {
     expect(result.data?.entries[1].date).toBe('2026-02-01T10:00:00Z');
 
     vi.useRealTimers();
+  });
+});
+
+describe('History command output', () => {
+  it('should include title, summary, filters, and date range', async () => {
+    const mockScrollAll = vi.fn().mockResolvedValue([
+      {
+        id: '1',
+        payload: {
+          url: 'https://example.com/path',
+          domain: 'example.com',
+          source_command: 'scrape',
+          total_chunks: 2,
+          chunk_index: 0,
+          scraped_at: '2026-02-10T10:00:00Z',
+        },
+      },
+    ]);
+
+    const container = {
+      config: {
+        qdrantUrl: 'http://localhost:53333',
+        qdrantCollection: 'firecrawl',
+      },
+      getQdrantService: () => ({
+        scrollAll: mockScrollAll,
+        ensureCollection: vi.fn(),
+        upsertPoints: vi.fn(),
+        deleteByUrl: vi.fn(),
+        queryPoints: vi.fn(),
+        scrollByUrl: vi.fn(),
+        deleteByDomain: vi.fn(),
+        countByDomain: vi.fn(),
+        getCollectionInfo: vi.fn(),
+        countPoints: vi.fn(),
+        countByUrl: vi.fn(),
+        deleteAll: vi.fn(),
+      }),
+    } as unknown as IContainer;
+
+    await handleHistoryCommand(container, {
+      domain: 'example.com',
+      days: 7,
+      limit: 10,
+    });
+
+    const output = vi.mocked(writeOutput).mock.calls.at(-1)?.[0] as string;
+    expect(output).toContain('History');
+    expect(output).toContain('Showing 1 of 1 entries');
+    expect(output).toContain('Filters: domain=example.com, days=7, limit=10');
+    expect(output).toContain('Date range: 2026-02-10 to 2026-02-10');
+    expect(output).toContain('Domain');
+    expect(output).toContain('Source');
   });
 });

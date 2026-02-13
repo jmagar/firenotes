@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import type { DoctorReport } from '../types/doctor';
-import { colorize, colors, fmt } from '../utils/theme';
+import { buildFiltersEcho, formatAsOfEst } from '../utils/style-output';
+import { fmt } from '../utils/theme';
 
 export interface DoctorDebugOptions {
   aiTimeout?: number;
@@ -68,6 +69,42 @@ function resolveDoctorDebugBackend(): DoctorDebugBackend | undefined {
 
 export function hasDoctorDebugBackendConfigured(): boolean {
   return resolveDoctorDebugBackend() !== undefined;
+}
+
+function formatDoctorDebugHeader(
+  backendLabel: string,
+  report: DoctorReport,
+  options: DoctorDebugOptions = {}
+): string[] {
+  const timeoutMs = options.aiTimeout ?? DEFAULT_AI_DEBUG_TIMEOUT_MS;
+  const filters = buildFiltersEcho([
+    [
+      'ai_timeout_ms',
+      timeoutMs !== DEFAULT_AI_DEBUG_TIMEOUT_MS ? timeoutMs : undefined,
+    ],
+  ]);
+  const mixedStates =
+    [report.summary.pass, report.summary.warn, report.summary.fail].filter(
+      (count) => count > 0
+    ).length > 1;
+  const lines: string[] = [];
+  lines.push(`  ${fmt.primary('Doctor Debug Chat')}`);
+  lines.push(
+    `  ${fmt.dim(`Model: ${backendLabel} | Pass: ${report.summary.pass} | Warn: ${report.summary.warn} | Fail: ${report.summary.fail}`)}`
+  );
+  if (mixedStates) {
+    lines.push(
+      `  ${fmt.dim('Legend:')} ${fmt.success('✓ pass')}  ${fmt.warning('⚠ warn')}  ${fmt.error('✗ fail')}`
+    );
+  }
+  if (filters) {
+    lines.push(`  ${fmt.dim(`Filters: ${filters}`)}`);
+  }
+  lines.push(
+    `  ${fmt.dim(`As of (EST): ${formatAsOfEst(new Date(report.timestamp))}`)}`
+  );
+  lines.push('');
+  return lines;
 }
 
 function buildDoctorDebugPrompt(report: DoctorReport): string {
@@ -311,14 +348,12 @@ export async function runDoctorDebugChat(
         : 'Claude'
       : 'Assistant';
   const prompt = buildDoctorDebugPrompt(report);
+  const timeoutMs = options.aiTimeout ?? DEFAULT_AI_DEBUG_TIMEOUT_MS;
 
   console.log('');
-  console.log(`  ${fmt.bold(colorize(colors.primary, 'Doctor Debug Chat'))}`);
-  console.log(`  ${fmt.dim(`Model: ${backend.label}`)}`);
-  console.log(
-    `  ${fmt.dim(`Summary: pass ${report.summary.pass} | warn ${report.summary.warn} | fail ${report.summary.fail}`)}`
-  );
-  console.log('');
+  for (const line of formatDoctorDebugHeader(backend.label, report, options)) {
+    console.log(line);
+  }
   console.log(
     `  ${fmt.primary('You:')} Diagnose and fix my Firecrawl setup issues.`
   );
@@ -326,7 +361,6 @@ export async function runDoctorDebugChat(
   console.log(`  ${fmt.primary(`${speaker}:`)}`);
   console.log('');
 
-  const timeoutMs = options.aiTimeout ?? DEFAULT_AI_DEBUG_TIMEOUT_MS;
   if (backend.kind === 'cli') {
     await streamCliDebug(backend, prompt, timeoutMs);
   } else {
@@ -334,3 +368,7 @@ export async function runDoctorDebugChat(
   }
   console.log('');
 }
+
+export const __doctorDebugTestables = {
+  formatDoctorDebugHeader,
+};

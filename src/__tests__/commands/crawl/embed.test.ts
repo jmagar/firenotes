@@ -344,7 +344,7 @@ describe('handleManualEmbedding', () => {
     await handleManualEmbedding(container, 'job-123');
 
     expect(consoleError).toHaveBeenCalledWith(
-      '! Crawl job-123 is processing, cannot embed yet'
+      '⚠ Crawl job-123 is processing, cannot embed yet'
     );
     expect(mockProcessEmbedQueue).not.toHaveBeenCalled();
 

@@ -67,6 +67,8 @@ export function validateOutputPath(
 
 import type { Document } from '@mendable/firecrawl-js';
 import type { ScrapeFormat, ScrapeResult } from '../types/scrape';
+import { formatHeaderBlock } from './display';
+import { CANONICAL_EMPTY_STATE } from './style-output';
 
 /**
  * Determine if output should be JSON based on flag or file extension
@@ -118,6 +120,33 @@ function formatScreenshotOutput(data: Document): string {
       lines.push(`Description: ${data.metadata.description}`);
     }
   }
+
+  return lines.join('\n');
+}
+
+export interface ScrapeReadableHeader {
+  title: string;
+  summary: string[];
+  filters?: Record<string, unknown>;
+  includeFreshness?: boolean;
+}
+
+function withReadableHeader(
+  content: string,
+  header?: ScrapeReadableHeader,
+  outputPath?: string
+): string {
+  if (!header || outputPath) {
+    return content;
+  }
+
+  const lines = formatHeaderBlock({
+    title: header.title,
+    summary: header.summary,
+    filters: header.filters,
+    freshness: header.includeFreshness,
+  });
+  lines.push(content.trim().length > 0 ? content : CANONICAL_EMPTY_STATE);
 
   return lines.join('\n');
 }
@@ -239,7 +268,8 @@ export function handleScrapeOutput(
   formats: ScrapeFormat[],
   outputPath?: string,
   pretty: boolean = false,
-  json: boolean = false
+  json: boolean = false,
+  readableHeader?: ScrapeReadableHeader
 ): void {
   if (!result.success) {
     // Always use stderr for errors to allow piping
@@ -281,7 +311,11 @@ export function handleScrapeOutput(
   if (isSingleFormat && isRawTextFormat && singleFormat) {
     const content = extractContent(result.data, singleFormat);
     if (content !== null) {
-      writeOutput(content, outputPath, !!outputPath);
+      writeOutput(
+        withReadableHeader(content, readableHeader, outputPath),
+        outputPath,
+        !!outputPath
+      );
       return;
     }
   }
@@ -292,7 +326,11 @@ export function handleScrapeOutput(
     singleFormat === 'screenshot' &&
     result.data.screenshot
   ) {
-    const content = formatScreenshotOutput(result.data);
+    const content = withReadableHeader(
+      formatScreenshotOutput(result.data),
+      readableHeader,
+      outputPath
+    );
     writeOutput(content, outputPath, !!outputPath);
     return;
   }

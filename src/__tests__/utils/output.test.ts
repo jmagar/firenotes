@@ -231,6 +231,34 @@ describe('Output Utilities', () => {
       );
     });
 
+    it('should render style header for readable single-format stdout output', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      handleScrapeOutput(
+        {
+          success: true,
+          data: { markdown: '# Test Content' },
+        },
+        ['markdown'],
+        undefined,
+        false,
+        false,
+        {
+          title: 'Scrape Results for https://example.com',
+          summary: ['Requested formats: 1', 'returned: 1'],
+          filters: { onlyMainContent: true },
+          includeFreshness: true,
+        }
+      );
+
+      const output = stdoutWriteSpy.mock.calls[0][0] as string;
+      expect(output).toContain('Scrape Results for https://example.com');
+      expect(output).toContain('Requested formats: 1 | returned: 1');
+      expect(output).toContain('Filters: onlyMainContent=true');
+      expect(output).toContain('As of (EST):');
+      expect(output).toContain('# Test Content');
+    });
+
     it('should output formatted screenshot info for single screenshot format', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 

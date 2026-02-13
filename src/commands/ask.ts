@@ -8,6 +8,7 @@ import { Command } from 'commander';
 import pLimit from 'p-limit';
 import type { IContainer } from '../container/types';
 import type { AskOptions, AskResult, AskSource } from '../types/ask';
+import { formatHeaderBlock } from '../utils/display';
 import { getSettings } from '../utils/settings';
 import { fmt, icons } from '../utils/theme';
 import { executeQuery } from './query';
@@ -324,9 +325,15 @@ export async function handleAskCommand(
 
   // Claude's response was already streamed to stdout during executeAsk
   // Now show sources and metadata on stderr
-  console.error('');
-  console.error(fmt.dim('─'.repeat(60)));
-  console.error(fmt.bold(fmt.dim('Sources:')));
+  for (const line of formatHeaderBlock({
+    title: `Ask Sources for "${result.data.query}"`,
+    summary: [
+      `documents retrieved: ${result.data.documentsRetrieved}`,
+      `sources: ${result.data.sources.length}`,
+    ],
+  })) {
+    console.error(line);
+  }
   for (let i = 0; i < result.data.sources.length; i++) {
     const source = result.data.sources[i];
     const title = source.title || 'Untitled';
@@ -334,12 +341,6 @@ export async function handleAskCommand(
     console.error(`  ${i + 1}. [${score}] ${source.url}`);
     console.error(`     ${fmt.dim(title)}`);
   }
-  console.error('');
-  console.error(
-    fmt.dim(
-      `${icons.info} Retrieved ${result.data.documentsRetrieved} documents`
-    )
-  );
 }
 
 /**

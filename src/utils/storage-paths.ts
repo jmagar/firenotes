@@ -6,14 +6,14 @@
  */
 
 import { homedir } from 'node:os';
-import { isAbsolute, join, resolve } from 'node:path';
+import * as path from 'node:path';
 
 function expandLeadingTilde(inputPath: string): string {
   if (inputPath === '~') {
     return homedir();
   }
   if (inputPath.startsWith('~/')) {
-    return join(homedir(), inputPath.slice(2));
+    return path.join(homedir(), inputPath.slice(2));
   }
   return inputPath;
 }
@@ -24,16 +24,16 @@ function expandLeadingTilde(inputPath: string): string {
 export function getStorageRoot(): string {
   const configuredRoot = process.env.FIRECRAWL_HOME;
   if (configuredRoot && configuredRoot.trim().length > 0) {
-    return resolve(expandLeadingTilde(configuredRoot.trim()));
+    return path.resolve(expandLeadingTilde(configuredRoot.trim()));
   }
-  return join(homedir(), '.firecrawl');
+  return path.join(homedir(), '.firecrawl');
 }
 
 /**
  * Build a path under the storage root.
  */
 export function getStoragePath(...segments: string[]): string {
-  return join(getStorageRoot(), ...segments);
+  return path.join(getStorageRoot(), ...segments);
 }
 
 /**
@@ -58,10 +58,11 @@ export function getJobHistoryPath(): string {
 }
 
 export function getEmbedQueueDir(): string {
-  const configuredDir = process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
-  if (configuredDir && configuredDir.trim().length > 0) {
-    const trimmed = configuredDir.trim();
-    return isAbsolute(trimmed) ? trimmed : join(process.cwd(), trimmed);
+  const trimmedConfiguredDir = process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR?.trim();
+  if (trimmedConfiguredDir) {
+    return path.isAbsolute(trimmedConfiguredDir)
+      ? trimmedConfiguredDir
+      : path.join(process.cwd(), trimmedConfiguredDir);
   }
 
   return getStoragePath('embed-queue');

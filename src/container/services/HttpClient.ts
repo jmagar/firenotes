@@ -12,6 +12,14 @@ import {
 } from '../../utils/http';
 import type { IHttpClient } from '../types';
 
+function omitUndefinedValues<T extends Record<string, unknown>>(
+  input: T
+): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(input).filter(([, value]) => value !== undefined)
+  ) as Partial<T>;
+}
+
 /**
  * HttpClient service implementation
  * Delegates to centralized HTTP utilities
@@ -41,14 +49,12 @@ export class HttpClient implements IHttpClient {
     const retryOptions =
       options === undefined
         ? undefined
-        : (Object.fromEntries(
-            Object.entries({
-              timeoutMs: options.timeoutMs,
-              maxRetries: options.maxRetries,
-              baseDelayMs: options.baseDelayMs,
-              maxDelayMs: options.maxDelayMs,
-            }).filter(([_, value]) => value !== undefined)
-          ) as typeof options);
+        : (omitUndefinedValues({
+            timeoutMs: options.timeoutMs,
+            maxRetries: options.maxRetries,
+            baseDelayMs: options.baseDelayMs,
+            maxDelayMs: options.maxDelayMs,
+          }) as typeof options);
 
     return utilFetchWithRetry(url, init, retryOptions);
   }

@@ -11,7 +11,15 @@ import type {
   DomainsResult,
 } from '../types/domains';
 import { processCommandResult } from '../utils/command';
-import { fmt, icons } from '../utils/theme';
+import {
+  buildFiltersEcho,
+  CANONICAL_EMPTY_STATE,
+  displayValue,
+  formatAlignedTable,
+  formatDateOnly,
+  formatHeaderBlock,
+  truncateWithEllipsis,
+} from '../utils/style-output';
 import {
   addVectorOutputOptions,
   aggregatePointsByDomain,
@@ -90,36 +98,28 @@ export async function executeDomains(
  * Format domains as table
  */
 function formatTable(domains: DomainInfo[]): string {
-  if (domains.length === 0) {
-    return fmt.dim('No domains found in vector database.');
-  }
-
   const lines: string[] = [];
-  lines.push(`  ${fmt.primary('Domains')}`);
-  lines.push('');
-
-  const header = [
-    'Domain'.padEnd(35),
-    'URLs'.padStart(6),
-    'Vectors'.padStart(8),
-    'Last Updated',
-  ].join('  ');
-  lines.push(header);
-  lines.push('─'.repeat(header.length));
-
-  for (const domain of domains) {
-    const name =
-      domain.domain.length > 34
-        ? `${domain.domain.slice(0, 32)}..`
-        : domain.domain.padEnd(35);
-    const urls = String(domain.urlCount).padStart(6);
-    const vectors = String(domain.vectorCount).padStart(8);
-    const lastUpdated = domain.lastUpdated
-      ? domain.lastUpdated.split('T')[0]
-      : 'unknown';
-
-    lines.push([name, urls, vectors, lastUpdated].join('  '));
+  if (domains.length === 0) {
+    lines.push(`  ${CANONICAL_EMPTY_STATE}`);
+    lines.push('');
   }
+
+  lines.push(
+    formatAlignedTable(
+      [
+        { header: 'Domain', width: 35 },
+        { header: 'URLs', width: 6, align: 'right' },
+        { header: 'Vectors', width: 8, align: 'right' },
+        { header: 'Last Updated', width: 12 },
+      ],
+      domains.map((domain) => [
+        truncateWithEllipsis(displayValue(domain.domain), 35),
+        String(domain.urlCount),
+        String(domain.vectorCount),
+        formatDateOnly(domain.lastUpdated),
+      ])
+    )
+  );
 
   return lines.join('\n');
 }
@@ -127,8 +127,21 @@ function formatTable(domains: DomainInfo[]): string {
 /**
  * Format domains summary
  */
-function formatSummary(data: NonNullable<DomainsResult['data']>): string {
-  return `\n  ${fmt.info(icons.info)} ${data.totalDomains} domains, ${data.totalUrls} URLs, ${data.totalVectors} vectors`;
+function formatSummary(
+  data: NonNullable<DomainsResult['data']>,
+  options: DomainsOptions
+): string {
+  const filters = buildFiltersEcho([
+    ['collection', options.collection],
+    ['limit', options.limit],
+  ]);
+  const lines = formatHeaderBlock({
+    title: 'Domains',
+    summary: `Showing ${data.domains.length} of ${data.totalDomains} domains | URLs: ${data.totalUrls} | Vectors: ${data.totalVectors}`,
+    filters,
+  });
+  lines.push(formatTable(data.domains));
+  return lines.join('\n');
 }
 
 /**
@@ -141,7 +154,7 @@ export async function handleDomainsCommand(
   processCommandResult(
     await executeDomains(container, options),
     options,
-    (resultData) => formatTable(resultData.domains) + formatSummary(resultData)
+    (resultData) => formatSummary(resultData, options)
   );
 }
 

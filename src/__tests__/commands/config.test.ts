@@ -220,7 +220,9 @@ describe('handleConfigGet', () => {
       handleConfigGet('exclude-paths');
 
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('No default exclude paths configured')
+        expect.stringContaining(
+          'No exclude paths found on current configuration'
+        )
       );
     });
 
@@ -230,7 +232,9 @@ describe('handleConfigGet', () => {
       handleConfigGet('exclude-paths');
 
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('No default exclude paths configured')
+        expect.stringContaining(
+          'No exclude paths found on current configuration'
+        )
       );
     });
   });
@@ -256,7 +260,12 @@ describe('handleConfigGet', () => {
       handleConfigGet('exclude-extensions');
 
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('using built-in defaults')
+        expect.stringContaining(
+          'No custom exclude extensions found on current configuration'
+        )
+      );
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('Using built-in defaults')
       );
     });
 
@@ -266,7 +275,12 @@ describe('handleConfigGet', () => {
       handleConfigGet('exclude-extensions');
 
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('using built-in defaults')
+        expect.stringContaining(
+          'No custom exclude extensions found on current configuration'
+        )
+      );
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('Using built-in defaults')
       );
     });
   });
@@ -329,7 +343,9 @@ describe('handleConfigGet', () => {
       handleConfigGet('excludes');
 
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('No custom exclude paths configured')
+        expect.stringContaining(
+          'No exclude paths found on current configuration'
+        )
       );
       expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining('custom configuration')
@@ -345,7 +361,9 @@ describe('handleConfigGet', () => {
       handleConfigGet('excludes');
 
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('No custom exclude paths configured')
+        expect.stringContaining(
+          'No exclude paths found on current configuration'
+        )
       );
       expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining('using built-in defaults')
