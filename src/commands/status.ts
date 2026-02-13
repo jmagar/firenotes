@@ -1560,7 +1560,12 @@ export async function handleJobStatusCommand(
     };
 
     if (options.watch && !wantsJson) {
-      const intervalMs = Math.max(1, options.intervalSeconds ?? 3) * 1000;
+      const intervalSeconds =
+        typeof options.intervalSeconds === 'number' &&
+        Number.isFinite(options.intervalSeconds)
+          ? options.intervalSeconds
+          : 3;
+      const intervalMs = Math.max(1000, intervalSeconds * 1000);
       let previousSnapshot: Map<string, string> | null = null;
       // eslint-disable-next-line no-constant-condition
       while (true) {

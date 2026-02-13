@@ -141,6 +141,6 @@ describe('handleDomainsCommand output', () => {
     expect(output).toContain('No results found.');
     expect(output).toContain('Domain');
     expect(output).toContain('Last Updated');
-    expect(output).toContain('—');
+    expect(output).not.toContain('—');
   });
 });

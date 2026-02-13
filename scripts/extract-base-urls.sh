@@ -35,6 +35,15 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Disable ANSI colors when not writing to a terminal.
+if [ ! -t 2 ]; then
+    RED=''
+    GREEN=''
+    YELLOW=''
+    BLUE=''
+    NC=''
+fi
+
 # Helper functions
 log_info() {
     if [ "$QUIET" = false ]; then
@@ -130,7 +139,7 @@ log_info "Found collection '$COLLECTION' with $points_count points"
 
 # Create temporary file for all URLs
 temp_file=$(mktemp)
-trap "rm -f $temp_file" EXIT
+trap "rm -f \"$temp_file\"" EXIT
 
 # Scroll through all points
 offset=null
@@ -180,6 +189,10 @@ sort "$temp_file" | uniq -c | sort -rn | awk '{printf "%8d  %s\n", $1, $2}' > "$
 # Calculate statistics
 unique_count=$(wc -l < "$OUTPUT_FILE")
 total_pages=$(awk '{sum+=$1} END {print sum}' "$OUTPUT_FILE")
+avg_pages=0
+if [ "$unique_count" -gt 0 ]; then
+    avg_pages=$((total_pages / unique_count))
+fi
 
 # Output results
 log_success "Extraction complete!"
@@ -187,7 +200,7 @@ echo ""
 echo "Statistics:"
 echo "  Total pages indexed: $total_pages"
 echo "  Unique base URLs: $unique_count"
-echo "  Average pages per domain: $((total_pages / unique_count))"
+echo "  Average pages per domain: $avg_pages"
 echo "  Output file: $OUTPUT_FILE"
 echo ""
 echo "Top 10 domains by page count:"

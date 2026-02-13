@@ -226,7 +226,7 @@ $ firecrawl ask "Question"
 ```
 
 **Solutions:**
-1. Install Claude Code: `npm install -g @anthropic-ai/claude`
+1. Install Claude Code: `npm install -g @anthropic-ai/claude-code`
 2. Verify installation: `which claude`
 3. Add to PATH if needed
 4. Check Claude authentication: `claude --help`

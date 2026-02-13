@@ -344,6 +344,7 @@ describe('executeCrawlCleanup', () => {
       removedFailed: 1,
       removedStale: 1,
       removedNotFound: 1,
+      skipped: 0,
       removedTotal: 3,
     });
   });
@@ -365,6 +366,7 @@ describe('executeCrawlCleanup', () => {
       removedFailed: 0,
       removedStale: 0,
       removedNotFound: 0,
+      skipped: 0,
       removedTotal: 0,
     });
     expect(mockClient.getCrawlStatus).not.toHaveBeenCalled();
@@ -409,6 +411,35 @@ describe('executeCrawlCleanup', () => {
     expect(result.success).toBe(true);
     expect(result.data?.removedFailed).toBe(2);
     expect(result.data?.removedTotal).toBe(2);
+    expect(result.data?.skipped).toBe(0);
+  });
+
+  it('should count and warn on non-not-found cleanup errors', async () => {
+    vi.mocked(getRecentJobIds).mockResolvedValue(['job-timeout']);
+    vi.mocked(removeJobIds).mockResolvedValue(undefined);
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const mockClient = {
+      getCrawlStatus: vi
+        .fn()
+        .mockRejectedValue(new Error('Gateway timeout while checking status')),
+    };
+    const container = createContainer(mockClient);
+
+    const result = await executeCrawlCleanup(container);
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({
+      scanned: 1,
+      removedFailed: 0,
+      removedStale: 0,
+      removedNotFound: 0,
+      skipped: 1,
+      removedTotal: 0,
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Skipped job-timeout')
+    );
   });
 });
 

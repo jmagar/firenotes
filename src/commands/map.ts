@@ -613,10 +613,7 @@ export function createMapCommand(): Command {
           command.getOptionValueSource('includeSubdomains') === 'default'
             ? undefined
             : options.includeSubdomains,
-        ignoreQueryParameters:
-          command.getOptionValueSource('ignoreQueryParameters') === 'default'
-            ? undefined
-            : options.ignoreQueryParameters,
+        ignoreQueryParameters: options.ignoreQueryParameters,
         ignoreCache:
           command.getOptionValueSource('ignoreCache') === 'default'
             ? undefined

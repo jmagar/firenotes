@@ -157,7 +157,12 @@ async function streamCliDebug(
   timeoutMs: number
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const aiProcess = spawn(backend.cli, ['--model', backend.model, '-p'], {
+    const args = ['--model', backend.model];
+    if (backend.cli === 'claude') {
+      args.push('-p');
+    }
+
+    const aiProcess = spawn(backend.cli, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let stderrOutput = '';
@@ -295,6 +300,17 @@ async function streamOpenAiDebug(
 
       if (wroteAnyOutput) {
         return;
+      }
+    } else {
+      try {
+        const payload = (await streamResponse.json()) as unknown;
+        const text = extractOpenAiText(payload);
+        if (text) {
+          process.stdout.write(text);
+          return;
+        }
+      } catch {
+        // Non-SSE response was not valid JSON, fall back to non-stream request.
       }
     }
 

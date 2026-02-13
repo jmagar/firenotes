@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { __doctorTestables, createDoctorCommand } from '../../commands/doctor';
 
 describe('doctor helpers', () => {
+  it('parses docker compose JSON array output', () => {
+    const output = JSON.stringify([
+      { Service: 'firecrawl', State: 'running', Health: 'healthy' },
+      { Service: 'firecrawl-redis', State: 'running', Health: 'healthy' },
+    ]);
+
+    const parsed = __doctorTestables.parseComposePsJson(output);
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].Service).toBe('firecrawl');
+    expect(parsed[1].Service).toBe('firecrawl-redis');
+  });
+
   it('parses docker compose JSON lines and skips malformed rows', () => {
     const output = [
       '{"Service":"firecrawl","State":"running","Health":"healthy"}',

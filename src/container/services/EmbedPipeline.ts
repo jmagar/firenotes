@@ -53,6 +53,11 @@ export class EmbedPipeline implements IEmbedPipeline {
       );
     })();
 
+    this.collectionPromise.catch(() => {
+      // Clear failed initialization so subsequent calls can retry.
+      this.collectionPromise = null;
+    });
+
     return this.collectionPromise;
   }
 

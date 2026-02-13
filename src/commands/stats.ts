@@ -155,7 +155,8 @@ function formatHuman(
           truncateWithEllipsis(displayValue(domain.domain), 30),
           domain.vectorCount.toLocaleString(),
           String(domain.sourceCount),
-        ])
+        ]),
+      false
     )
   );
   if (data.byDomain.length === 0) {
@@ -175,7 +176,8 @@ function formatHuman(
       data.bySourceCommand.map((command: SourceCommandStats) => [
         truncateWithEllipsis(displayValue(command.command), 15),
         command.vectorCount.toLocaleString(),
-      ])
+      ]),
+      false
     )
   );
   if (data.bySourceCommand.length === 0) {

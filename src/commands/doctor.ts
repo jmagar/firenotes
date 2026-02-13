@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, constants as fsConstants } from 'node:fs';
 import { access, rm, writeFile } from 'node:fs/promises';
 import { Socket } from 'node:net';
 import { dirname, join } from 'node:path';
@@ -99,6 +99,15 @@ function summarizeOverall(summary: DoctorSummaryCounts): DoctorOverallStatus {
 }
 
 function parseComposePsJson(raw: string): ComposePsEntry[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed as ComposePsEntry[];
+    }
+  } catch {
+    // Fall through to NDJSON parsing.
+  }
+
   const lines = raw
     .split('\n')
     .map((line) => line.trim())
@@ -327,7 +336,7 @@ async function checkWritableDirectory(
   }
 
   try {
-    await access(path);
+    await access(path, fsConstants.W_OK);
     const probeFile = join(path, `.doctor-write-test-${randomUUID()}`);
     await writeFile(probeFile, 'ok', 'utf-8');
     await rm(probeFile, { force: true });
@@ -345,15 +354,13 @@ async function runContainerWriteProbe(
   containerPath: string,
   timeoutMs: number
 ): Promise<{ ok: boolean; error?: string }> {
-  // Note: randomUUID() is called in Node.js context, not in container
-  // Container only needs POSIX sh (touch, rm), no Node.js required
   const probeFile = `${containerPath}/.doctor-write-test-${randomUUID()}`;
-  const shellCmd = `touch "${probeFile}" && rm -f "${probeFile}"`;
+  const shellCmd = 'touch "$1" && rm -f "$1"';
 
   return await new Promise((resolve) => {
     execFile(
       'docker',
-      ['exec', containerName, 'sh', '-lc', shellCmd],
+      ['exec', containerName, 'sh', '-lc', shellCmd, 'sh', probeFile],
       { timeout: timeoutMs + 1500 },
       (error, _stdout, stderr) => {
         if (error) {
@@ -604,7 +611,7 @@ async function collectDockerChecks(timeoutMs: number): Promise<{
       const state = (entry.State || '').toLowerCase();
       const health = (entry.Health || '').toLowerCase();
       let status: DoctorCheckStatus = 'pass';
-      let message = entry.Status || 'Unknown';
+      let message: string;
 
       if (state !== 'running') {
         status = 'fail';

@@ -188,6 +188,23 @@ describe('EmbedPipeline', () => {
       expect(console.error).toHaveBeenCalled();
     });
 
+    it('should retry collection initialization after transient failure', async () => {
+      vi.mocked(mockTeiService.getTeiInfo)
+        .mockRejectedValueOnce(new Error('Transient TEI error'))
+        .mockResolvedValue(mockTeiInfo);
+
+      await pipeline.autoEmbed('first document', {
+        url: 'https://example.com/first',
+      });
+      await pipeline.autoEmbed('second document', {
+        url: 'https://example.com/second',
+      });
+
+      expect(mockTeiService.getTeiInfo).toHaveBeenCalledTimes(2);
+      expect(mockQdrantService.ensureCollection).toHaveBeenCalledTimes(1);
+      expect(mockQdrantService.upsertPoints).toHaveBeenCalledTimes(1);
+    });
+
     it('should not throw on Qdrant errors (logs instead)', async () => {
       vi.mocked(mockQdrantService.upsertPoints).mockRejectedValue(
         new Error('Qdrant unavailable')

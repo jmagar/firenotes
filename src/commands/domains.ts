@@ -117,7 +117,8 @@ function formatTable(domains: DomainInfo[]): string {
         String(domain.urlCount),
         String(domain.vectorCount),
         formatDateOnly(domain.lastUpdated),
-      ])
+      ]),
+      false
     )
   );
 

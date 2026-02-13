@@ -31,10 +31,10 @@ describe('display helpers', () => {
     );
   });
 
-  it('formats freshness in required EST-labeled shape', () => {
+  it('formats freshness in required ET-labeled shape', () => {
     const line = formatFreshnessLine(new Date('2026-02-13T19:42:10.000Z'));
     expect(line).toMatch(
-      /^As of \(EST\): \d{2}:\d{2}:\d{2} \| \d{2}\/\d{2}\/\d{4}$/
+      /^As of \(ET\): \d{2}:\d{2}:\d{2} \| \d{2}\/\d{2}\/\d{4}$/
     );
   });
 
@@ -63,6 +63,6 @@ describe('display helpers', () => {
     expect(joined).toContain('Showing 2 of 2 results | mode: compact');
     expect(joined).toContain('Legend: ● high relevance  ◐ medium relevance');
     expect(joined).toContain('Filters: limit=2, domain=example.com');
-    expect(joined).toContain('As of (EST):');
+    expect(joined).toContain('As of (ET):');
   });
 });

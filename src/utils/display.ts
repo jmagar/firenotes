@@ -83,7 +83,7 @@ export function formatFreshnessLine(date: Date = new Date()): string {
     year: 'numeric',
     timeZone: 'America/New_York',
   }).format(date);
-  return `As of (EST): ${time} | ${formattedDate}`;
+  return `As of (ET): ${time} | ${formattedDate}`;
 }
 
 export function formatHeaderBlock(input: {

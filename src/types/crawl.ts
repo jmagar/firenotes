@@ -138,6 +138,7 @@ export interface CrawlCleanupData {
   removedFailed: number;
   removedStale: number;
   removedNotFound: number;
+  skipped: number;
   removedTotal: number;
 }
 

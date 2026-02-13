@@ -16,6 +16,7 @@ import {
   getRecentJobIds,
   removeJobIds,
 } from '../../utils/job-history';
+import { fmt } from '../../utils/theme';
 
 /**
  * Format error message for status operations
@@ -210,6 +211,7 @@ export async function executeCrawlCleanup(
     let removedFailed = 0;
     let removedStale = 0;
     let removedNotFound = 0;
+    let skipped = 0;
     const toRemove: string[] = [];
 
     // Sequential API calls: acceptable for a CLI tool where cleanup runs
@@ -244,6 +246,9 @@ export async function executeCrawlCleanup(
         if (isJobNotFoundError(message)) {
           removedNotFound++;
           toRemove.push(id);
+        } else {
+          skipped++;
+          console.warn(fmt.warning(`Skipped ${id}: ${message}`));
         }
       }
     }
@@ -257,6 +262,7 @@ export async function executeCrawlCleanup(
         removedFailed,
         removedStale,
         removedNotFound,
+        skipped,
         removedTotal: toRemove.length,
       },
     };

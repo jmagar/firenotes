@@ -239,7 +239,7 @@ export async function handleExtractCommand(
     await Promise.all(embedTasks);
   }
 
-  const useJson = shouldOutputJson(options) || !!options.output;
+  const useJson = shouldOutputJson(options);
 
   // Format output using shared utility
   const outputData: Record<string, unknown> = {

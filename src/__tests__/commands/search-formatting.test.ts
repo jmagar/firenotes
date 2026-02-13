@@ -80,7 +80,7 @@ describe('search output formatting', () => {
     expect(output).toContain(
       'Filters: limit=5, sources=[web,news], scrape=false'
     );
-    expect(output).toContain('As of (EST):');
+    expect(output).toContain('As of (ET):');
     expect(output).toContain('…');
   });
 

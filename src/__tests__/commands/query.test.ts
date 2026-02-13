@@ -382,7 +382,7 @@ describe('executeQuery', () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Limit must be a positive integer');
+    expect(result.error).toContain('Limit must be a positive number');
     expect(result.error).toContain('-5');
   });
 
@@ -393,8 +393,18 @@ describe('executeQuery', () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Limit must be a positive integer');
+    expect(result.error).toContain('Limit must be a positive number');
     expect(result.error).toContain('0');
+  });
+
+  it('should reject NaN limit values', async () => {
+    const result = await executeQuery(container, {
+      query: 'test',
+      limit: Number.NaN,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Limit must be a positive number');
   });
 });
 

@@ -182,6 +182,7 @@ function formatCrawlCleanupHuman(data: {
   removedFailed: number;
   removedStale: number;
   removedNotFound: number;
+  skipped: number;
   removedTotal: number;
 }): string {
   const lines = formatHeaderBlock({
@@ -207,6 +208,7 @@ function formatCrawlCleanupHuman(data: {
     },
     { label: 'Stale removed', value: data.removedStale, severity: 1 },
     { label: 'Not found removed', value: data.removedNotFound, severity: 2 },
+    { label: 'Skipped', value: data.skipped, severity: 3 },
   ].sort((a, b) => a.severity - b.severity);
 
   for (const entry of entries) {

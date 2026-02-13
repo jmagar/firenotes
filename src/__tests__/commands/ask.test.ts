@@ -6,7 +6,7 @@ import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock child_process before importing the module under test
-vi.mock('child_process', () => ({
+vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
 }));
 
@@ -428,9 +428,10 @@ describe('executeAsk', () => {
     expect(mockProc.stdin.write).toHaveBeenCalledWith(
       expect.stringContaining('https://example.com/doc1')
     );
-    expect(mockProc.stdin.write).toHaveBeenCalledWith(
-      expect.not.stringContaining('https://example.com/doc2')
-    );
+    const allWriteCalls = vi
+      .mocked(mockProc.stdin.write)
+      .mock.calls.map((call) => String(call[0]));
+    expect(allWriteCalls.join('')).not.toContain('https://example.com/doc2');
 
     mockProc.stdout.emit('data', Buffer.from('Answer'));
     mockProc.emit('close', 0);

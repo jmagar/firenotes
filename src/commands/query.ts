@@ -59,11 +59,14 @@ export async function executeQuery(
     const filter = options.domain ? { domain: options.domain } : undefined;
 
     // Validate limit parameter
-    if (options.limit !== undefined && options.limit < 1) {
+    if (
+      options.limit !== undefined &&
+      (!Number.isFinite(options.limit) || options.limit < 1)
+    ) {
       return {
         success: false,
         error:
-          'Limit must be a positive integer (received: ' + options.limit + ')',
+          'Limit must be a positive number (received: ' + options.limit + ')',
       };
     }
 

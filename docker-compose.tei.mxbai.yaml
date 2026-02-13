@@ -49,4 +49,4 @@ services:
 
 networks:
   jakenet:
-    external: true
+    driver: bridge

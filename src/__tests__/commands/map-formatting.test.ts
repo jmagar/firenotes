@@ -50,7 +50,7 @@ describe('map output formatting', () => {
     expect(output).toContain('Map Results for https://example.com');
     expect(output).toContain('Showing 1 result | state: discovered');
     expect(output).toContain('Filters: limit=5, search=docs');
-    expect(output).toContain('As of (EST):');
+    expect(output).toContain('As of (ET):');
     expect(output).toContain('#');
     expect(output).toContain('URL');
     expect(output).toContain('Title');

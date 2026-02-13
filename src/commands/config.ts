@@ -3,6 +3,7 @@
  * Handles configuration and authentication
  */
 
+import { Command } from 'commander';
 import packageJson from '../../package.json';
 import { type UserSettings, UserSettingsSchema } from '../schemas/storage';
 import { getAuthSource, isAuthenticated } from '../utils/auth';
@@ -556,7 +557,7 @@ export async function configure(options: ConfigureOptions = {}): Promise<void> {
   }
 
   // Already authenticated - show config and offer to re-authenticate
-  await viewConfig({ json: options.json });
+  viewConfig({ json: options.json });
   if (options.json) return;
   console.log(
     fmt.dim('To re-authenticate, run: firecrawl logout && firecrawl config\n')
@@ -566,9 +567,7 @@ export async function configure(options: ConfigureOptions = {}): Promise<void> {
 /**
  * View current configuration (read-only)
  */
-export async function viewConfig(
-  options: { json?: boolean } = {}
-): Promise<void> {
+export function viewConfig(options: { json?: boolean } = {}): void {
   const diagnostics = buildConfigDiagnostics();
   if (options.json) {
     console.log(JSON.stringify(diagnostics, null, 2));
@@ -869,8 +868,6 @@ export function handleConfigReset(key?: string): void {
   saveSettings(validation.data);
   console.log(`${icons.success} ${key} reset to default.`);
 }
-
-import { Command } from 'commander';
 
 /**
  * Create and configure the config command

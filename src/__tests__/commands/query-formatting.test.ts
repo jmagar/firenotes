@@ -120,7 +120,7 @@ describe('query output formatting', () => {
     expect(output).toContain(
       'Filters: mode=compact, limit=10, domain=example.com'
     );
-    expect(output).toContain('As of (EST):');
+    expect(output).toContain('As of (ET):');
 
     const highIndex = output.indexOf('https://high.example.com/guide');
     const mediumIndex = output.indexOf('https://medium.example.com/reference');

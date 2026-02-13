@@ -67,13 +67,15 @@ export function buildCrawlOptions(
   // Handle merged exclude extensions and paths
   const extensions = mergeExcludeExtensions(
     undefined, // No CLI extension flag yet
-    options.noDefaultExcludes ?? false
+    options.noDefaultExcludes ?? false,
+    settings
   );
   const extensionPatterns = extensionsToPaths(extensions);
   const excludePaths = mergeExcludePaths(
     options.excludePaths,
     options.noDefaultExcludes ?? false,
-    extensionPatterns
+    extensionPatterns,
+    settings
   );
   if (excludePaths.length > 0) {
     builder.add('excludePaths', excludePaths);
@@ -127,9 +129,10 @@ export function buildCrawlOptions(
  */
 export function mergeExcludeExtensions(
   cliExtensions: string[] | undefined,
-  skipDefaults: boolean
+  skipDefaults: boolean,
+  settings: ReturnType<typeof getSettings> = getSettings()
 ): string[] {
-  const settingsExtensions = getSettings().defaultExcludeExtensions ?? [];
+  const settingsExtensions = settings.defaultExcludeExtensions ?? [];
 
   // If user has custom settings, use those; otherwise use built-in defaults
   const defaultExtensions = skipDefaults
@@ -170,9 +173,10 @@ export function mergeExcludeExtensions(
 export function mergeExcludePaths(
   cliExcludes: string[] | undefined,
   skipDefaults: boolean,
-  extensionPatterns: string[] = []
+  extensionPatterns: string[] = [],
+  settings: ReturnType<typeof getSettings> = getSettings()
 ): string[] {
-  const settingsPaths = getSettings().defaultExcludePaths ?? [];
+  const settingsPaths = settings.defaultExcludePaths ?? [];
   const defaultExcludes = skipDefaults
     ? []
     : settingsPaths.length > 0

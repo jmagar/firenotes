@@ -255,7 +255,7 @@ describe('Output Utilities', () => {
       expect(output).toContain('Scrape Results for https://example.com');
       expect(output).toContain('Requested formats: 1 | returned: 1');
       expect(output).toContain('Filters: onlyMainContent=true');
-      expect(output).toContain('As of (EST):');
+      expect(output).toContain('As of (ET):');
       expect(output).toContain('# Test Content');
     });
 

@@ -51,9 +51,7 @@ function getLegacySettingsPaths(): string[] {
 
 function ensureConfigDir(): void {
   const configDir = getConfigDirectoryPath();
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
-  }
+  fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
 }
 
 function setSecurePermissions(filePath: string): void {
