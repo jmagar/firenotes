@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getStatus } from '../../commands/status';
 import type { ImmutableConfig } from '../../container/types';
+import { getDefaultSettings } from '../../utils/default-settings';
 
 vi.mock('../../utils/auth', () => ({
   getAuthSource: vi.fn().mockReturnValue('env'),
@@ -14,6 +15,7 @@ describe('getStatus auth source', () => {
     const config: ImmutableConfig = Object.freeze({
       apiKey: 'resolved-key',
       apiUrl: 'https://api.firecrawl.dev',
+      settings: getDefaultSettings(),
     });
 
     const result = getStatus(config);

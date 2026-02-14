@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IContainer } from '../../container/types';
+import { getDefaultSettings } from '../../utils/default-settings';
 
 vi.mock('../../container/DaemonContainerFactory', () => ({
   createDaemonContainer: vi.fn(),
@@ -109,6 +110,7 @@ describe('webhook server status endpoint', () => {
         embedderWebhookUrl: 'https://example.com/webhook',
         embedderWebhookPort: port,
         embedderWebhookPath: '/webhooks/crawl',
+        settings: getDefaultSettings(),
       },
       getFirecrawlClient: vi.fn(),
       getHttpClient: vi.fn(),
@@ -153,6 +155,7 @@ describe('webhook server status endpoint', () => {
         embedderWebhookUrl: undefined, // No webhook URL
         embedderWebhookPort: port,
         embedderWebhookPath: '/webhooks/crawl',
+        settings: getDefaultSettings(),
       },
       getFirecrawlClient: vi.fn(),
       getHttpClient: vi.fn(),

@@ -4,6 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IContainer } from '../../container/types';
+import { getDefaultSettings } from '../../utils/default-settings';
 
 vi.mock('../../utils/embed-queue', () => ({
   getStalePendingJobs: vi.fn().mockResolvedValue([]),
@@ -62,6 +63,7 @@ function createMockContainer(options?: {
           ? hasConfig.qdrantUrl
           : 'http://qdrant:6333',
       qdrantCollection: 'test_collection',
+      settings: getDefaultSettings(),
     },
     getFirecrawlClient: vi.fn().mockReturnValue(options?.firecrawlClient),
     getHttpClient: vi.fn(),
