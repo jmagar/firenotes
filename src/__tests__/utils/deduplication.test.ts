@@ -102,8 +102,8 @@ describe('deduplicateQueryItems', () => {
     const deduped = deduplicateQueryItems(items, 'docs intro', 1);
     expect(deduped).toHaveLength(2);
     expect(deduped.map((item) => item.chunkIndex)).toEqual([0, 1]);
-    expect(deduped.every((item) => item.url.includes('example.com'))).toBe(
-      true
-    );
+    expect(
+      deduped.every((item) => new URL(item.url).hostname === 'example.com')
+    ).toBe(true);
   });
 });

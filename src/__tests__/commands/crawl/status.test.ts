@@ -419,27 +419,33 @@ describe('executeCrawlCleanup', () => {
     vi.mocked(removeJobIds).mockResolvedValue(undefined);
 
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const mockClient = {
-      getCrawlStatus: vi
-        .fn()
-        .mockRejectedValue(new Error('Gateway timeout while checking status')),
-    };
-    const container = createContainer(mockClient);
+    try {
+      const mockClient = {
+        getCrawlStatus: vi
+          .fn()
+          .mockRejectedValue(
+            new Error('Gateway timeout while checking status')
+          ),
+      };
+      const container = createContainer(mockClient);
 
-    const result = await executeCrawlCleanup(container);
+      const result = await executeCrawlCleanup(container);
 
-    expect(result.success).toBe(true);
-    expect(result.data).toEqual({
-      scanned: 1,
-      removedFailed: 0,
-      removedStale: 0,
-      removedNotFound: 0,
-      skipped: 1,
-      removedTotal: 0,
-    });
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Skipped job-timeout')
-    );
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({
+        scanned: 1,
+        removedFailed: 0,
+        removedStale: 0,
+        removedNotFound: 0,
+        skipped: 1,
+        removedTotal: 0,
+      });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Skipped job-timeout')
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
 

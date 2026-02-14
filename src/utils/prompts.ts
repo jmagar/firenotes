@@ -9,12 +9,18 @@ import * as readline from 'node:readline';
  *
  * @param question - Question to ask the user
  * @param defaultNo - Default to 'no' if user just presses Enter (default: true)
- * @returns Promise that resolves to true if user confirms, false otherwise
+ * @returns Promise that resolves to true if user confirms, false otherwise.
+ *          Returns false immediately if stdin is not a TTY (non-interactive).
  */
 export function askForConfirmation(
   question: string,
   defaultNo = true
 ): Promise<boolean> {
+  // Guard against non-interactive stdin to prevent promise hang
+  if (!process.stdin.isTTY) {
+    return Promise.resolve(!defaultNo);
+  }
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,

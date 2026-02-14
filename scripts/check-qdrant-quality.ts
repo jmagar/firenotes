@@ -568,8 +568,8 @@ async function checkCollection(
   console.log(`\n📊 Chunk Distribution`);
   const counts = Array.from(urlChunkCounts.values()).sort((a, b) => a - b);
   if (counts.length > 0) {
-    const min = counts.reduce((a, b) => Math.min(a, b), Infinity);
-    const max = counts.reduce((a, b) => Math.max(a, b), -Infinity);
+    const min = counts[0];
+    const max = counts[counts.length - 1];
     const median = counts[Math.floor(counts.length / 2)];
     const avgChunksPerUrl = points.length / urlChunkCounts.size;
 

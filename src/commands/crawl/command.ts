@@ -423,8 +423,9 @@ async function handleCrawlClearCommand(
 ): Promise<void> {
   // Safety check: require confirmation unless --force is used
   if (!options.force) {
-    // For non-interactive environments (CI, piped output, --json), require --force flag
-    if (!process.stdout.isTTY) {
+    // For non-interactive environments (CI, piped stdin/output), require --force flag
+    // Check both stdin (for reading input) and stdout (for displaying prompts)
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
       console.error(
         fmt.error(
           'Cannot clear queue in non-interactive mode. Use --force to bypass confirmation.'

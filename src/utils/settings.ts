@@ -6,6 +6,7 @@
 import * as fs from 'node:fs';
 import { homedir } from 'node:os';
 import * as path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import {
   type EffectiveUserSettings,
   type UserSettings,
@@ -50,8 +51,9 @@ function getLegacySettingsPaths(): string[] {
 }
 
 function ensureConfigDir(): void {
-  const configDir = getConfigDirectoryPath();
-  fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
+  // mkdirSync with recursive:true is idempotent — no-op when dir exists,
+  // avoiding the TOCTOU race of existsSync + mkdirSync.
+  fs.mkdirSync(getConfigDirectoryPath(), { recursive: true, mode: 0o700 });
 }
 
 function setSecurePermissions(filePath: string): void {
@@ -197,10 +199,7 @@ function ensureSettingsFileMaterialized(): void {
     }
 
     const merged = mergeWithDefaults(validation.data);
-    const currentNormalized = JSON.stringify(validation.data);
-    const mergedNormalized = JSON.stringify(merged);
-
-    if (currentNormalized !== mergedNormalized) {
+    if (!isDeepStrictEqual(validation.data, merged)) {
       fs.copyFileSync(settingsPath, `${settingsPath}.backup-${Date.now()}`);
       fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2), 'utf-8');
       setSecurePermissions(settingsPath);
@@ -339,8 +338,13 @@ export function clearSetting(key: keyof UserSettings): void {
     const settingsPath = getSettingsPath();
 
     if (Object.keys(existing).length === 0) {
-      if (fs.existsSync(settingsPath)) {
+      // Avoid TOCTOU: just attempt unlink and ignore ENOENT
+      try {
         fs.unlinkSync(settingsPath);
+      } catch (unlinkError) {
+        if ((unlinkError as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw unlinkError;
+        }
       }
       settingsCache = null;
       settingsCacheMtimeMs = -1;

@@ -621,7 +621,12 @@ export async function clearEmbedQueue(): Promise<number> {
 /**
  * Cleanup failed and stale/stalled embedding queue entries.
  *
- * - Removes all failed jobs
+ * This is the user-triggered cleanup (via `firecrawl embed cleanup`).
+ * Unlike `cleanupOldJobs` (background/automatic), this aggressively
+ * removes all failed jobs regardless of age since the user explicitly
+ * requested cleanup.
+ *
+ * - Removes all failed jobs (terminal state, no age gate)
  * - Removes stale pending jobs older than maxPendingAgeMs
  * - Removes stale processing jobs older than maxProcessingAgeMs
  */

@@ -139,8 +139,7 @@ describe('handleDomainsCommand output', () => {
     expect(output).toContain('Showing 0 of 0 domains');
     expect(output).toContain('Filters: collection=test_col, limit=5');
     expect(output).toContain('No results found.');
-    expect(output).toContain('Domain');
-    expect(output).toContain('Last Updated');
+    expect(output).not.toContain('Last Updated');
     expect(output).not.toContain('—');
   });
 });

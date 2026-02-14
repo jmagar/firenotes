@@ -58,15 +58,14 @@ export async function executeQuery(
     // Build filter for Qdrant query
     const filter = options.domain ? { domain: options.domain } : undefined;
 
-    // Validate limit parameter
+    // Validate limit parameter - must be a positive integer
     if (
       options.limit !== undefined &&
-      (!Number.isFinite(options.limit) || options.limit < 1)
+      (!Number.isInteger(options.limit) || options.limit < 1)
     ) {
       return {
         success: false,
-        error:
-          'Limit must be a positive number (received: ' + options.limit + ')',
+        error: `Limit must be a positive integer (received: ${options.limit})`,
       };
     }
 
@@ -500,9 +499,12 @@ function formatCompact(
       const sorted = [...groupItems].sort(compareBySeverityThenScore);
       return { baseUrl, items: sorted };
     })
-    .sort((left, right) =>
-      compareBySeverityThenScore(left.items[0]!, right.items[0]!)
-    );
+    .sort((left, right) => {
+      const leftItem = left.items[0];
+      const rightItem = right.items[0];
+      if (!leftItem || !rightItem) return 0;
+      return compareBySeverityThenScore(leftItem, rightItem);
+    });
 
   // Format each group (show highest-scoring chunk)
   const lines: string[] = [];
@@ -655,9 +657,12 @@ function formatGrouped(
       const sorted = [...groupItems].sort(compareBySeverityThenScore);
       return { baseUrl, items: sorted };
     })
-    .sort((left, right) =>
-      compareBySeverityThenScore(left.items[0]!, right.items[0]!)
-    );
+    .sort((left, right) => {
+      const leftItem = left.items[0];
+      const rightItem = right.items[0];
+      if (!leftItem || !rightItem) return 0;
+      return compareBySeverityThenScore(leftItem, rightItem);
+    });
 
   const parts: string[] = [];
   parts.push(

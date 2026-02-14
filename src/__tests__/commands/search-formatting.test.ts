@@ -4,20 +4,20 @@ import { handleSearchCommand } from '../../commands/search';
 import type { IContainer } from '../../container/types';
 
 describe('search output formatting', () => {
-  let stdoutSpy: MockInstance;
-  let stderrSpy: MockInstance;
+  let _stdoutSpy: MockInstance;
+  let _stderrSpy: MockInstance;
   let writes: string[];
   let container: IContainer;
 
   beforeEach(() => {
     writes = [];
-    stdoutSpy = vi
+    _stdoutSpy = vi
       .spyOn(process.stdout, 'write')
       .mockImplementation((chunk) => {
         writes.push(String(chunk));
         return true;
       });
-    stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    _stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const mockClient = {
       search: vi.fn().mockResolvedValue({

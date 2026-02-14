@@ -173,7 +173,11 @@ while true; do
     offset=$(echo "$response" | jq -r '.result.next_page_offset')
 
     # Progress update
-    percentage=$((total_processed * 100 / points_count))
+    if [ "$points_count" -gt 0 ]; then
+        percentage=$((total_processed * 100 / points_count))
+    else
+        percentage=0
+    fi
     log_progress "Processed $total_processed/$points_count points ($percentage%) - batch #$batch_count"
 
     # Break if no more pages

@@ -253,7 +253,8 @@ describe('Job History Utilities', () => {
       await recordJob('crawl', 'new-job-123');
 
       expect(fs.writeFile).toHaveBeenCalled();
-      const writeCall = vi.mocked(fs.writeFile).mock.calls.at(-1)!;
+      const calls = vi.mocked(fs.writeFile).mock.calls;
+      const writeCall = calls[calls.length - 1];
       const data = JSON.parse(writeCall[1] as string);
 
       expect(data.crawl).toHaveLength(1);
@@ -276,7 +277,8 @@ describe('Job History Utilities', () => {
 
       await recordJob('crawl', 'job-2');
 
-      const writeCall = vi.mocked(fs.writeFile).mock.calls.at(-1)!;
+      const calls = vi.mocked(fs.writeFile).mock.calls;
+      const writeCall = calls[calls.length - 1];
       const data = JSON.parse(writeCall[1] as string);
 
       expect(data.crawl).toHaveLength(3);
@@ -299,7 +301,8 @@ describe('Job History Utilities', () => {
 
       await recordJob('crawl', 'new-job');
 
-      const writeCall = vi.mocked(fs.writeFile).mock.calls.at(-1)!;
+      const calls = vi.mocked(fs.writeFile).mock.calls;
+      const writeCall = calls[calls.length - 1];
       const data = JSON.parse(writeCall[1] as string);
 
       expect(data.crawl).toHaveLength(20); // Still 20, oldest dropped
@@ -343,7 +346,8 @@ describe('Job History Utilities', () => {
 
       await clearJobTypeHistory('crawl');
 
-      const writeCall = vi.mocked(fs.writeFile).mock.calls.at(-1)!;
+      const calls = vi.mocked(fs.writeFile).mock.calls;
+      const writeCall = calls[calls.length - 1];
       const data = JSON.parse(writeCall[1] as string);
       expect(data.crawl).toEqual([]);
       expect(data.batch).toEqual(existingData.batch);
@@ -417,7 +421,8 @@ describe('Job History Utilities', () => {
 
       await removeJobIds('crawl', ['job-2']);
 
-      const writeCall = vi.mocked(fs.writeFile).mock.calls.at(-1)!;
+      const calls = vi.mocked(fs.writeFile).mock.calls;
+      const writeCall = calls[calls.length - 1];
       const result = JSON.parse(writeCall[1] as string);
 
       expect(result.crawl).toHaveLength(2);
@@ -451,7 +456,8 @@ describe('Job History Utilities', () => {
     it('should clear all job history', async () => {
       await clearJobHistory();
 
-      const writeCall = vi.mocked(fs.writeFile).mock.calls.at(-1)!;
+      const calls = vi.mocked(fs.writeFile).mock.calls;
+      const writeCall = calls[calls.length - 1];
       const data = JSON.parse(writeCall[1] as string);
 
       expect(data).toEqual({ crawl: [], batch: [], extract: [] });

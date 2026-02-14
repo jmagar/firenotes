@@ -75,9 +75,9 @@ function getLegacyCredentialsPaths(): string[] {
  */
 function ensureConfigDir(): void {
   const configDir = getConfigDir();
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true, mode: 0o700 }); // rwx------
-  }
+  // Use recursive:true directly — mkdirSync is a no-op when the directory
+  // already exists, avoiding the TOCTOU race of existsSync + mkdirSync.
+  fs.mkdirSync(configDir, { recursive: true, mode: 0o700 }); // rwx------
 }
 
 /**

@@ -13,10 +13,10 @@ export const colors = {
   warning: '\x1b[33m', // Yellow
   info: '\x1b[36m', // Cyan
 
-  // Emphasis
-  primary: '\x1b[38;2;244;143;177m', // Pink (#F48FB1)
+  // Emphasis (primary and materialLightBlue use 24-bit truecolor; falls back gracefully in basic terminals)
+  primary: '\x1b[38;2;244;143;177m', // Pink (#F48FB1) - truecolor
   secondary: '\x1b[35m', // Magenta
-  materialLightBlue: '\x1b[38;2;144;202;249m', // Light blue (#90CAF9)
+  materialLightBlue: '\x1b[38;2;144;202;249m', // Light blue (#90CAF9) - truecolor
 
   // Utility
   dim: '\x1b[2m', // Gray/dimmed

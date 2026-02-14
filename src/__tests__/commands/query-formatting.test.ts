@@ -9,8 +9,8 @@ import type {
 import { createTestContainer } from '../utils/test-container';
 
 describe('query output formatting', () => {
-  let stdoutSpy: MockInstance;
-  let stderrSpy: MockInstance;
+  let _stdoutSpy: MockInstance;
+  let _stderrSpy: MockInstance;
   let writes: string[];
   let container: IContainer;
   let teiService: ITeiService;
@@ -18,13 +18,13 @@ describe('query output formatting', () => {
 
   beforeEach(() => {
     writes = [];
-    stdoutSpy = vi
+    _stdoutSpy = vi
       .spyOn(process.stdout, 'write')
       .mockImplementation((chunk) => {
         writes.push(String(chunk));
         return true;
       });
-    stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    _stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     teiService = {
       getTeiInfo: vi.fn().mockResolvedValue({

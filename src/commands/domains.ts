@@ -98,31 +98,25 @@ export async function executeDomains(
  * Format domains as table
  */
 function formatTable(domains: DomainInfo[]): string {
-  const lines: string[] = [];
   if (domains.length === 0) {
-    lines.push(`  ${CANONICAL_EMPTY_STATE}`);
-    lines.push('');
+    return `  ${CANONICAL_EMPTY_STATE}`;
   }
 
-  lines.push(
-    formatAlignedTable(
-      [
-        { header: 'Domain', width: 35 },
-        { header: 'URLs', width: 6, align: 'right' },
-        { header: 'Vectors', width: 8, align: 'right' },
-        { header: 'Last Updated', width: 12 },
-      ],
-      domains.map((domain) => [
-        truncateWithEllipsis(displayValue(domain.domain), 35),
-        String(domain.urlCount),
-        String(domain.vectorCount),
-        formatDateOnly(domain.lastUpdated),
-      ]),
-      false
-    )
+  return formatAlignedTable(
+    [
+      { header: 'Domain', width: 35 },
+      { header: 'URLs', width: 6, align: 'right' },
+      { header: 'Vectors', width: 8, align: 'right' },
+      { header: 'Last Updated', width: 12 },
+    ],
+    domains.map((domain) => [
+      truncateWithEllipsis(displayValue(domain.domain), 35),
+      String(domain.urlCount),
+      String(domain.vectorCount),
+      formatDateOnly(domain.lastUpdated),
+    ]),
+    false
   );
-
-  return lines.join('\n');
 }
 
 /**

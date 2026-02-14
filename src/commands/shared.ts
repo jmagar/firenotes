@@ -123,7 +123,7 @@ export function aggregatePointsByDomain(
 
       if (trackLastUpdated) {
         const scrapedAt = String(point.payload.scraped_at || '');
-        if (entry.lastUpdated === undefined || scrapedAt > entry.lastUpdated) {
+        if (scrapedAt > (entry.lastUpdated ?? '')) {
           entry.lastUpdated = scrapedAt;
         }
       }

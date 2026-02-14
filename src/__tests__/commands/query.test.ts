@@ -382,7 +382,7 @@ describe('executeQuery', () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Limit must be a positive number');
+    expect(result.error).toContain('Limit must be a positive integer');
     expect(result.error).toContain('-5');
   });
 
@@ -393,7 +393,7 @@ describe('executeQuery', () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Limit must be a positive number');
+    expect(result.error).toContain('Limit must be a positive integer');
     expect(result.error).toContain('0');
   });
 
@@ -404,7 +404,28 @@ describe('executeQuery', () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Limit must be a positive number');
+    expect(result.error).toContain('Limit must be a positive integer');
+  });
+
+  it('should reject non-integer limit values', async () => {
+    const result = await executeQuery(container, {
+      query: 'test',
+      limit: 3.5,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Limit must be a positive integer');
+    expect(result.error).toContain('3.5');
+  });
+
+  it('should reject Infinity limit values', async () => {
+    const result = await executeQuery(container, {
+      query: 'test',
+      limit: Number.POSITIVE_INFINITY,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Limit must be a positive integer');
   });
 });
 

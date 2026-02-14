@@ -172,10 +172,10 @@ describe('viewConfig', () => {
       expect.stringContaining('API Key:')
     );
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('fc-env...7890')
+      expect.stringContaining('Configured')
     );
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('https://env.firecrawl.dev')
+      expect.stringContaining('API URL:')
     );
   });
 
@@ -278,12 +278,12 @@ describe('viewConfig', () => {
       authenticated: boolean;
       authSource: string;
       commandDefaults: Record<string, unknown>;
-      runtimeEnvironment: Record<string, { value: string }>;
+      runtimeEnvironment: Record<string, { configured: boolean }>;
     };
 
     expect(parsed.authenticated).toBe(true);
     expect(parsed.authSource).toBe('env');
     expect(parsed.commandDefaults.scrape).toBeDefined();
-    expect(parsed.runtimeEnvironment.OPENAI_MODEL.value).toBe('haiku');
+    expect(parsed.runtimeEnvironment.OPENAI_MODEL.configured).toBe(true);
   });
 });

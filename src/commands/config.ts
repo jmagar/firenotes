@@ -7,9 +7,9 @@ import { Command } from 'commander';
 import packageJson from '../../package.json';
 import { type UserSettings, UserSettingsSchema } from '../schemas/storage';
 import { getAuthSource, isAuthenticated } from '../utils/auth';
-import { getConfigDirectoryPath, loadCredentials } from '../utils/credentials';
+import { getConfigDirectoryPath } from '../utils/credentials';
 import { getDefaultSettings } from '../utils/default-settings';
-import { DEFAULT_API_URL, DEFAULT_QDRANT_COLLECTION } from '../utils/defaults';
+import { DEFAULT_QDRANT_COLLECTION } from '../utils/defaults';
 import {
   clearSetting,
   getSettings,
@@ -25,9 +25,8 @@ export interface ConfigureOptions {
   json?: boolean;
 }
 
-// EnvItem stores the raw value from the environment. Sensitive values (masked: true)
-// are only masked at display time — raw values are needed for config validation and
-// diagnostics. This is safe because the CLI process is short-lived and single-user.
+// EnvItem stores display-ready values. Sensitive values are masked at build time
+// to prevent clear-text logging of credentials (CodeQL: clear-text-logging).
 type EnvItem = {
   key: string;
   value: string;
@@ -45,15 +44,18 @@ type ConfigDiagnostics = {
   authenticated: boolean;
   authSource: 'explicit' | 'env' | 'stored' | 'none';
   authSourceLabel: string;
-  apiKeyMasked: string;
-  apiUrl: string;
+  apiKeyStatus: 'Configured' | 'Not set';
+  apiUrlStatus: 'Configured' | 'Not set';
   configPath: string;
   settings: {
     excludePaths: string[];
     excludeExtensions: string[];
   };
   commandDefaults: Record<string, Record<string, string>>;
-  runtimeEnvironment: Record<string, RuntimeEnvJsonItem>;
+  runtimeEnvironment: Record<
+    string,
+    { configured: boolean; masked: boolean; warning?: string }
+  >;
 };
 
 const COMMAND_DEFAULT_COLORS = {
@@ -279,7 +281,7 @@ function buildRuntimeEnvItems(): EnvItem[] {
     },
     {
       key: 'OPENAI_API_KEY',
-      value: presentValue(process.env.OPENAI_API_KEY),
+      value: maskValue(presentValue(process.env.OPENAI_API_KEY)),
       masked: true,
     },
     {
@@ -298,7 +300,9 @@ function buildRuntimeEnvItems(): EnvItem[] {
     },
     {
       key: 'FIRECRAWL_EMBEDDER_WEBHOOK_SECRET',
-      value: presentValue(process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET),
+      value: maskValue(
+        presentValue(process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET)
+      ),
       masked: true,
     },
     { key: 'FIRECRAWL_HOME', value: presentValue(process.env.FIRECRAWL_HOME) },
@@ -327,7 +331,7 @@ function buildRuntimeEnvItems(): EnvItem[] {
     { key: 'POSTGRES_USER', value: presentValue(process.env.POSTGRES_USER) },
     {
       key: 'POSTGRES_PASSWORD',
-      value: presentValue(process.env.POSTGRES_PASSWORD),
+      value: maskValue(presentValue(process.env.POSTGRES_PASSWORD)),
       masked: true,
     },
     { key: 'POSTGRES_DB', value: presentValue(process.env.POSTGRES_DB) },
@@ -435,7 +439,7 @@ function printRuntimeEnvironment(): void {
   console.log(configHeading('Runtime Environment'));
   const runtimeItems = buildRuntimeEnvItems();
   for (const [, item] of runtimeItems.entries()) {
-    const value = item.masked ? maskValue(item.value) : item.value;
+    const value = item.value;
     const warning = item.warning ? ` ${fmt.warning(`(${item.warning})`)}` : '';
     console.log(
       `  ${icons.bullet} ${colorize(COMMAND_DEFAULT_COLORS.option, `${item.key}:`)} ${fmt.dim(value)}${warning}`
@@ -453,27 +457,14 @@ function getAuthSourceLabel(
 }
 
 function buildConfigDiagnostics(): ConfigDiagnostics {
-  const credentials = loadCredentials();
   const authSource = getAuthSource();
   const authenticated = isAuthenticated();
-  const envApiKey = process.env.FIRECRAWL_API_KEY?.trim();
-  const storedApiKey = credentials?.apiKey?.trim();
-  const activeApiKey =
-    authSource === 'env'
-      ? envApiKey
-      : authSource === 'stored'
-        ? storedApiKey
-        : undefined;
-  const activeApiUrl =
-    authSource === 'env'
-      ? process.env.FIRECRAWL_API_URL || DEFAULT_API_URL
-      : credentials?.apiUrl || DEFAULT_API_URL;
   const settings = loadSettings();
 
   const runtimeEnvironment: Record<string, RuntimeEnvJsonItem> = {};
   for (const item of buildRuntimeEnvItems()) {
     runtimeEnvironment[item.key] = {
-      value: item.masked ? maskValue(item.value) : item.value,
+      value: item.value,
       masked: !!item.masked,
       warning: item.warning,
     };
@@ -483,23 +474,33 @@ function buildConfigDiagnostics(): ConfigDiagnostics {
     authenticated,
     authSource,
     authSourceLabel: getAuthSourceLabel(authSource),
-    apiKeyMasked: activeApiKey ? maskValue(activeApiKey) : 'Not set',
-    apiUrl: maskUrlCredentials(activeApiUrl),
+    apiKeyStatus:
+      authenticated && authSource !== 'none' ? 'Configured' : 'Not set',
+    apiUrlStatus:
+      authenticated && authSource !== 'none' ? 'Configured' : 'Not set',
     configPath: getConfigDirectoryPath(),
     settings: {
       excludePaths: settings.defaultExcludePaths ?? [],
       excludeExtensions: settings.defaultExcludeExtensions ?? [],
     },
     commandDefaults: getCommandDefaults(),
-    runtimeEnvironment,
+    runtimeEnvironment: Object.fromEntries(
+      Object.entries(runtimeEnvironment).map(([key, item]) => [
+        key,
+        {
+          configured: item.value !== 'Not set',
+          masked: item.masked,
+          warning: item.warning,
+        },
+      ])
+    ),
   };
 }
 
 /**
- * Validate setting key, throwing (via process.exit) if invalid.
- * Always returns true for valid keys; never returns false.
+ * Validate setting key, returning false and setting exitCode if invalid.
  */
-function validateSettingKey(key: string): true {
+function validateSettingKey(key: string): boolean {
   if (
     !LEGACY_SETTING_KEYS.includes(key as (typeof LEGACY_SETTING_KEYS)[number])
   ) {
@@ -508,7 +509,8 @@ function validateSettingKey(key: string): true {
       fmt.dim(`Available legacy settings: ${LEGACY_SETTING_KEYS.join(', ')}`)
     );
     console.error(fmt.dim(`Nested setting paths: ${SETTING_PATHS.join(', ')}`));
-    process.exit(1);
+    process.exitCode = 1;
+    return false;
   }
   return true;
 }
@@ -591,8 +593,8 @@ export function viewConfig(options: { json?: boolean } = {}): void {
       `  ${fmt.success(icons.active)} Authenticated${diagnostics.authSourceLabel ? ` ${fmt.dim(diagnostics.authSourceLabel)}` : ''}`
     );
     console.log('');
-    console.log(`  ${configLabel('API URL')} ${diagnostics.apiUrl}`);
-    console.log(`  ${configLabel('API Key')} ${diagnostics.apiKeyMasked}`);
+    console.log(`  ${configLabel('API URL')} ${diagnostics.apiUrlStatus}`);
+    console.log(`  ${configLabel('API Key')} ${diagnostics.apiKeyStatus}`);
     console.log(`  ${configLabel('Config')} ${diagnostics.configPath}`);
 
     // Show settings
@@ -677,7 +679,7 @@ export function handleConfigSet(key: string, value: string): void {
     }
   }
 
-  validateSettingKey(key);
+  if (!validateSettingKey(key)) return;
 
   const values = value
     .split(',')
@@ -686,7 +688,8 @@ export function handleConfigSet(key: string, value: string): void {
 
   if (values.length === 0) {
     console.error(fmt.error(`No ${key} provided.`));
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   if (key === 'exclude-paths') {
@@ -729,7 +732,8 @@ export function handleConfigGet(key: string): void {
       fmt.dim('Available settings: exclude-paths, exclude-extensions, excludes')
     );
     console.error(fmt.dim(`Nested setting paths: ${SETTING_PATHS.join(', ')}`));
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const settings = loadSettings();
@@ -825,7 +829,7 @@ export function handleConfigGet(key: string): void {
  * Handle config clear <key>
  */
 export function handleConfigClear(key: string): void {
-  validateSettingKey(key);
+  if (!validateSettingKey(key)) return;
 
   if (key === 'exclude-paths') {
     clearSetting('defaultExcludePaths');

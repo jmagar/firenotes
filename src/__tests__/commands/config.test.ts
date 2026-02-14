@@ -62,7 +62,7 @@ describe('handleConfigSet', () => {
     vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+    process.exitCode = undefined;
   });
 
   afterEach(() => {
@@ -103,7 +103,7 @@ describe('handleConfigSet', () => {
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('No exclude-paths provided')
       );
-      expect(process.exit).toHaveBeenCalledWith(1);
+      expect(process.exitCode).toBe(1);
     });
 
     it('should error on whitespace-only value', () => {
@@ -112,7 +112,7 @@ describe('handleConfigSet', () => {
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('No exclude-paths provided')
       );
-      expect(process.exit).toHaveBeenCalledWith(1);
+      expect(process.exitCode).toBe(1);
     });
   });
 
@@ -158,7 +158,7 @@ describe('handleConfigSet', () => {
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('No exclude-extensions provided')
       );
-      expect(process.exit).toHaveBeenCalledWith(1);
+      expect(process.exitCode).toBe(1);
     });
   });
 
@@ -172,7 +172,7 @@ describe('handleConfigSet', () => {
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('exclude-paths, exclude-extensions')
       );
-      expect(process.exit).toHaveBeenCalledWith(1);
+      expect(process.exitCode).toBe(1);
     });
   });
 });
@@ -182,7 +182,7 @@ describe('handleConfigGet', () => {
     vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+    process.exitCode = undefined;
     vi.mocked(getDefaultSettings).mockReturnValue({
       defaultExcludeExtensions: [
         '.exe',
@@ -381,7 +381,7 @@ describe('handleConfigGet', () => {
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('exclude-paths, exclude-extensions, excludes')
       );
-      expect(process.exit).toHaveBeenCalledWith(1);
+      expect(process.exitCode).toBe(1);
     });
   });
 });
@@ -528,7 +528,7 @@ describe('handleConfigClear', () => {
     vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+    process.exitCode = undefined;
   });
 
   afterEach(() => {
@@ -570,7 +570,7 @@ describe('handleConfigClear', () => {
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('exclude-paths, exclude-extensions')
       );
-      expect(process.exit).toHaveBeenCalledWith(1);
+      expect(process.exitCode).toBe(1);
     });
   });
 });

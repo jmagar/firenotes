@@ -32,7 +32,7 @@ let historyLock: Promise<void> = Promise.resolve();
  */
 async function withHistoryLock<T>(fn: () => Promise<T>): Promise<T> {
   const previousLock = historyLock;
-  let releaseLock: () => void;
+  let releaseLock: () => void = () => {};
   historyLock = new Promise((resolve) => {
     releaseLock = resolve;
   });
@@ -41,7 +41,7 @@ async function withHistoryLock<T>(fn: () => Promise<T>): Promise<T> {
     await previousLock;
     return await fn();
   } finally {
-    releaseLock!();
+    releaseLock();
   }
 }
 

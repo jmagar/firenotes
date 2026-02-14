@@ -10,6 +10,7 @@ import {
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getDefaultSettings } from '../../utils/default-settings';
 import {
   __resetSettingsStateForTests,
   getSettings,
@@ -107,6 +108,18 @@ describe('settings materialization', () => {
 
     const persisted = loadSettings();
     expect(persisted.crawl?.maxDepth).toBe(7);
+  });
+
+  it('does not create a backup when persisted settings are already equivalent', () => {
+    writeFileSync(
+      join(testHome, 'settings.json'),
+      JSON.stringify(getDefaultSettings(), null, 2)
+    );
+
+    loadSettings();
+
+    const files = readdirSync(testHome);
+    expect(files.some((file) => file.includes('.backup-'))).toBe(false);
   });
 
   it('migrates valid legacy settings from ~/.config/firecrawl-cli/settings.json', () => {

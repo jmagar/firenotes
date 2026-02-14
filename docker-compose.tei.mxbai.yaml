@@ -37,7 +37,6 @@ services:
       OMP_NUM_THREADS: ${OMP_NUM_THREADS:-4}
       MKL_NUM_THREADS: ${MKL_NUM_THREADS:-4}
       TOKENIZERS_PARALLELISM: "${TOKENIZERS_PARALLELISM:-true}"
-      PYTORCH_CUDA_ALLOC_CONF: ${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:512}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s

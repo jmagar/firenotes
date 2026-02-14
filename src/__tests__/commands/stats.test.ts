@@ -231,6 +231,10 @@ describe('handleStatsCommand output', () => {
       (l, i) => i > metricHeaderIdx && l.includes('By domain')
     );
 
+    // Explicit assertions: table headers must be present
+    expect(metricHeaderIdx).toBeGreaterThanOrEqual(0);
+    expect(byDomainIdx).toBeGreaterThan(metricHeaderIdx);
+
     const overviewLines = lines.slice(metricHeaderIdx, byDomainIdx);
 
     // Filter to data rows (skip header and divider which is all dashes)
