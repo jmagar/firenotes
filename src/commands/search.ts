@@ -368,7 +368,7 @@ export async function handleSearchCommand(
   }
 
   try {
-    writeCommandOutput(outputContent, options);
+    await writeCommandOutput(outputContent, options);
   } catch (error) {
     throw new Error(
       error instanceof Error ? error.message : 'Invalid output path'
@@ -415,7 +415,7 @@ export function createSearchCommand(): Command {
     .option(
       '--limit <number>',
       'Maximum number of results (default: 5, max: 100)',
-      (val) => parseInt(val, 10),
+      (val) => Number.parseInt(val, 10),
       settings.search.limit
     )
     .option(
@@ -441,7 +441,7 @@ export function createSearchCommand(): Command {
     .option(
       '--timeout <ms>',
       'Timeout in milliseconds (default: 60000)',
-      (val) => parseInt(val, 10),
+      (val) => Number.parseInt(val, 10),
       settings.search.timeoutMs
     )
     .option(

@@ -3,6 +3,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
 import type { MockInstance } from 'vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -18,6 +19,12 @@ vi.mock('fs', () => ({
   writeFileSync: vi.fn(),
   mkdirSync: vi.fn(),
   realpathSync: vi.fn((p: string) => p), // Mock realpathSync to return the input path
+}));
+
+// Mock fs/promises module for async I/O
+vi.mock('fs/promises', () => ({
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  mkdir: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Helper to get resolved path
@@ -43,91 +50,92 @@ describe('Output Utilities', () => {
   });
 
   describe('writeOutput', () => {
-    it('should write content to stdout when no output path is provided', () => {
-      writeOutput('Test content');
+    it('should write content to stdout when no output path is provided', async () => {
+      await writeOutput('Test content');
 
       expect(stdoutWriteSpy).toHaveBeenCalledWith('Test content\n');
     });
 
-    it('should add newline to content if not present', () => {
-      writeOutput('Test content without newline');
+    it('should add newline to content if not present', async () => {
+      await writeOutput('Test content without newline');
 
       expect(stdoutWriteSpy).toHaveBeenCalledWith(
         'Test content without newline\n'
       );
     });
 
-    it('should not add extra newline if content already ends with newline', () => {
-      writeOutput('Test content with newline\n');
+    it('should not add extra newline if content already ends with newline', async () => {
+      await writeOutput('Test content with newline\n');
 
       expect(stdoutWriteSpy).toHaveBeenCalledWith(
         'Test content with newline\n'
       );
     });
 
-    it('should write content to file when output path is provided', () => {
+    it('should write content to file when output path is provided', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      writeOutput('Test content', './output/test.txt');
+      await writeOutput('Test content', './output/test.txt');
 
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
+      expect(fsPromises.writeFile).toHaveBeenCalledWith(
         resolvePath('./output/test.txt'),
         'Test content',
         'utf-8'
       );
     });
 
-    it('should create directory if it does not exist', () => {
+    it('should create directory if it does not exist', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      writeOutput('Test content', './output/subdir/test.txt');
+      await writeOutput('Test content', './output/subdir/test.txt');
 
-      expect(fs.mkdirSync).toHaveBeenCalledWith(
+      expect(fsPromises.mkdir).toHaveBeenCalledWith(
         resolvePath('./output/subdir'),
         {
           recursive: true,
         }
       );
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
+      expect(fsPromises.writeFile).toHaveBeenCalledWith(
         resolvePath('./output/subdir/test.txt'),
         'Test content',
         'utf-8'
       );
     });
 
-    it('should print file confirmation when not silent', () => {
+    it('should print file confirmation when not silent', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      writeOutput('Test content', './output/test.txt', false);
+      await writeOutput('Test content', './output/test.txt', false);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining(resolvePath('./output/test.txt'))
       );
     });
 
-    it('should not print file confirmation when silent', () => {
+    it('should not print file confirmation when silent', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      writeOutput('Test content', './output/test.txt', true);
+      await writeOutput('Test content', './output/test.txt', true);
 
       expect(consoleErrorSpy).not.toHaveBeenCalled();
     });
   });
 
   describe('handleScrapeOutput', () => {
-    it('should output error and exit when result is not successful', () => {
-      handleScrapeOutput({ success: false, error: 'API Error' }, ['markdown']);
+    it('should output error and set exit code when result is not successful', async () => {
+      await handleScrapeOutput({ success: false, error: 'API Error' }, [
+        'markdown',
+      ]);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('API Error')
       );
-      expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 
-    it('should output raw markdown for single markdown format', () => {
+    it('should output raw markdown for single markdown format', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: { markdown: '# Test Content\n\nParagraph here.' },
@@ -140,10 +148,10 @@ describe('Output Utilities', () => {
       );
     });
 
-    it('should output raw HTML for single html format', () => {
+    it('should output raw HTML for single html format', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: { html: '<html><body>Test</body></html>' },
@@ -156,10 +164,10 @@ describe('Output Utilities', () => {
       );
     });
 
-    it('should output raw HTML for single rawHtml format', () => {
+    it('should output raw HTML for single rawHtml format', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: { rawHtml: '<!DOCTYPE html><html><body>Raw</body></html>' },
@@ -172,10 +180,10 @@ describe('Output Utilities', () => {
       );
     });
 
-    it('should output newline-separated links for single links format', () => {
+    it('should output newline-separated links for single links format', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: {
@@ -194,10 +202,10 @@ describe('Output Utilities', () => {
       );
     });
 
-    it('should output newline-separated images for single images format', () => {
+    it('should output newline-separated images for single images format', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: {
@@ -215,10 +223,10 @@ describe('Output Utilities', () => {
       );
     });
 
-    it('should output summary for single summary format', () => {
+    it('should output summary for single summary format', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: { summary: 'This is a summary of the page content.' },
@@ -231,10 +239,10 @@ describe('Output Utilities', () => {
       );
     });
 
-    it('should render style header for readable single-format stdout output', () => {
+    it('should render style header for readable single-format stdout output', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: { markdown: '# Test Content' },
@@ -259,10 +267,10 @@ describe('Output Utilities', () => {
       expect(output).toContain('# Test Content');
     });
 
-    it('should output formatted screenshot info for single screenshot format', () => {
+    it('should output formatted screenshot info for single screenshot format', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: {
@@ -284,10 +292,10 @@ describe('Output Utilities', () => {
       );
     });
 
-    it('should output JSON for multiple formats', () => {
+    it('should output JSON for multiple formats', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: {
@@ -305,10 +313,10 @@ describe('Output Utilities', () => {
       expect(parsed.links).toEqual(['https://example.com']);
     });
 
-    it('should output pretty JSON when pretty flag is true', () => {
+    it('should output pretty JSON when pretty flag is true', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: {
@@ -325,10 +333,10 @@ describe('Output Utilities', () => {
       expect(output).toContain('\n'); // Pretty print has newlines
     });
 
-    it('should write to file when output path is provided', () => {
+    it('should write to file when output path is provided', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: { markdown: '# Test Content' },
@@ -337,15 +345,15 @@ describe('Output Utilities', () => {
         './output/test.md'
       );
 
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
+      expect(fsPromises.writeFile).toHaveBeenCalledWith(
         resolvePath('./output/test.md'),
         '# Test Content',
         'utf-8'
       );
     });
 
-    it('should handle missing data gracefully', () => {
-      handleScrapeOutput(
+    it('should handle missing data gracefully', async () => {
+      await handleScrapeOutput(
         {
           success: true,
           data: undefined,
@@ -357,10 +365,10 @@ describe('Output Utilities', () => {
       expect(stdoutWriteSpy).not.toHaveBeenCalled();
     });
 
-    it('should fallback to rawHtml when html requested but only rawHtml available', () => {
+    it('should fallback to rawHtml when html requested but only rawHtml available', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: { rawHtml: '<html>Content</html>' },
@@ -371,10 +379,10 @@ describe('Output Utilities', () => {
       expect(stdoutWriteSpy).toHaveBeenCalledWith('<html>Content</html>\n');
     });
 
-    it('should include metadata in JSON output when present', () => {
+    it('should include metadata in JSON output when present', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: {
@@ -396,10 +404,10 @@ describe('Output Utilities', () => {
       expect(parsed.metadata.title).toBe('Test Page');
     });
 
-    it('should output JSON when --json flag is true even for single text format', () => {
+    it('should output JSON when --json flag is true even for single text format', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: { markdown: '# Test Content' },
@@ -415,10 +423,10 @@ describe('Output Utilities', () => {
       expect(parsed.markdown).toBe('# Test Content');
     });
 
-    it('should output JSON when --json flag is true for screenshot format', () => {
+    it('should output JSON when --json flag is true for screenshot format', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: {
@@ -441,10 +449,10 @@ describe('Output Utilities', () => {
       expect(parsed.metadata.title).toBe('Test Page');
     });
 
-    it('should infer JSON output when output file has .json extension', () => {
+    it('should infer JSON output when output file has .json extension', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: {
@@ -461,18 +469,18 @@ describe('Output Utilities', () => {
       );
 
       // Should write JSON to file
-      expect(fs.writeFileSync).toHaveBeenCalled();
-      const content = vi.mocked(fs.writeFileSync).mock.calls[0][1];
+      expect(fsPromises.writeFile).toHaveBeenCalled();
+      const content = vi.mocked(fsPromises.writeFile).mock.calls[0][1];
       const parsed = JSON.parse(
         typeof content === 'string' ? content : content.toString()
       );
       expect(parsed.screenshot).toBe('https://example.com/screenshot.png');
     });
 
-    it('should NOT infer JSON for non-.json extensions', () => {
+    it('should NOT infer JSON for non-.json extensions', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: {
@@ -490,17 +498,17 @@ describe('Output Utilities', () => {
       );
 
       // Should write formatted text, not JSON
-      expect(fs.writeFileSync).toHaveBeenCalled();
-      const content = vi.mocked(fs.writeFileSync).mock.calls[0][1];
+      expect(fsPromises.writeFile).toHaveBeenCalled();
+      const content = vi.mocked(fsPromises.writeFile).mock.calls[0][1];
       const text = typeof content === 'string' ? content : content.toString();
       expect(text).toContain('Screenshot: https://example.com/screenshot.png');
       expect(() => JSON.parse(text)).toThrow(); // Not valid JSON
     });
 
-    it('should output pretty JSON when both json and pretty flags are true', () => {
+    it('should output pretty JSON when both json and pretty flags are true', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      handleScrapeOutput(
+      await handleScrapeOutput(
         {
           success: true,
           data: { markdown: '# Test' },

@@ -4,6 +4,10 @@
  */
 
 import Firecrawl from '@mendable/firecrawl-js';
+import { EmbedPipeline } from './services/EmbedPipeline';
+import { HttpClient } from './services/HttpClient';
+import { QdrantService } from './services/QdrantService';
+import { TeiService } from './services/TeiService';
 import type {
   IContainer,
   IEmbedPipeline,
@@ -74,10 +78,7 @@ export class Container implements IContainer {
       return this.httpClient;
     }
 
-    // Import and create HttpClient service
-    // This will be implemented in the services/ directory
-    const { HttpClient } = require('./services/HttpClient');
-    this.httpClient = new HttpClient() as IHttpClient;
+    this.httpClient = new HttpClient();
     return this.httpClient;
   }
 
@@ -97,12 +98,7 @@ export class Container implements IContainer {
       );
     }
 
-    // Import and create TeiService
-    const { TeiService } = require('./services/TeiService');
-    this.teiService = new TeiService(
-      this.config.teiUrl,
-      this.getHttpClient()
-    ) as ITeiService;
+    this.teiService = new TeiService(this.config.teiUrl, this.getHttpClient());
     return this.teiService;
   }
 
@@ -122,12 +118,10 @@ export class Container implements IContainer {
       );
     }
 
-    // Import and create QdrantService
-    const { QdrantService } = require('./services/QdrantService');
     this.qdrantService = new QdrantService(
       this.config.qdrantUrl,
       this.getHttpClient()
-    ) as IQdrantService;
+    );
     return this.qdrantService;
   }
 
@@ -141,13 +135,11 @@ export class Container implements IContainer {
       return this.embedPipeline;
     }
 
-    // Import and create EmbedPipeline service
-    const { EmbedPipeline } = require('./services/EmbedPipeline');
     this.embedPipeline = new EmbedPipeline(
       this.getTeiService(),
       this.getQdrantService(),
       this.config.qdrantCollection || 'firecrawl'
-    ) as IEmbedPipeline;
+    );
     return this.embedPipeline;
   }
 

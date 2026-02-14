@@ -357,7 +357,7 @@ export function createAskCommand(): Command {
     .option(
       '--limit <number>',
       'Maximum number of documents to retrieve (default: 10)',
-      (val) => parseInt(val, 10),
+      (val) => Number.parseInt(val, 10),
       settings.ask.limit
     )
     .option('--domain <domain>', 'Filter results by domain')
@@ -372,7 +372,7 @@ export function createAskCommand(): Command {
     .option(
       '--max-context <chars>',
       'Maximum context size in characters (default: 100000)',
-      (val) => parseInt(val, 10)
+      (val) => Number.parseInt(val, 10)
     )
     .action(async (query: string, options, command: Command) => {
       const container = requireContainer(command);

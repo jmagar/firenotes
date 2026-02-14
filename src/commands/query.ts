@@ -774,7 +774,7 @@ export async function handleQueryCommand(
     collection: options.collection,
   };
 
-  processCommandResult(result, options, (data) => {
+  await processCommandResult(result, options, (data) => {
     if (options.group) {
       return formatGrouped(
         data,
@@ -841,7 +841,7 @@ export function createQueryCommand(): Command {
     .option(
       '--limit <number>',
       'Maximum number of results (default: 10)',
-      (val) => parseInt(val, 10),
+      (val) => Number.parseInt(val, 10),
       10
     )
     .option('--domain <domain>', 'Filter results by domain')

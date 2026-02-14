@@ -241,9 +241,12 @@ describe('batch cancel subcommand', () => {
     cmd.exitOverride();
     cmd._container = container;
 
-    await expect(
-      cmd.parseAsync(['node', 'test', 'cancel', 'batch-1'], { from: 'node' })
-    ).rejects.toThrow();
+    process.exitCode = 0; // Reset before test
+    await cmd.parseAsync(['node', 'test', 'cancel', 'batch-1'], {
+      from: 'node',
+    });
+
+    expect(process.exitCode).toBe(1);
   });
 });
 

@@ -18,6 +18,7 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import * as lockfile from 'proper-lockfile';
+import { EmbedJobSchema } from '../schemas/storage';
 import { isJobNotFoundError } from './job-errors';
 import { getSettings } from './settings';
 import { getEmbedQueueDir } from './storage-paths';
@@ -126,14 +127,36 @@ async function ensureQueueDir(): Promise<void> {
 }
 
 /**
+ * SEC-13: Validate job ID format to prevent path traversal.
+ * Only allows alphanumeric characters, hyphens, and underscores.
+ */
+const JOB_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+function validateJobId(jobId: string): void {
+  if (!JOB_ID_PATTERN.test(jobId)) {
+    throw new Error(
+      `Invalid job ID format: "${jobId}". Only alphanumeric characters, hyphens, and underscores are allowed.`
+    );
+  }
+}
+
+/**
  * Get path for a job file
+ *
+ * SEC-13: Validates job ID against strict pattern to prevent path traversal.
  */
 function getJobPath(jobId: string): string {
+  validateJobId(jobId);
   return join(getQueueDir(), `${jobId}.json`);
 }
 
 /**
  * Add a new embedding job to the queue
+ *
+ * SEC-02: API keys are no longer persisted in job files on disk.
+ * The apiKey parameter is accepted for backward compatibility but
+ * is only stored in-memory on the returned EmbedJob object, never
+ * written to the JSON file.
  */
 export async function enqueueEmbedJob(
   jobId: string,
@@ -154,8 +177,21 @@ export async function enqueueEmbedJob(
     apiKey,
   };
 
-  await writeSecureFile(getJobPath(jobId), JSON.stringify(job, null, 2));
+  // SEC-02: Strip apiKey before persisting to disk
+  await writeSecureFile(
+    getJobPath(jobId),
+    JSON.stringify(stripSensitiveFields(job), null, 2)
+  );
   return job;
+}
+
+/**
+ * Strip sensitive fields (e.g., API keys) before writing job data to disk.
+ * Returns a shallow copy without the apiKey field.
+ */
+function stripSensitiveFields(job: EmbedJob): Omit<EmbedJob, 'apiKey'> {
+  const { apiKey: _, ...safe } = job;
+  return safe;
 }
 
 export interface JobReadResult {
@@ -181,8 +217,26 @@ export async function getEmbedJobDetailed(
 
   try {
     const data = await readFile(path, 'utf-8');
-    const job = JSON.parse(data);
-    return { job, status: 'found' };
+    const raw = JSON.parse(data);
+    // SEC-05: Validate parsed JSON against schema
+    const result = EmbedJobSchema.safeParse(raw);
+    if (!result.success) {
+      const issues = result.error.issues
+        .map((i) => `${i.path.join('.')}: ${i.message}`)
+        .join(', ');
+      console.error(
+        fmt.error(`Job ${jobId} failed schema validation: ${issues}`)
+      );
+      console.warn(
+        fmt.warning(`Job file may be corrupted. Consider removing: ${path}`)
+      );
+      return {
+        job: null,
+        status: 'corrupted',
+        error: `Schema validation failed: ${issues}`,
+      };
+    }
+    return { job: result.data, status: 'found' };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(fmt.error(`Failed to read job ${jobId}: ${errorMsg}`));
@@ -205,11 +259,17 @@ export async function getEmbedJob(jobId: string): Promise<EmbedJob | null> {
 
 /**
  * Update a job in the queue
+ *
+ * SEC-02: Strips API keys before writing to disk.
  */
 export async function updateEmbedJob(job: EmbedJob): Promise<void> {
   await ensureQueueDir();
   job.updatedAt = new Date().toISOString();
-  await writeSecureFile(getJobPath(job.jobId), JSON.stringify(job, null, 2));
+  // SEC-02: Never persist API keys to disk
+  await writeSecureFile(
+    getJobPath(job.jobId),
+    JSON.stringify(stripSensitiveFields(job), null, 2)
+  );
 }
 
 /**
@@ -228,7 +288,16 @@ export async function tryClaimJob(jobId: string): Promise<boolean> {
 
     // Read job file directly while holding lock (don't use getEmbedJob which doesn't know about our lock)
     const data = await readFile(jobPath, 'utf-8');
-    const job: EmbedJob = JSON.parse(data);
+    const raw = JSON.parse(data);
+    // SEC-05: Validate job data under lock
+    const parsed = EmbedJobSchema.safeParse(raw);
+    if (!parsed.success) {
+      console.error(
+        fmt.error(`Job ${jobId} failed schema validation during claim`)
+      );
+      return false;
+    }
+    const job = parsed.data;
 
     // Check status while holding lock
     if (!job || job.status !== 'pending') {
@@ -329,7 +398,20 @@ export async function listEmbedJobsDetailed(): Promise<QueueListResult> {
   for (const file of files) {
     try {
       const data = await readFile(join(getQueueDir(), file), 'utf-8');
-      jobs.push(JSON.parse(data));
+      const raw = JSON.parse(data);
+      // SEC-05: Validate each job file against schema
+      const result = EmbedJobSchema.safeParse(raw);
+      if (result.success) {
+        jobs.push(result.data);
+      } else {
+        const issues = result.error.issues
+          .map((i) => `${i.path.join('.')}: ${i.message}`)
+          .join(', ');
+        errors.push({ file, error: `Schema validation: ${issues}` });
+        console.error(
+          fmt.error(`Job file ${file} failed validation: ${issues}`)
+        );
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       errors.push({ file, error: errorMsg });
@@ -419,27 +501,72 @@ export async function getStuckProcessingJobs(
 }
 
 /**
+ * SEC-03: File locking wrapper for job mutations.
+ *
+ * Acquires a file lock before reading/modifying a job, preventing
+ * TOCTOU race conditions between concurrent processes (webhook callbacks,
+ * polling cycles). Follows the pattern established by tryClaimJob().
+ */
+async function withJobLock(
+  jobId: string,
+  mutate: (job: EmbedJob) => void
+): Promise<void> {
+  const jobPath = getJobPath(jobId);
+  if (!(await pathExists(jobPath))) return;
+
+  let release: (() => void) | undefined;
+  try {
+    release = await lockfile.lock(jobPath, { retries: 2, stale: 60000 });
+
+    const data = await readFile(jobPath, 'utf-8');
+    const job: EmbedJob = JSON.parse(data);
+
+    mutate(job);
+
+    job.updatedAt = new Date().toISOString();
+    // SEC-02: Strip sensitive fields when persisting
+    await writeSecureFile(
+      jobPath,
+      JSON.stringify(stripSensitiveFields(job), null, 2)
+    );
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(fmt.error(`Failed to update job ${jobId}: ${errorMsg}`));
+  } finally {
+    if (release) {
+      try {
+        await release();
+      } catch (releaseError) {
+        const releaseMsg =
+          releaseError instanceof Error
+            ? releaseError.message
+            : String(releaseError);
+        console.error(
+          fmt.error(`Failed to release lock for job ${jobId}: ${releaseMsg}`)
+        );
+      }
+    }
+  }
+}
+
+/**
  * Mark a job as processing
  */
 export async function markJobProcessing(jobId: string): Promise<void> {
-  const job = await getEmbedJob(jobId);
-  if (job) {
+  await withJobLock(jobId, (job) => {
     job.status = 'processing';
-    await updateEmbedJob(job);
-  }
+  });
 }
 
 /**
  * Mark a job as completed and remove from queue
  */
 export async function markJobCompleted(jobId: string): Promise<void> {
-  const job = await getEmbedJob(jobId);
-  if (job) {
+  await withJobLock(jobId, (job) => {
     job.status = 'completed';
-    await updateEmbedJob(job);
-    // Keep completed jobs for a short time for audit/debugging
-    // They can be cleaned up later
-  }
+  });
+  // Keep completed jobs for a short time for audit/debugging
+  // They can be cleaned up later
 }
 
 /**
@@ -449,13 +576,11 @@ export async function markJobFailed(
   jobId: string,
   error: string
 ): Promise<void> {
-  const job = await getEmbedJob(jobId);
-  if (job) {
+  await withJobLock(jobId, (job) => {
     job.status = job.retries + 1 >= job.maxRetries ? 'failed' : 'pending';
     job.retries += 1;
     job.lastError = error;
-    await updateEmbedJob(job);
-  }
+  });
 }
 
 /**
@@ -468,12 +593,10 @@ export async function markJobPendingNoRetry(
   jobId: string,
   error: string
 ): Promise<void> {
-  const job = await getEmbedJob(jobId);
-  if (job) {
+  await withJobLock(jobId, (job) => {
     job.status = 'pending';
     job.lastError = error;
-    await updateEmbedJob(job);
-  }
+  });
 }
 
 /**
@@ -485,13 +608,11 @@ export async function markJobConfigError(
   jobId: string,
   error: string
 ): Promise<void> {
-  const job = await getEmbedJob(jobId);
-  if (job) {
+  await withJobLock(jobId, (job) => {
     job.status = 'failed';
     job.retries = job.maxRetries;
     job.lastError = `Configuration error: ${error}`;
-    await updateEmbedJob(job);
-  }
+  });
 }
 
 /**
@@ -504,13 +625,11 @@ export async function markJobPermanentFailed(
   jobId: string,
   error: string
 ): Promise<void> {
-  const job = await getEmbedJob(jobId);
-  if (job) {
+  await withJobLock(jobId, (job) => {
     job.status = 'failed';
     job.retries = job.maxRetries;
     job.lastError = error;
-    await updateEmbedJob(job);
-  }
+  });
 }
 
 /**

@@ -204,7 +204,7 @@ export async function handleHistoryCommand(
   container: IContainer,
   options: HistoryOptions
 ): Promise<void> {
-  processCommandResult(
+  await processCommandResult(
     await executeHistory(container, options),
     options,
     (resultData) => formatSummary(resultData, options)
@@ -222,10 +222,10 @@ export function createHistoryCommand(): Command {
         .option(
           '--days <number>',
           'Filter by entries from last N days',
-          (val) => parseInt(val, 10)
+          (val) => Number.parseInt(val, 10)
         )
         .option('--limit <number>', 'Maximum entries to show', (val) =>
-          parseInt(val, 10)
+          Number.parseInt(val, 10)
         )
     )
   ).action(async (options, command: Command) => {

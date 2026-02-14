@@ -1035,7 +1035,7 @@ export async function handleDoctorCommand(
   const report = await executeDoctor(container, options);
   if (options.json) {
     const payload = formatJson(report, options.pretty ?? false);
-    writeCommandOutput(payload, options);
+    await writeCommandOutput(payload, options);
     return;
   }
 
@@ -1084,7 +1084,7 @@ export function createDoctorCommand(): Command {
           ],
         };
         if (options.json) {
-          writeCommandOutput(
+          await writeCommandOutput(
             formatJson(failedReport, options.pretty ?? false),
             {
               json: true,

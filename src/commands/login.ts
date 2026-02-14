@@ -95,7 +95,7 @@ export async function handleLoginCommand(
           `Error saving credentials: ${error instanceof Error ? error.message : 'Unknown error'}`
         )
       );
-      process.exit(1);
+      process.exitCode = 1;
     }
     return;
   }
@@ -121,7 +121,7 @@ export async function handleLoginCommand(
     console.error(
       fmt.error(error instanceof Error ? error.message : 'Unknown error')
     );
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

@@ -185,7 +185,7 @@ export async function handleEmbedCommand(
   container: IContainer,
   options: EmbedOptions
 ): Promise<void> {
-  processCommandResult(
+  await processCommandResult(
     await executeEmbed(container, options),
     options,
     (data) =>
@@ -289,7 +289,7 @@ async function handleStatusCommand(
 
   const useJson = shouldOutputJson(options) || Boolean(options.output);
   if (useJson) {
-    writeCommandOutput(
+    await writeCommandOutput(
       formatJson({ success: true, data: job }, options.pretty),
       options
     );
@@ -414,7 +414,7 @@ export function createEmbedCommand(): Command {
       const result = await handleCancelCommand(jobId);
       if (!result.success) {
         console.error(fmt.error(result.error || 'Unknown error'));
-        process.exit(1);
+        process.exitCode = 1;
       }
     });
 
@@ -425,7 +425,7 @@ export function createEmbedCommand(): Command {
       const result = await handleClearCommand();
       if (!result.success) {
         console.error(fmt.error(result.error || 'Unknown error'));
-        process.exit(1);
+        process.exitCode = 1;
       }
     });
 
@@ -436,7 +436,7 @@ export function createEmbedCommand(): Command {
       const result = await handleCleanupCommand();
       if (!result.success) {
         console.error(fmt.error(result.error || 'Unknown error'));
-        process.exit(1);
+        process.exitCode = 1;
       }
     });
 
@@ -455,7 +455,7 @@ export function createEmbedCommand(): Command {
       });
       if (!result.success) {
         console.error(fmt.error(result.error || 'Unknown error'));
-        process.exit(1);
+        process.exitCode = 1;
       }
     });
 

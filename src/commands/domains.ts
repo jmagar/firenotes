@@ -146,7 +146,7 @@ export async function handleDomainsCommand(
   container: IContainer,
   options: DomainsOptions
 ): Promise<void> {
-  processCommandResult(
+  await processCommandResult(
     await executeDomains(container, options),
     options,
     (resultData) => formatSummary(resultData, options)
@@ -161,7 +161,7 @@ export function createDomainsCommand(): Command {
     new Command('domains')
       .description('List unique domains in the vector database')
       .option('--limit <number>', 'Maximum domains to show', (val) =>
-        parseInt(val, 10)
+        Number.parseInt(val, 10)
       )
   ).action(async (options, command: Command) => {
     const container = requireContainer(command);

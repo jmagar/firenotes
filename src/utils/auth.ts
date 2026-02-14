@@ -177,12 +177,9 @@ export async function ensureAuthenticated(
 
     return result.apiKey;
   } catch (error) {
-    console.error(
-      fmt.error(
-        `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+    throw new Error(
+      `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
-    process.exit(1);
   }
 }
 

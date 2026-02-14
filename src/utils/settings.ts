@@ -3,6 +3,7 @@
  * Stores persistent user settings in the unified Firecrawl home directory.
  */
 
+import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';
 import { homedir } from 'node:os';
 import * as path from 'node:path';
@@ -56,11 +57,18 @@ function ensureConfigDir(): void {
   fs.mkdirSync(getConfigDirectoryPath(), { recursive: true, mode: 0o700 });
 }
 
+/**
+ * SEC-14: Platform-aware secure permissions.
+ * Only suppresses on Windows; logs failures on POSIX systems.
+ */
 function setSecurePermissions(filePath: string): void {
+  if (process.platform === 'win32') return;
   try {
     fs.chmodSync(filePath, 0o600);
-  } catch {
-    // Ignore on unsupported platforms.
+  } catch (error) {
+    console.error(
+      `Warning: Could not set secure permissions on ${filePath}: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
@@ -172,7 +180,7 @@ function ensureSettingsFileMaterialized(): void {
     } catch {
       fs.copyFileSync(
         settingsPath,
-        `${settingsPath}.invalid-backup-${Date.now()}`
+        `${settingsPath}.invalid-backup-${randomBytes(8).toString('hex')}`
       );
       fs.writeFileSync(
         settingsPath,
@@ -187,7 +195,7 @@ function ensureSettingsFileMaterialized(): void {
     if (!validation.success) {
       fs.copyFileSync(
         settingsPath,
-        `${settingsPath}.invalid-backup-${Date.now()}`
+        `${settingsPath}.invalid-backup-${randomBytes(8).toString('hex')}`
       );
       fs.writeFileSync(
         settingsPath,

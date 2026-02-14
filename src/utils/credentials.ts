@@ -81,13 +81,19 @@ function ensureConfigDir(): void {
 }
 
 /**
- * Set file permissions to be readable/writable only by the owner
+ * Set file permissions to be readable/writable only by the owner.
+ *
+ * SEC-14: Only suppresses errors on Windows (which doesn't support POSIX perms).
+ * On Linux/macOS, logs a warning if chmod fails.
  */
 function setSecurePermissions(filePath: string): void {
+  if (process.platform === 'win32') return;
   try {
     fs.chmodSync(filePath, 0o600); // rw-------
-  } catch (_error) {
-    // Ignore errors on Windows or if file doesn't exist
+  } catch (error) {
+    console.error(
+      `Warning: Could not set secure permissions on ${filePath}: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 

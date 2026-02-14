@@ -290,7 +290,7 @@ export function connectCommandToOutput(
   writeCommandOutput: Mock,
   writeOutput: Mock
 ) {
-  writeCommandOutput.mockImplementation((content, options) => {
-    writeOutput(String(content), options.output, !!options.output);
+  writeCommandOutput.mockImplementation(async (content, options) => {
+    await writeOutput(String(content), options.output, !!options.output);
   });
 }

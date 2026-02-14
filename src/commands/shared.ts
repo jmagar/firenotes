@@ -31,11 +31,36 @@ export function requireContainerFromCommandTree(command: Command): IContainer {
   throw new Error('Container not initialized');
 }
 
+/**
+ * SEC-06: Pattern for valid Qdrant collection names.
+ * Only alphanumeric characters, hyphens, and underscores are allowed.
+ */
+const COLLECTION_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * SEC-06: Validate and sanitize a Qdrant collection name.
+ * Prevents path traversal and injection via collection name in URL paths.
+ */
+export function validateCollectionName(name: string): string {
+  if (!COLLECTION_NAME_PATTERN.test(name)) {
+    throw new Error(
+      `Invalid collection name: "${name}". Only alphanumeric characters, hyphens, and underscores are allowed.`
+    );
+  }
+  if (name.length > 128) {
+    throw new Error(
+      `Collection name too long: ${name.length} characters (max 128).`
+    );
+  }
+  return name;
+}
+
 export function resolveCollectionName(
   container: IContainer,
   collection?: string
 ): string {
-  return collection || container.config.qdrantCollection || 'firecrawl';
+  const name = collection || container.config.qdrantCollection || 'firecrawl';
+  return validateCollectionName(name);
 }
 
 export function getQdrantUrlError(commandName: string): string {

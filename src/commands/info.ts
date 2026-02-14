@@ -216,7 +216,7 @@ async function handleInfoCommand(
   container: IContainer,
   options: InfoOptions
 ): Promise<void> {
-  processCommandResult(
+  await processCommandResult(
     await executeInfo(container, options),
     options,
     (resultData) => {
@@ -330,7 +330,7 @@ export function createInfoCommand(): Command {
       const output = useJson
         ? formatJson(storageInfo, usePretty)
         : formatStorageHuman(storageInfo);
-      writeCommandOutput(output, options);
+      await writeCommandOutput(output, options);
     });
 
   return infoCmd;

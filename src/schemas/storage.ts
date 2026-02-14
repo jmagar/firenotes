@@ -153,6 +153,33 @@ export const UserSettingsSchema = z
   })
   .strict();
 
+/**
+ * SEC-05: Schema for embed job files (~/.firecrawl/embed-queue/*.json)
+ *
+ * Validates job files read from disk to prevent deserialization attacks.
+ * Uses .strict() to reject unknown fields.
+ */
+export const EmbedJobSchema = z
+  .object({
+    id: z.string(),
+    jobId: z.string(),
+    url: z.string(),
+    status: z.enum(['pending', 'processing', 'completed', 'failed']),
+    retries: z.number().int().min(0),
+    maxRetries: z.number().int().min(0),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    lastError: z.string().optional(),
+    apiKey: z.string().optional(),
+    totalDocuments: z.number().int().min(0).optional(),
+    processedDocuments: z.number().int().min(0).optional(),
+    failedDocuments: z.number().int().min(0).optional(),
+    progressUpdatedAt: z.string().optional(),
+  })
+  .strict();
+
+export type ValidatedEmbedJob = z.infer<typeof EmbedJobSchema>;
+
 // Export TypeScript types inferred from schemas
 export type StoredCredentials = z.infer<typeof StoredCredentialsSchema>;
 export type UserSettings = z.infer<typeof UserSettingsSchema>;

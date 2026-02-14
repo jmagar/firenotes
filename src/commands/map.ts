@@ -534,7 +534,7 @@ export async function handleMapCommand(
   });
 
   const result = await executeMap(container, options);
-  processCommandResult(result, options, (data) =>
+  await processCommandResult(result, options, (data) =>
     formatMapReadable(options, data, result.filterStats, result.excludedUrls)
   );
 }
@@ -557,7 +557,7 @@ export function createMapCommand(): Command {
     )
     .option('--wait', 'Wait for map to complete')
     .option('--limit <number>', 'Maximum URLs to discover', (val) =>
-      parseInt(val, 10)
+      Number.parseInt(val, 10)
     )
     .option('--search <query>', 'Search query to filter URLs')
     .option(

@@ -174,7 +174,7 @@ export async function handleDeleteCommand(
   container: IContainer,
   options: DeleteOptions
 ): Promise<void> {
-  processCommandResult(
+  await processCommandResult(
     await executeDelete(container, options),
     options,
     (data) => formatHuman(data, options)

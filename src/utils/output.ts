@@ -3,6 +3,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
 import { fmt } from './theme';
 
@@ -225,21 +226,24 @@ function extractMultipleFormats(
 }
 
 /**
- * Write output to file or stdout
+ * Write output to file or stdout.
+ *
+ * Uses async file I/O to avoid blocking the event loop during writes,
+ * which is critical for crawl operations writing many files concurrently.
  */
-export function writeOutput(
+export async function writeOutput(
   content: string,
   outputPath?: string,
   silent: boolean = false
-): void {
+): Promise<void> {
   if (outputPath) {
     // Validate path to prevent traversal attacks
     const safePath = validateOutputPath(outputPath);
     const dir = path.dirname(safePath);
     if (dir && !fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+      await fsPromises.mkdir(dir, { recursive: true });
     }
-    fs.writeFileSync(safePath, content, 'utf-8');
+    await fsPromises.writeFile(safePath, content, 'utf-8');
     if (!silent) {
       // Always use stderr for file confirmation messages
       console.error(`${fmt.dim('Output written to:')} ${safePath}`);
@@ -263,18 +267,19 @@ export function writeOutput(
  * - Single complex format (screenshot, json, branding, etc.): JSON output
  * - Multiple formats: JSON with all requested data
  */
-export function handleScrapeOutput(
+export async function handleScrapeOutput(
   result: ScrapeResult,
   formats: ScrapeFormat[],
   outputPath?: string,
   pretty: boolean = false,
   json: boolean = false,
   readableHeader?: ScrapeReadableHeader
-): void {
+): Promise<void> {
   if (!result.success) {
     // Always use stderr for errors to allow piping
     console.error(fmt.error(result.error || 'Unknown error'));
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   if (!result.data) {
@@ -297,7 +302,7 @@ export function handleScrapeOutput(
         message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
-    writeOutput(jsonContent, outputPath, !!outputPath);
+    await writeOutput(jsonContent, outputPath, !!outputPath);
     return;
   }
 
@@ -311,7 +316,7 @@ export function handleScrapeOutput(
   if (isSingleFormat && isRawTextFormat && singleFormat) {
     const content = extractContent(result.data, singleFormat);
     if (content !== null) {
-      writeOutput(
+      await writeOutput(
         withReadableHeader(content, readableHeader, outputPath),
         outputPath,
         !!outputPath
@@ -331,7 +336,7 @@ export function handleScrapeOutput(
       readableHeader,
       outputPath
     );
-    writeOutput(content, outputPath, !!outputPath);
+    await writeOutput(content, outputPath, !!outputPath);
     return;
   }
 
@@ -358,5 +363,5 @@ export function handleScrapeOutput(
     });
   }
 
-  writeOutput(jsonContent, outputPath, !!outputPath);
+  await writeOutput(jsonContent, outputPath, !!outputPath);
 }

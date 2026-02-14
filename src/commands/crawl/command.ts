@@ -56,11 +56,11 @@ function isStatusOnlyResult(data: unknown): boolean {
 /**
  * Handle subcommand result with standard error handling and output formatting
  */
-function handleSubcommandResult<T>(
+async function handleSubcommandResult<T>(
   result: { success: boolean; error?: string; data?: T },
   options: { output?: string; pretty?: boolean },
   formatOutput: (data: T) => string
-): void {
+): Promise<void> {
   if (!result.success) {
     console.error(fmt.error(result.error || 'Unknown error occurred'));
     process.exitCode = 1;
@@ -75,7 +75,7 @@ function handleSubcommandResult<T>(
     ? formatJson({ success: true, data: result.data }, options.pretty)
     : formatOutput(result.data);
   try {
-    writeCommandOutput(outputContent, options);
+    await writeCommandOutput(outputContent, options);
   } catch (error) {
     console.error(
       fmt.error(error instanceof Error ? error.message : 'Invalid output path')
@@ -285,7 +285,7 @@ export async function handleCrawlCommand(
               options.pretty
             );
       try {
-        writeCommandOutput(outputContent, options);
+        await writeCommandOutput(outputContent, options);
       } catch (error) {
         console.error(
           fmt.error(
@@ -345,7 +345,7 @@ export async function handleCrawlCommand(
   }
 
   try {
-    writeCommandOutput(outputContent, options);
+    await writeCommandOutput(outputContent, options);
   } catch (error) {
     console.error(
       fmt.error(error instanceof Error ? error.message : 'Invalid output path')
@@ -368,7 +368,7 @@ async function handleCrawlStatusCommand(
   options: { output?: string; pretty?: boolean }
 ): Promise<void> {
   const result = await checkCrawlStatus(container, jobId);
-  handleSubcommandResult(result, options, (data) =>
+  await handleSubcommandResult(result, options, (data) =>
     formatCrawlStatus(data, { filters: [['jobId', jobId]] })
   );
 }
@@ -386,7 +386,7 @@ async function handleCrawlCancelCommand(
   options: { output?: string; pretty?: boolean }
 ): Promise<void> {
   const result = await executeCrawlCancel(container, jobId);
-  handleSubcommandResult(result, options, (data) =>
+  await handleSubcommandResult(result, options, (data) =>
     [
       ...formatHeaderBlock({
         title: `Crawl Cancel for ${jobId}`,
@@ -412,7 +412,7 @@ async function handleCrawlErrorsCommand(
   options: { output?: string; pretty?: boolean }
 ): Promise<void> {
   const result = await executeCrawlErrors(container, jobId);
-  handleSubcommandResult(result, options, (data) =>
+  await handleSubcommandResult(result, options, (data) =>
     formatCrawlErrorsHuman(data, jobId, options)
   );
 }
@@ -450,7 +450,7 @@ async function handleCrawlClearCommand(
   }
 
   const result = await executeCrawlClear(container);
-  handleSubcommandResult(result, options, formatCrawlClearHuman);
+  await handleSubcommandResult(result, options, formatCrawlClearHuman);
 }
 
 async function handleCrawlCleanupCommand(
@@ -458,7 +458,7 @@ async function handleCrawlCleanupCommand(
   options: { output?: string; pretty?: boolean }
 ): Promise<void> {
   const result = await executeCrawlCleanup(container);
-  handleSubcommandResult(result, options, formatCrawlCleanupHuman);
+  await handleSubcommandResult(result, options, formatCrawlCleanupHuman);
 }
 
 /**
@@ -493,12 +493,12 @@ export function createCrawlCommand(): Command {
     )
     .option('--progress', 'Show progress while waiting (implies --wait)', false)
     .option('--limit <number>', 'Maximum number of pages to crawl', (val) =>
-      parseInt(val, 10)
+      Number.parseInt(val, 10)
     )
     .option(
       '--max-depth <number>',
       'Maximum crawl depth',
-      (value: string) => parseInt(value, 10),
+      (value: string) => Number.parseInt(value, 10),
       settings.crawl.maxDepth
     )
     .option(
@@ -551,12 +551,12 @@ export function createCrawlCommand(): Command {
       'Comma-separated list of tags to include in scraped content'
     )
     .option('--delay <ms>', 'Delay between requests in milliseconds', (val) =>
-      parseInt(val, 10)
+      Number.parseInt(val, 10)
     )
     .option(
       '--max-concurrency <number>',
       'Maximum concurrent requests',
-      (val) => parseInt(val, 10)
+      (val) => Number.parseInt(val, 10)
     )
     .option(
       '-k, --api-key <key>',

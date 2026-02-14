@@ -198,15 +198,15 @@ function generateScript(shell: string): string | null {
 }
 
 /**
- * Validate shell and get RC path, exiting on error
+ * Validate shell and get RC path
  * @param shell - Shell type to validate
  * @returns RC file path
+ * @throws Error if shell is unsupported
  */
 function validateShellAndGetRcPath(shell: string): string {
   const rcPath = getShellRcPath(shell);
   if (!rcPath) {
-    console.error(fmt.error(`Unsupported shell: ${shell}`));
-    process.exit(1);
+    throw new Error(`Unsupported shell: ${shell}`);
   }
   return rcPath;
 }
@@ -215,14 +215,14 @@ function validateShellAndGetRcPath(shell: string): string {
  * Resolve target shell, handling auto-detection and validation
  * @param providedShell - Optional shell override
  * @returns Validated shell type
+ * @throws Error if shell cannot be detected
  */
 function resolveTargetShell(providedShell?: string): string {
   const targetShell = providedShell || detectShell();
   if (targetShell === 'unknown') {
-    console.error(
-      fmt.error('Could not detect shell. Please specify: bash, zsh, or fish')
+    throw new Error(
+      'Could not detect shell. Please specify: bash, zsh, or fish'
     );
-    process.exit(1);
   }
   return targetShell;
 }
@@ -237,8 +237,7 @@ function installCompletion(shell: string): void {
   const script = generateScript(shell);
 
   if (!script) {
-    console.error(fmt.error(`Unsupported shell: ${shell}`));
-    process.exit(1);
+    throw new Error(`Unsupported shell: ${shell}`);
   }
 
   for (const line of formatHeaderBlock({
@@ -272,8 +271,7 @@ function installCompletion(shell: string): void {
 function outputScript(shell: string): void {
   const script = generateScript(shell);
   if (!script) {
-    console.error(fmt.error(`Unsupported shell: ${shell}`));
-    process.exit(1);
+    throw new Error(`Unsupported shell: ${shell}`);
   }
   console.log(script);
 }
@@ -335,8 +333,7 @@ export function createCompletionCommand(): Command {
     .argument('<shell>', 'Shell type: bash, zsh, or fish')
     .action((shell: string) => {
       if (!['bash', 'zsh', 'fish'].includes(shell)) {
-        console.error(fmt.error('Invalid shell. Choose: bash, zsh, or fish'));
-        process.exit(1);
+        throw new Error('Invalid shell. Choose: bash, zsh, or fish');
       }
 
       outputScript(shell);

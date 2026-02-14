@@ -195,7 +195,7 @@ export async function handleStatsCommand(
   container: IContainer,
   options: StatsOptions
 ): Promise<void> {
-  processCommandResult(
+  await processCommandResult(
     await executeStats(container, options),
     options,
     (resultData) =>
