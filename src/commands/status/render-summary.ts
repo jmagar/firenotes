@@ -77,19 +77,14 @@ function buildStatusSnapshot(data: JobStatusData): Map<string, string> {
       statusSnapshot.set(`extract:${extract.id}`, extract.status);
     }
   }
-  for (const job of [
-    ...data.embeddings.pending,
-    ...data.embeddings.failed,
-    ...data.embeddings.completed,
-  ]) {
-    statusSnapshot.set(
-      `embed:${job.jobId}`,
-      data.embeddings.pending.some((p) => p.jobId === job.jobId)
-        ? 'pending'
-        : data.embeddings.failed.some((f) => f.jobId === job.jobId)
-          ? 'failed'
-          : 'completed'
-    );
+  for (const job of data.embeddings.pending) {
+    statusSnapshot.set(`embed:${job.jobId}`, 'pending');
+  }
+  for (const job of data.embeddings.failed) {
+    statusSnapshot.set(`embed:${job.jobId}`, 'failed');
+  }
+  for (const job of data.embeddings.completed) {
+    statusSnapshot.set(`embed:${job.jobId}`, 'completed');
   }
   return statusSnapshot;
 }
