@@ -247,6 +247,7 @@ describe('batch cancel subcommand', () => {
     });
 
     expect(process.exitCode).toBe(1);
+    process.exitCode = 0;
   });
 });
 

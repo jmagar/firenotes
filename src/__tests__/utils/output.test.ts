@@ -21,8 +21,8 @@ vi.mock('fs', () => ({
   realpathSync: vi.fn((p: string) => p), // Mock realpathSync to return the input path
 }));
 
-// Mock fs/promises module for async I/O
-vi.mock('fs/promises', () => ({
+// Mock fs/promises module for async I/O (must match 'node:fs/promises' import specifier)
+vi.mock('node:fs/promises', () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
   mkdir: vi.fn().mockResolvedValue(undefined),
 }));
@@ -130,6 +130,8 @@ describe('Output Utilities', () => {
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('API Error')
       );
+      expect(process.exitCode).toBe(1);
+      process.exitCode = 0;
     });
 
     it('should output raw markdown for single markdown format', async () => {

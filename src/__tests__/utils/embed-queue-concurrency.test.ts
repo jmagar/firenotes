@@ -13,7 +13,7 @@
  * - Lock contention and deadlock scenarios
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -21,20 +21,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 describe('Embed Queue Concurrency Tests', () => {
   let queueDir: string;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-concurrency-'));
     process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
-    // Give file system time to stabilize
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    // Verify directory was created (synchronous — no sleep needed)
+    expect(existsSync(queueDir)).toBe(true);
   });
 
-  afterEach(async () => {
-    // Give any pending file operations time to complete
-    await new Promise((resolve) => setTimeout(resolve, 100));
+  afterEach(() => {
     try {
       rmSync(queueDir, { recursive: true, force: true });
-    } catch (error) {
+    } catch {
       // Ignore cleanup errors
     }
     delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
