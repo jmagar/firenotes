@@ -181,11 +181,14 @@ export async function handleJobStatusCommand(
 
           if (!running) break;
           await new Promise<void>((resolve) => {
-            const timer = setTimeout(resolve, intervalMs);
             const earlyExit = () => {
               clearTimeout(timer);
               resolve();
             };
+            const timer = setTimeout(() => {
+              process.removeListener('SIGINT', earlyExit);
+              resolve();
+            }, intervalMs);
             process.once('SIGINT', earlyExit);
           });
         }

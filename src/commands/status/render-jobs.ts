@@ -99,7 +99,7 @@ function renderJobSection(
       {
         label: `Failed ${config.labelPrefix} (${failed.length})`,
         rows: failed,
-        color: colors.primary,
+        color: colors.error,
         skipWhenEmpty: false,
       },
       {

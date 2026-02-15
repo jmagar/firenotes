@@ -16,8 +16,6 @@ import {
 // Mock fs module (use node: prefix to match production imports)
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
-  writeFileSync: vi.fn(),
-  mkdirSync: vi.fn(),
   realpathSync: vi.fn((p: string) => p), // Mock realpathSync to return the input path
 }));
 
