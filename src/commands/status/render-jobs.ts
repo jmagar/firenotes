@@ -90,35 +90,46 @@ function renderJobSection(
     const completed = rows.filter((row) => row.bucket === 'completed');
     const other = rows.filter((row) => row.bucket === 'other');
 
-    const groups: Array<{ label: string; rows: typeof rows; color: string }> = [
+    const groups: Array<{
+      label: string;
+      rows: typeof rows;
+      color: string;
+      skipWhenEmpty: boolean;
+    }> = [
       {
         label: `Failed ${config.labelPrefix} (${failed.length})`,
         rows: failed,
         color: colors.primary,
+        skipWhenEmpty: false,
       },
       {
         label: `Warn ${config.labelPrefix} (${warn.length})`,
         rows: warn,
         color: colors.warning,
+        skipWhenEmpty: true,
       },
       {
         label: `Pending ${config.labelPrefix} (${pending.length})`,
         rows: pending,
         color: colors.primary,
+        skipWhenEmpty: false,
       },
       {
         label: `Completed ${config.labelPrefix} (${completed.length})`,
         rows: completed,
         color: colors.primary,
+        skipWhenEmpty: false,
       },
       {
         label: `Other ${config.labelPrefix} (${other.length})`,
         rows: other,
         color: colors.primary,
+        skipWhenEmpty: true,
       },
     ];
 
     for (const group of groups) {
+      if (group.skipWhenEmpty && group.rows.length === 0) continue;
       console.log(`  ${colorize(group.color, `${group.label}:`)}`);
       if (group.rows.length === 0) {
         console.log(fmt.dim('    None.'));

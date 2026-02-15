@@ -186,6 +186,9 @@ function renderCompletedEmbeds(
   } else {
     for (const job of data.embeddings.completed) {
       const displayUrl = crawlUrlById.get(job.jobId) ?? job.url;
+      const domain = options.wide ? domainFromUrl(displayUrl) : null;
+      const queueLag = options.wide ? formatQueueLag(job.updatedAt) : null;
+      const age = formatRelativeAge(job.updatedAt);
       const context = getEmbedContext(
         {
           jobId: job.jobId,
@@ -201,19 +204,9 @@ function renderCompletedEmbeds(
       console.log(
         `    ${changedPrefix(`embed:${job.jobId}`, options.changedKeys)}${colorize(colors.success, icons.success)} ${accentJobId(job.jobId)} ${context.message}${
           options.compact ? '' : ` ${fmt.dim(displayUrl)}`
-        }${
-          options.wide && domainFromUrl(displayUrl)
-            ? ` ${fmt.dim(`(${domainFromUrl(displayUrl)})`)}`
-            : ''
-        }${
-          options.wide && formatQueueLag(job.updatedAt)
-            ? ` ${fmt.dim(formatQueueLag(job.updatedAt) as string)}`
-            : ''
-        }${
-          formatRelativeAge(job.updatedAt)
-            ? ` ${fmt.dim(formatRelativeAge(job.updatedAt) as string)}`
-            : ''
-        }`
+        }${domain ? ` ${fmt.dim(`(${domain})`)}` : ''}${
+          queueLag ? ` ${fmt.dim(queueLag)}` : ''
+        }${age ? ` ${fmt.dim(age)}` : ''}`
       );
     }
   }

@@ -95,17 +95,26 @@ export function scoreSentenceForQuery(
   return score;
 }
 
-function collectRelevantSentences(text: string): string[] {
-  return cleanSnippetSource(text)
+function preprocessChunkText(text: string): {
+  cleaned: string;
+  sentences: string[];
+} {
+  const cleaned = cleanSnippetSource(text);
+  const sentences = cleaned
     .split(/(?<=[.!?])\s+/)
     .map((s) => s.trim())
     .filter(isRelevantSentence);
+  return { cleaned, sentences };
+}
+
+function collectRelevantSentences(text: string): string[] {
+  return preprocessChunkText(text).sentences;
 }
 
 function scoreChunkForPreview(text: string, query?: string): number {
   const queryTerms = extractQueryTerms(query);
   const queryLower = query?.toLowerCase().trim() || '';
-  const sentences = collectRelevantSentences(text);
+  const { cleaned, sentences } = preprocessChunkText(text);
 
   let relevanceScore = 0;
   for (const sentence of sentences) {
@@ -114,7 +123,7 @@ function scoreChunkForPreview(text: string, query?: string): number {
 
   const richnessScore =
     Math.min(sentences.length, 5) * 2 +
-    Math.min(cleanSnippetSource(text).length, 500) / 100;
+    Math.min(cleaned.length, 500) / 100;
 
   return relevanceScore * 10 + richnessScore;
 }
@@ -138,8 +147,7 @@ function buildPreviewCandidates(
 ): PreviewCandidate[] {
   const candidates = groupItems.slice(0, 8);
   return candidates.map((item) => {
-    const cleaned = cleanSnippetSource(item.chunkText);
-    const sentences = collectRelevantSentences(item.chunkText);
+    const { cleaned, sentences } = preprocessChunkText(item.chunkText);
     return {
       item,
       previewScore: scoreChunkForPreview(item.chunkText, query),
@@ -184,7 +192,6 @@ export function selectBestPreviewItem(
  * Targets ~3-5 sentences and filters navigation/boilerplate noise.
  */
 export function getMeaningfulSnippet(text: string, query?: string): string {
-  const cleaned = cleanSnippetSource(text);
   const sentences = collectRelevantSentences(text);
 
   const queryTerms = extractQueryTerms(query);
@@ -265,6 +272,7 @@ export function getMeaningfulSnippet(text: string, query?: string): string {
     return selected.join(' ');
   }
 
+  const cleaned = cleanSnippetSource(text);
   const fallbackLines = cleaned
     .split(/\n+/)
     .map((l) => l.trim())
