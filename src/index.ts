@@ -54,14 +54,8 @@ import { loadCredentials } from './utils/credentials';
 import { colorize, colors, fmt, icons, isTTY } from './utils/theme';
 import { isUrl, normalizeUrl } from './utils/url';
 
-/**
- * Extend Commander's Command type to include container instance
- */
-declare module 'commander' {
-  interface Command {
-    _container?: IContainer;
-  }
-}
+// Commander module augmentation (container injection)
+import './types/commander';
 
 /**
  * Dependency Injection Container

@@ -81,7 +81,7 @@ export async function handleLogoutCommand(): Promise<void> {
         `Error logging out: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
     );
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

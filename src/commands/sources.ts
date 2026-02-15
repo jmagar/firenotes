@@ -172,7 +172,7 @@ export async function handleSourcesCommand(
   container: IContainer,
   options: SourcesOptions
 ): Promise<void> {
-  processCommandResult(
+  await processCommandResult(
     await executeSources(container, options),
     options,
     (resultData) => formatSummary(resultData, options)
@@ -188,7 +188,7 @@ export function createSourcesCommand(): Command {
       new Command('sources')
         .description('List all source URLs indexed in the vector database')
         .option('--limit <number>', 'Maximum sources to show', (val) =>
-          parseInt(val, 10)
+          Number.parseInt(val, 10)
         )
     )
   ).action(async (options, command: Command) => {

@@ -23,12 +23,8 @@ import {
 import { fmt, icons } from '../utils/theme';
 import { normalizeUrlArgs, requireContainerFromCommandTree } from './shared';
 
-// Extend Commander's Command type to include our custom _container property
-declare module 'commander' {
-  interface Command {
-    _container?: IContainer;
-  }
-}
+// Commander module augmentation (container injection)
+import '../types/commander';
 
 function buildBatchScrapeOptions(options: BatchOptions) {
   const scrapeOptions: Record<string, unknown> = {};
@@ -169,12 +165,12 @@ async function handleBatchSubcommand<T>(
     const outputContent = useJson
       ? formatJson(result, options.pretty)
       : formatHuman(data);
-    writeCommandOutput(outputContent, options);
+    await writeCommandOutput(outputContent, options);
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : 'Unknown error occurred';
     console.error(fmt.error(message));
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
@@ -257,7 +253,7 @@ export async function handleBatchCommand(
   const output = useJson
     ? formatJson({ success: true, data: result.data }, options.pretty)
     : formatBatchResultHuman(result.data);
-  writeCommandOutput(output, options);
+  await writeCommandOutput(output, options);
 }
 
 /**
@@ -369,7 +365,7 @@ export function createBatchCommand(): Command {
     .option(
       '--wait-for <ms>',
       'Wait time before scraping in milliseconds',
-      (val) => parseInt(val, 10)
+      (val) => Number.parseInt(val, 10)
     )
     .option('--screenshot', 'Include screenshot format', false)
     .option('--include-tags <tags>', 'Comma-separated list of tags to include')
@@ -377,7 +373,7 @@ export function createBatchCommand(): Command {
     .option(
       '--max-concurrency <number>',
       'Max concurrency for batch scraping',
-      (val) => parseInt(val, 10)
+      (val) => Number.parseInt(val, 10)
     )
     .option(
       '--ignore-invalid-urls',

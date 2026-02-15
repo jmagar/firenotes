@@ -48,8 +48,8 @@ import { isJobId } from '../../../utils/job';
 import { recordJob } from '../../../utils/job-history';
 import { writeOutput } from '../../../utils/output';
 
-vi.mocked(writeCommandOutput).mockImplementation((content, options) => {
-  writeOutput(String(content), options.output, !!options.output);
+vi.mocked(writeCommandOutput).mockImplementation(async (content, options) => {
+  await writeOutput(String(content), options.output, !!options.output);
 });
 
 describe('handleCrawlCommand', () => {

@@ -302,7 +302,7 @@ export async function handleExtractCommand(
 
     outputContent = lines.join('\n');
   }
-  writeCommandOutput(outputContent, options);
+  await writeCommandOutput(outputContent, options);
 }
 
 import { Command } from 'commander';
@@ -360,7 +360,7 @@ async function handleExtractStatusCommand(
                 ]
           )
           .join('\n');
-    writeCommandOutput(outputContent, options);
+    await writeCommandOutput(outputContent, options);
   } catch (error: unknown) {
     const errorMessage = buildApiErrorMessage(error, container.config.apiUrl);
     command.error(errorMessage);

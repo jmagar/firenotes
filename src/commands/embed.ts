@@ -10,6 +10,7 @@ import type { EmbedOptions, EmbedResult } from '../types/embed';
 import { chunkText } from '../utils/chunker';
 import {
   formatJson,
+  handleCommandError,
   processCommandResult,
   shouldOutputJson,
   writeCommandOutput,
@@ -185,7 +186,7 @@ export async function handleEmbedCommand(
   container: IContainer,
   options: EmbedOptions
 ): Promise<void> {
-  processCommandResult(
+  await processCommandResult(
     await executeEmbed(container, options),
     options,
     (data) =>
@@ -289,7 +290,7 @@ async function handleStatusCommand(
 
   const useJson = shouldOutputJson(options) || Boolean(options.output);
   if (useJson) {
-    writeCommandOutput(
+    await writeCommandOutput(
       formatJson({ success: true, data: job }, options.pretty),
       options
     );
@@ -411,33 +412,21 @@ export function createEmbedCommand(): Command {
     .description('Cancel a pending embedding job')
     .argument('<job-id>', 'Job ID to cancel')
     .action(async (jobId: string) => {
-      const result = await handleCancelCommand(jobId);
-      if (!result.success) {
-        console.error(fmt.error(result.error || 'Unknown error'));
-        process.exit(1);
-      }
+      handleCommandError(await handleCancelCommand(jobId));
     });
 
   embedCmd
     .command('clear')
     .description('Clear the entire embedding queue')
     .action(async () => {
-      const result = await handleClearCommand();
-      if (!result.success) {
-        console.error(fmt.error(result.error || 'Unknown error'));
-        process.exit(1);
-      }
+      handleCommandError(await handleClearCommand());
     });
 
   embedCmd
     .command('cleanup')
     .description('Cleanup failed and stale/stalled embedding jobs')
     .action(async () => {
-      const result = await handleCleanupCommand();
-      if (!result.success) {
-        console.error(fmt.error(result.error || 'Unknown error'));
-        process.exit(1);
-      }
+      handleCommandError(await handleCleanupCommand());
     });
 
   embedCmd
@@ -448,15 +437,13 @@ export function createEmbedCommand(): Command {
     .option('--json', 'Output as JSON format', false)
     .option('--pretty', 'Pretty print JSON output', false)
     .action(async (jobId: string, options) => {
-      const result = await handleStatusCommand(jobId, {
-        output: options.output,
-        json: options.json,
-        pretty: options.pretty,
-      });
-      if (!result.success) {
-        console.error(fmt.error(result.error || 'Unknown error'));
-        process.exit(1);
-      }
+      handleCommandError(
+        await handleStatusCommand(jobId, {
+          output: options.output,
+          json: options.json,
+          pretty: options.pretty,
+        })
+      );
     });
 
   return embedCmd;

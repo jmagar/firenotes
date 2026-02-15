@@ -51,6 +51,14 @@ export class QdrantService implements IQdrantService {
     private readonly httpClient: IHttpClient
   ) {}
 
+  /**
+   * SEC-06: Encode collection name for safe URL interpolation.
+   * Defense-in-depth: even validated names get URI-encoded.
+   */
+  private encodeCollection(collection: string): string {
+    return encodeURIComponent(collection);
+  }
+
   private async formatError(
     response: Response,
     baseMessage: string
@@ -166,7 +174,7 @@ export class QdrantService implements IQdrantService {
       }
 
       const response = await this.postToQdrant(
-        `/collections/${collection}/points/scroll`,
+        `/collections/${this.encodeCollection(collection)}/points/scroll`,
         body,
         'Qdrant scroll failed'
       );
@@ -209,7 +217,7 @@ export class QdrantService implements IQdrantService {
     }
 
     const response = await this.postToQdrant(
-      `/collections/${collection}/points/count`,
+      `/collections/${this.encodeCollection(collection)}/points/count`,
       body,
       'Qdrant count failed'
     );
@@ -233,7 +241,7 @@ export class QdrantService implements IQdrantService {
     if (filter.must.length === 0) return;
 
     await this.postToQdrant(
-      `/collections/${collection}/points/delete`,
+      `/collections/${this.encodeCollection(collection)}/points/delete`,
       { filter },
       'Qdrant delete failed'
     );
@@ -252,7 +260,7 @@ export class QdrantService implements IQdrantService {
     }
 
     const checkResponse = await this.httpClient.fetchWithRetry(
-      `${this.qdrantUrl}/collections/${collection}`,
+      `${this.qdrantUrl}/collections/${this.encodeCollection(collection)}`,
       undefined,
       { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
     );
@@ -270,7 +278,7 @@ export class QdrantService implements IQdrantService {
 
     // Create collection
     const createResponse = await this.httpClient.fetchWithRetry(
-      `${this.qdrantUrl}/collections/${collection}`,
+      `${this.qdrantUrl}/collections/${this.encodeCollection(collection)}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -298,7 +306,7 @@ export class QdrantService implements IQdrantService {
     const indexResponses = await Promise.all(
       indexFields.map((field) =>
         this.httpClient.fetchWithRetry(
-          `${this.qdrantUrl}/collections/${collection}/index`,
+          `${this.qdrantUrl}/collections/${this.encodeCollection(collection)}/index`,
           {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -336,7 +344,7 @@ export class QdrantService implements IQdrantService {
    */
   async upsertPoints(collection: string, points: QdrantPoint[]): Promise<void> {
     await this.putToQdrant(
-      `/collections/${collection}/points`,
+      `/collections/${this.encodeCollection(collection)}/points`,
       { points },
       'Qdrant upsert failed'
     );
@@ -379,7 +387,7 @@ export class QdrantService implements IQdrantService {
     }
 
     const response = await this.postToQdrant(
-      `/collections/${collection}/points/query`,
+      `/collections/${this.encodeCollection(collection)}/points/query`,
       body,
       'Qdrant query failed'
     );
@@ -461,7 +469,7 @@ export class QdrantService implements IQdrantService {
    */
   async getCollectionInfo(collection: string): Promise<CollectionInfo> {
     const response = await this.httpClient.fetchWithRetry(
-      `${this.qdrantUrl}/collections/${collection}`,
+      `${this.qdrantUrl}/collections/${this.encodeCollection(collection)}`,
       undefined,
       { timeoutMs: QDRANT_TIMEOUT_MS, maxRetries: QDRANT_MAX_RETRIES }
     );
@@ -561,7 +569,7 @@ export class QdrantService implements IQdrantService {
    */
   async deleteAll(collection: string): Promise<void> {
     await this.postToQdrant(
-      `/collections/${collection}/points/delete`,
+      `/collections/${this.encodeCollection(collection)}/points/delete`,
       { filter: { must: [] } },
       'Qdrant delete all failed'
     );

@@ -47,7 +47,7 @@ export async function handleListCommand(
   container: IContainer,
   options: ListOptions
 ): Promise<void> {
-  processCommandResult(
+  await processCommandResult(
     await executeList(container, options),
     { ...options, json: options.json || !!options.output },
     (data) => {

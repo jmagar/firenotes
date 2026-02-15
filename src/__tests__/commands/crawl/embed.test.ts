@@ -6,6 +6,7 @@ import {
   handleSyncEmbedding,
 } from '../../../commands/crawl/embed';
 import type { CrawlJobData } from '../../../types/crawl';
+import { getDefaultSettings } from '../../../utils/default-settings';
 import { createTestContainer } from '../../utils/test-container';
 
 const createContainer = (...args: Parameters<typeof createTestContainer>) =>
@@ -37,7 +38,9 @@ describe('attachEmbedWebhook', () => {
     );
 
     const options = { limit: 10 };
-    const result = attachEmbedWebhook(options, true, false, {});
+    const result = attachEmbedWebhook(options, true, false, {
+      settings: getDefaultSettings(),
+    });
 
     expect(result).toEqual({ limit: 10, webhook: webhookConfig });
   });
@@ -49,7 +52,9 @@ describe('attachEmbedWebhook', () => {
     );
 
     const options = { limit: 10 };
-    const result = attachEmbedWebhook(options, false, false, {});
+    const result = attachEmbedWebhook(options, false, false, {
+      settings: getDefaultSettings(),
+    });
 
     expect(result).toEqual({ limit: 10 });
   });
@@ -61,7 +66,9 @@ describe('attachEmbedWebhook', () => {
     );
 
     const options = { limit: 10 };
-    const result = attachEmbedWebhook(options, true, true, {});
+    const result = attachEmbedWebhook(options, true, true, {
+      settings: getDefaultSettings(),
+    });
 
     expect(result).toEqual({ limit: 10 });
   });
@@ -70,7 +77,9 @@ describe('attachEmbedWebhook', () => {
     vi.mocked(buildEmbedderWebhookConfig).mockReturnValue(null);
 
     const options = { limit: 10 };
-    const result = attachEmbedWebhook(options, true, false, {});
+    const result = attachEmbedWebhook(options, true, false, {
+      settings: getDefaultSettings(),
+    });
 
     expect(result).toEqual({ limit: 10 });
   });
@@ -99,7 +108,10 @@ describe('handleAsyncEmbedding', () => {
     await handleAsyncEmbedding(
       'job-123',
       'https://example.com',
-      { embedderWebhookUrl: 'https://webhook.example.com' },
+      {
+        embedderWebhookUrl: 'https://webhook.example.com',
+        settings: getDefaultSettings(),
+      },
       'test-key'
     );
 
@@ -132,7 +144,9 @@ describe('handleAsyncEmbedding', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => {});
 
-    await handleAsyncEmbedding('job-456', 'https://example.com', {});
+    await handleAsyncEmbedding('job-456', 'https://example.com', {
+      settings: getDefaultSettings(),
+    });
 
     expect(consoleError).toHaveBeenCalledWith(
       expect.stringContaining('Embedder webhook not configured')

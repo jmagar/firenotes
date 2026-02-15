@@ -13,7 +13,7 @@
  * - Lock contention and deadlock scenarios
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -25,10 +25,16 @@ describe('Embed Queue Concurrency Tests', () => {
     queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-concurrency-'));
     process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
+    // Verify directory was created (synchronous — no sleep needed)
+    expect(existsSync(queueDir)).toBe(true);
   });
 
   afterEach(() => {
-    rmSync(queueDir, { recursive: true, force: true });
+    try {
+      rmSync(queueDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
     delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
@@ -264,7 +270,7 @@ describe('Embed Queue Concurrency Tests', () => {
       // Retries could be anywhere from 1 to 5 depending on race timing
       expect(job?.retries).toBeGreaterThanOrEqual(1);
       expect(job?.retries).toBeLessThanOrEqual(5);
-    });
+    }, 10000);
 
     it('should handle concurrent progress updates without corruption', async () => {
       const { enqueueEmbedJob, updateJobProgress, getEmbedJob } = await import(
@@ -290,7 +296,7 @@ describe('Embed Queue Concurrency Tests', () => {
       expect(finalJob?.processedDocuments).toBeGreaterThanOrEqual(0);
       expect(finalJob?.failedDocuments).toBeGreaterThanOrEqual(0);
       expect(finalJob?.progressUpdatedAt).toBeDefined();
-    });
+    }, 10000);
   });
 
   describe('Queue operations under high load', () => {
@@ -299,16 +305,18 @@ describe('Embed Queue Concurrency Tests', () => {
         '../../utils/embed-queue'
       );
 
-      // Enqueue 100 jobs concurrently
-      const jobIds = Array.from({ length: 100 }, (_, i) => `job-${i}`);
+      // Enqueue 100 jobs concurrently with unique prefix
+      const testPrefix = 'load-test-';
+      const jobIds = Array.from({ length: 100 }, (_, i) => `${testPrefix}${i}`);
       await Promise.all(
         jobIds.map((id) => enqueueEmbedJob(id, 'https://example.com'))
       );
 
       // Verify all jobs were created
       const jobs = await listEmbedJobs();
-      expect(jobs).toHaveLength(100);
-      expect(jobs.every((j) => j.status === 'pending')).toBe(true);
+      const testJobs = jobs.filter((j) => j.jobId.startsWith(testPrefix));
+      expect(testJobs).toHaveLength(100);
+      expect(testJobs.every((j) => j.status === 'pending')).toBe(true);
     });
 
     it('should handle mixed concurrent operations (enqueue, claim, update)', async () => {

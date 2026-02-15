@@ -81,6 +81,24 @@ async function ensureHistoryDir(): Promise<void> {
 }
 
 /**
+ * Validate that a value is a well-formed job history entry.
+ */
+function isValidEntry(entry: unknown): entry is JobHistoryEntry {
+  if (typeof entry !== 'object' || entry === null) return false;
+  const obj = entry as Record<string, unknown>;
+  return typeof obj.id === 'string' && typeof obj.updatedAt === 'string';
+}
+
+/**
+ * Filter an array down to only valid JobHistoryEntry items,
+ * silently discarding corrupted entries.
+ */
+function sanitizeEntries(raw: unknown): JobHistoryEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isValidEntry);
+}
+
+/**
  * Migrate job history from legacy cache directory if it exists
  */
 async function migrateLegacyHistory(): Promise<void> {
@@ -95,11 +113,13 @@ async function migrateLegacyHistory(): Promise<void> {
     }
 
     try {
-      const parsed = JSON.parse(legacyData) as Partial<JobHistoryData>;
+      const parsed: unknown = JSON.parse(legacyData);
+      if (typeof parsed !== 'object' || parsed === null) continue;
+      const obj = parsed as Record<string, unknown>;
       const validated: JobHistoryData = {
-        crawl: Array.isArray(parsed.crawl) ? parsed.crawl : [],
-        batch: Array.isArray(parsed.batch) ? parsed.batch : [],
-        extract: Array.isArray(parsed.extract) ? parsed.extract : [],
+        crawl: sanitizeEntries(obj.crawl),
+        batch: sanitizeEntries(obj.batch),
+        extract: sanitizeEntries(obj.extract),
       };
       const historyPath = getJobHistoryPath();
 
@@ -127,11 +147,15 @@ async function loadHistory(): Promise<JobHistoryData> {
 
   try {
     const data = await fs.readFile(getJobHistoryPath(), 'utf-8');
-    const parsed = JSON.parse(data) as Partial<JobHistoryData>;
+    const parsed: unknown = JSON.parse(data);
+    if (typeof parsed !== 'object' || parsed === null) {
+      return { crawl: [], batch: [], extract: [] };
+    }
+    const obj = parsed as Record<string, unknown>;
     return {
-      crawl: parsed.crawl ?? [],
-      batch: parsed.batch ?? [],
-      extract: parsed.extract ?? [],
+      crawl: sanitizeEntries(obj.crawl),
+      batch: sanitizeEntries(obj.batch),
+      extract: sanitizeEntries(obj.extract),
     };
   } catch {
     return { crawl: [], batch: [], extract: [] };

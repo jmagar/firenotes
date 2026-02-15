@@ -186,7 +186,8 @@ export async function handleScrapeCommand(
 
     if (!result.success) {
       console.error(fmt.error(result.error || 'Unknown error'));
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
 
     // Parse domain - executeScrape already validated URL, but handle edge case
@@ -258,7 +259,7 @@ export async function handleScrapeCommand(
         }).length
       : 0;
 
-  handleScrapeOutput(
+  await handleScrapeOutput(
     result,
     effectiveFormats,
     options.output,
@@ -318,7 +319,7 @@ export function createScrapeCommand(): Command {
     .option(
       '--wait-for <ms>',
       'Wait time before scraping in milliseconds',
-      (val) => parseInt(val, 10)
+      (val) => Number.parseInt(val, 10)
     )
     .option(
       '--timeout <seconds>',

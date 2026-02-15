@@ -34,29 +34,25 @@ export interface CommonOutputOptions {
 }
 
 /**
- * Handle command result: check for errors and exit if failed.
+ * Handle command result: check for errors and set exit code if failed.
  *
  * This consolidates the repeated pattern:
  * ```
  * if (!result.success) {
  *   console.error('Error:', result.error);
- *   process.exit(1);
+ *   process.exitCode = 1;
  * }
  * ```
  *
  * @param result - The command execution result
- * @param exitOnError - Whether to call process.exit(1) on error (default: true)
- * @returns true if successful, false if error (only when exitOnError=false)
+ * @returns true if successful, false if error
  */
 export function handleCommandError<T>(
-  result: CommandResult<T>,
-  exitOnError: boolean = true
+  result: CommandResult<T>
 ): result is CommandResult<T> & { success: true; data: T } {
   if (!result.success) {
     console.error(fmt.error(result.error || 'Unknown error occurred'));
-    if (exitOnError) {
-      process.exit(1);
-    }
+    process.exitCode = 1;
     return false;
   }
   return true;
@@ -100,11 +96,11 @@ export function wrapSuccessResponse<T>(data: T): { success: true; data: T } {
  * @param options - Output options (output path, pretty, json flag)
  * @param forceJson - Force JSON output even for string content
  */
-export function writeCommandOutput(
+export async function writeCommandOutput(
   content: unknown,
   options: CommonOutputOptions,
   forceJson: boolean = false
-): void {
+): Promise<void> {
   if (options.output) {
     validateOutputPath(options.output);
   }
@@ -117,7 +113,7 @@ export function writeCommandOutput(
     outputContent = formatJson(content, options.pretty);
   }
 
-  writeOutput(outputContent, options.output, !!options.output);
+  await writeOutput(outputContent, options.output, !!options.output);
 }
 
 /**
@@ -128,11 +124,11 @@ export function writeCommandOutput(
  * @param data - The data to output
  * @param options - Output options
  */
-export function writeJsonOutput<T>(
+export async function writeJsonOutput<T>(
   data: T,
   options: CommonOutputOptions
-): void {
-  writeCommandOutput(wrapSuccessResponse(data), options, true);
+): Promise<void> {
+  await writeCommandOutput(wrapSuccessResponse(data), options, true);
 }
 
 /**
@@ -166,11 +162,11 @@ export function shouldOutputJson(options: CommonOutputOptions): boolean {
  * @param formatter - Optional custom formatter for non-JSON output
  * @returns The result data if successful, undefined if error
  */
-export function processCommandResult<T>(
+export async function processCommandResult<T>(
   result: CommandResult<T>,
   options: CommonOutputOptions,
   formatter?: (data: T) => string
-): T | undefined {
+): Promise<T | undefined> {
   if (!handleCommandError(result)) {
     return undefined;
   }
@@ -182,10 +178,10 @@ export function processCommandResult<T>(
   const useJson = shouldOutputJson(options) || !formatter;
 
   if (useJson) {
-    writeJsonOutput(result.data, options);
+    await writeJsonOutput(result.data, options);
   } else {
     const content = formatter(result.data);
-    writeCommandOutput(content, options);
+    await writeCommandOutput(content, options);
   }
 
   return result.data;
@@ -193,11 +189,12 @@ export function processCommandResult<T>(
 
 /**
  * Validate that values are in an allowed list.
- * Exits with error message if validation fails.
+ * Throws an error if validation fails.
  *
  * @param values - The values to validate
  * @param validValues - The list of valid values
  * @param valueName - The name of the value type for error messages (e.g., "source", "category")
+ * @throws Error if any value is not in the allowed list
  */
 export function validateAllowedValues(
   values: string[],
@@ -206,12 +203,9 @@ export function validateAllowedValues(
 ): void {
   for (const value of values) {
     if (!validValues.includes(value)) {
-      console.error(
-        fmt.error(
-          `Invalid ${valueName} "${value}". Valid ${valueName}s: ${validValues.join(', ')}`
-        )
+      throw new Error(
+        `Invalid ${valueName} "${value}". Valid ${valueName}s: ${validValues.join(', ')}`
       );
-      process.exit(1);
     }
   }
 }

@@ -119,7 +119,7 @@ export async function handleRetrieveCommand(
   container: IContainer,
   options: RetrieveOptions
 ): Promise<void> {
-  processCommandResult(
+  await processCommandResult(
     await executeRetrieve(container, options),
     options,
     (data: { url: string; totalChunks: number; content: string }) => {

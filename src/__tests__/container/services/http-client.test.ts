@@ -46,6 +46,7 @@ describe('HttpClient service', () => {
       expect(mockFetchWithRetry).toHaveBeenCalledWith(url, init, {
         timeoutMs: 5000,
         maxRetries: 2,
+        backoffFactor: 1.5,
       });
     });
 

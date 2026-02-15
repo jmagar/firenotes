@@ -6,7 +6,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { timingSafeEqual } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import type { Document } from '@mendable/firecrawl-js';
@@ -42,6 +42,14 @@ import { fmt } from './theme';
 
 const BACKOFF_MULTIPLIER = 2;
 const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB request body limit
+
+/**
+ * Generate a cryptographically random secret for webhook authentication.
+ * Used as fallback when no secret is explicitly configured.
+ */
+export function generateWebhookSecret(): string {
+  return randomBytes(32).toString('hex');
+}
 
 function isPermanentJobError(error: string): boolean {
   return isJobNotFoundError(error);
@@ -420,10 +428,80 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
       : 10 * 60_000;
   const intervalMs = Math.max(60_000, Math.floor(staleMs / 2));
 
+  // SEC-01: Track whether a secret was explicitly configured.
+  // When no secret is set, auth is skipped (server binds to localhost by default).
+  // Previously an ephemeral secret was generated, but buildEmbedderWebhookConfig
+  // (client side) has no access to it, causing all webhook requests to get 401.
+  const hasExplicitSecret = !!settings.secret;
+  const effectiveSecret = settings.secret || '';
+  if (!hasExplicitSecret) {
+    console.error(
+      fmt.warning(
+        '[Embedder] No webhook secret configured. Auth disabled (localhost-only).'
+      )
+    );
+    console.error(
+      fmt.dim(
+        '[Embedder] For authenticated webhooks, set FIRECRAWL_EMBEDDER_WEBHOOK_SECRET in .env'
+      )
+    );
+  }
+
+  // SEC-01: Determine bind address. Default to 127.0.0.1 (localhost only).
+  // Only bind to 0.0.0.0 if explicitly opted in via env var.
+  const bindAddress =
+    process.env.FIRECRAWL_EMBEDDER_BIND_ADDRESS === '0.0.0.0'
+      ? '0.0.0.0'
+      : '127.0.0.1';
+
+  /** Authenticate an incoming request using the webhook secret.
+   *  When no secret is explicitly configured, auth is skipped
+   *  (server is bound to localhost by default). */
+  function authenticateRequest(
+    req: { headers: Record<string, string | string[] | undefined> },
+    res: { statusCode: number; end: () => void }
+  ): boolean {
+    // No explicit secret configured — skip auth (localhost-only by default)
+    if (!hasExplicitSecret) {
+      return true;
+    }
+
+    const provided = req.headers[EMBEDDER_WEBHOOK_HEADER];
+
+    if (!provided || typeof provided !== 'string') {
+      res.statusCode = 401;
+      res.end();
+      return false;
+    }
+
+    const providedBuf = Buffer.from(provided, 'utf8');
+    const secretBuf = Buffer.from(effectiveSecret, 'utf8');
+
+    if (providedBuf.length !== secretBuf.length) {
+      res.statusCode = 401;
+      res.end();
+      return false;
+    }
+
+    try {
+      if (!timingSafeEqual(providedBuf, secretBuf)) {
+        res.statusCode = 401;
+        res.end();
+        return false;
+      }
+    } catch {
+      res.statusCode = 401;
+      res.end();
+      return false;
+    }
+
+    return true;
+  }
+
   const server = createServer(async (req, res) => {
     const requestUrl = new URL(req.url || '/', 'http://localhost');
 
-    // Health check endpoint for daemon detection
+    // Health check endpoint - lightweight, localhost-only by default (no auth needed for liveness)
     if (req.method === 'GET' && requestUrl.pathname === '/health') {
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
@@ -431,8 +509,10 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
       return;
     }
 
-    // Status endpoint for monitoring
+    // SEC-01: Status endpoint requires authentication (exposes operational telemetry)
     if (req.method === 'GET' && requestUrl.pathname === '/status') {
+      if (!authenticateRequest(req, res)) return;
+
       const stats = await getQueueStats();
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
@@ -449,46 +529,13 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
     }
 
     if (req.method !== 'POST' || requestUrl.pathname !== settings.path) {
-      res.statusCode = req.method === 'POST' ? 404 : 405; // 404 for wrong path, 405 for wrong method
+      res.statusCode = req.method === 'POST' ? 404 : 405;
       res.end();
       return;
     }
 
-    if (settings.secret) {
-      const provided = req.headers[EMBEDDER_WEBHOOK_HEADER];
-
-      // Type check and validate provided secret
-      if (!provided || typeof provided !== 'string') {
-        res.statusCode = 401;
-        res.end();
-        return;
-      }
-
-      // Convert to buffers for timing-safe comparison
-      const providedBuf = Buffer.from(provided, 'utf8');
-      const secretBuf = Buffer.from(settings.secret, 'utf8');
-
-      // Length check before comparison (timingSafeEqual requires equal lengths)
-      if (providedBuf.length !== secretBuf.length) {
-        res.statusCode = 401;
-        res.end();
-        return;
-      }
-
-      // Use constant-time comparison to prevent timing attacks
-      try {
-        if (!timingSafeEqual(providedBuf, secretBuf)) {
-          res.statusCode = 401;
-          res.end();
-          return;
-        }
-      } catch {
-        // timingSafeEqual can throw if lengths don't match (shouldn't happen due to check above)
-        res.statusCode = 401;
-        res.end();
-        return;
-      }
-    }
+    // SEC-01: Webhook endpoint always requires authentication
+    if (!authenticateRequest(req, res)) return;
 
     try {
       const payload = await readJsonBody(req);
@@ -508,11 +555,18 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(settings.port, '0.0.0.0', () => resolve());
+    server.listen(settings.port, bindAddress, () => resolve());
   });
 
-  const localUrl = `http://localhost:${settings.port}${settings.path}`;
+  const localUrl = `http://${bindAddress}:${settings.port}${settings.path}`;
   console.error(fmt.dim(`[Embedder] Webhook server listening on ${localUrl}`));
+  if (bindAddress === '0.0.0.0') {
+    console.error(
+      fmt.warning(
+        '[Embedder] WARNING: Server bound to all interfaces (0.0.0.0). Ensure network is trusted.'
+      )
+    );
+  }
 
   if (!settings.url) {
     console.error(fmt.warning('[Embedder] WARNING: No webhook URL configured'));
