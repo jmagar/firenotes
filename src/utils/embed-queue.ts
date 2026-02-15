@@ -519,7 +519,16 @@ async function withJobLock(
     release = await lockfile.lock(jobPath, { retries: 2, stale: 60000 });
 
     const data = await readFile(jobPath, 'utf-8');
-    const job: EmbedJob = JSON.parse(data);
+    const raw = JSON.parse(data);
+    // SEC-05: Validate parsed JSON against schema
+    const parsed = EmbedJobSchema.safeParse(raw);
+    if (!parsed.success) {
+      console.error(
+        fmt.error(`Job ${jobId} failed schema validation during lock update`)
+      );
+      return;
+    }
+    const job = parsed.data;
 
     mutate(job);
 
