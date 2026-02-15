@@ -9,6 +9,7 @@ import { getAuthSource, isAuthenticated } from '../../utils/auth';
 import { formatJson, writeCommandOutput } from '../../utils/command';
 import { DEFAULT_API_URL } from '../../utils/defaults';
 import { clearJobHistory } from '../../utils/job-history';
+import { validateOutputPath } from '../../utils/output';
 import { colorize, colors, fmt, icons } from '../../utils/theme';
 import { requireContainer } from '../shared';
 import { executeJobStatus } from './execute';
@@ -101,6 +102,9 @@ export async function handleJobStatusCommand(
   options: JobStatusOptions
 ): Promise<void> {
   try {
+    if (options.output) {
+      validateOutputPath(options.output);
+    }
     const wantsJson = options.json || options.pretty || options.output;
     const filtersEcho = buildStatusFiltersEcho(options);
     const renderOptionsBase: Omit<RenderStatusOptions, 'changedKeys'> = {
