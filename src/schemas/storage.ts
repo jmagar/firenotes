@@ -161,20 +161,20 @@ export const UserSettingsSchema = z
  */
 export const EmbedJobSchema = z
   .object({
-    id: z.string(),
-    jobId: z.string(),
-    url: z.string(),
+    id: z.string().min(1),
+    jobId: z.string().min(1),
+    url: z.string().url(),
     status: z.enum(['pending', 'processing', 'completed', 'failed']),
     retries: z.number().int().min(0),
     maxRetries: z.number().int().min(0),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
     lastError: z.string().optional(),
     apiKey: z.string().optional(),
     totalDocuments: z.number().int().min(0).optional(),
     processedDocuments: z.number().int().min(0).optional(),
     failedDocuments: z.number().int().min(0).optional(),
-    progressUpdatedAt: z.string().optional(),
+    progressUpdatedAt: z.string().datetime().optional(),
   })
   .strict();
 
