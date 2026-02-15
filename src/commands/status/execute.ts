@@ -3,11 +3,8 @@
  */
 
 import type { IContainer } from '../../container/types';
-import {
-  cleanupOldJobs,
-  listEmbedJobs,
-  updateEmbedJob,
-} from '../../utils/embed-queue';
+import type { EmbedJob } from '../../utils/embed-queue';
+import { listEmbedJobs, updateEmbedJob } from '../../utils/embed-queue';
 import { withTimeout } from '../../utils/http';
 import { isJobId } from '../../utils/job';
 import { getRecentJobIds, removeJobIds } from '../../utils/job-history';
@@ -18,7 +15,6 @@ import type {
   JobStatusData,
   JobStatusOptions,
   PendingEmbed,
-  RawEmbedJob,
 } from './types';
 
 function parseIds(value?: string): string[] {
@@ -58,7 +54,7 @@ function extractPruneIds<T extends { id?: string; error?: string }>(
 
 async function summarizeEmbedQueue(): Promise<{
   summary: EmbedQueueSummary;
-  jobs: RawEmbedJob[];
+  jobs: EmbedJob[];
 }> {
   const jobs = await listEmbedJobs();
   const summary: EmbedQueueSummary = {
@@ -77,8 +73,36 @@ async function summarizeEmbedQueue(): Promise<{
   return { summary, jobs };
 }
 
+// Aligned with the 30s timeout guideline for external HTTP calls (utils/http.ts).
+const STATUS_TIMEOUT_MS = 30_000;
+const STATUS_MAX_RETRIES = 3;
+const STATUS_RETRY_BASE_MS = 500;
+
 /**
- * Fetches job statuses from the Firecrawl API in parallel
+ * Retries a thunk up to maxRetries times with exponential backoff
+ * for transient errors (timeouts, network errors).
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = STATUS_MAX_RETRIES
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxRetries) {
+        const delay = STATUS_RETRY_BASE_MS * 2 ** attempt;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * Fetches job statuses from the Firecrawl API in parallel with retry logic.
  */
 async function fetchJobStatuses(
   client: ReturnType<IContainer['getFirecrawlClient']>,
@@ -88,22 +112,25 @@ async function fetchJobStatuses(
     extracts: string[];
   }
 ) {
-  const STATUS_TIMEOUT_MS = 10000;
   const noPagination = { autoPaginate: false };
 
-  const activeCrawlsPromise = withTimeout(
-    client.getActiveCrawls(),
-    STATUS_TIMEOUT_MS,
-    'getActiveCrawls timed out'
+  const activeCrawlsPromise = withRetry(() =>
+    withTimeout(
+      client.getActiveCrawls(),
+      STATUS_TIMEOUT_MS,
+      'getActiveCrawls timed out'
+    )
   ).catch(() => ({ success: false, crawls: [] }));
 
   const crawlStatusesPromise = Promise.all(
     resolvedIds.crawls.map(async (id) => {
       try {
-        return await withTimeout(
-          client.getCrawlStatus(id, noPagination),
-          STATUS_TIMEOUT_MS,
-          `getCrawlStatus(${id}) timed out`
+        return await withRetry(() =>
+          withTimeout(
+            client.getCrawlStatus(id, noPagination),
+            STATUS_TIMEOUT_MS,
+            `getCrawlStatus(${id}) timed out`
+          )
         );
       } catch (error) {
         return {
@@ -118,10 +145,12 @@ async function fetchJobStatuses(
   const batchStatusesPromise = Promise.all(
     resolvedIds.batches.map(async (id) => {
       try {
-        return await withTimeout(
-          client.getBatchScrapeStatus(id, noPagination),
-          STATUS_TIMEOUT_MS,
-          `getBatchScrapeStatus(${id}) timed out`
+        return await withRetry(() =>
+          withTimeout(
+            client.getBatchScrapeStatus(id, noPagination),
+            STATUS_TIMEOUT_MS,
+            `getBatchScrapeStatus(${id}) timed out`
+          )
         );
       } catch (error) {
         return {
@@ -136,10 +165,12 @@ async function fetchJobStatuses(
   const extractStatusesPromise = Promise.all(
     resolvedIds.extracts.map(async (id) => {
       try {
-        return await withTimeout(
-          client.getExtractStatus(id),
-          STATUS_TIMEOUT_MS,
-          `getExtractStatus(${id}) timed out`
+        return await withRetry(() =>
+          withTimeout(
+            client.getExtractStatus(id),
+            STATUS_TIMEOUT_MS,
+            `getExtractStatus(${id}) timed out`
+          )
         );
       } catch (error) {
         return {
@@ -217,7 +248,7 @@ function annotateCrawlUrls(
  * Updates embed job URLs in batch
  */
 async function updateEmbedJobUrls(
-  jobs: RawEmbedJob[],
+  jobs: EmbedJob[],
   crawlSourceById: Map<string, string>
 ): Promise<void> {
   const jobsToUpdate = jobs.filter((job) => {
@@ -257,13 +288,13 @@ function formatJobsForDisplay<
   U extends { id?: string; status?: string },
   V extends { id?: string; status?: string },
 >(crawlStatuses: Array<T>, batchStatuses: Array<U>, extractStatuses: Array<V>) {
-  const sortedCrawls = crawlStatuses
+  const sortedCrawls = [...crawlStatuses]
     .sort((a, b) => (b.id ?? '').localeCompare(a.id ?? ''))
     .slice(0, 10);
-  const sortedBatches = batchStatuses
+  const sortedBatches = [...batchStatuses]
     .sort((a, b) => (b.id ?? '').localeCompare(a.id ?? ''))
     .slice(0, 10);
-  const sortedExtracts = extractStatuses
+  const sortedExtracts = [...extractStatuses]
     .sort((a, b) => (b.id ?? '').localeCompare(a.id ?? ''))
     .slice(0, 10);
 
@@ -279,9 +310,6 @@ export async function executeJobStatus(
   options: JobStatusOptions
 ): Promise<JobStatusData> {
   const client = container.getFirecrawlClient();
-
-  // Clean up old completed/failed embed jobs (older than 1 hour)
-  await cleanupOldJobs(1);
 
   const embedQueue = await summarizeEmbedQueue();
   const crawlIds = parseIds(options.crawl);
@@ -329,7 +357,9 @@ export async function executeJobStatus(
   await removeJobIds('batch', batchPruneIds);
   await removeJobIds('extract', extractStatusPruneIds);
 
-  // Build source URL mapping, annotate crawl statuses, and update embed job URLs
+  // Build source URL mapping, annotate crawl statuses, and update embed job URLs.
+  // Note: updateEmbedJobUrls intentionally mutates embedQueue.jobs[].url so that
+  // downstream failedEmbeds/pendingEmbeds/completedEmbeds reflect resolved URLs.
   const crawlSourceById = buildCrawlSourceMap(activeCrawls, crawlStatuses);
   annotateCrawlUrls(crawlStatuses, crawlSourceById);
   await updateEmbedJobUrls(embedQueue.jobs, crawlSourceById);

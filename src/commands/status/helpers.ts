@@ -79,6 +79,9 @@ export function changedPrefix(key: string, changedKeys: Set<string>): string {
   return `${colorize(colors.info, '\u21BA')} `;
 }
 
+/**
+ * Detects keys that changed value, were added, or were removed between polls.
+ */
 export function computeChangedKeys(
   previous: Map<string, string> | null,
   current: Map<string, string>
@@ -87,13 +90,21 @@ export function computeChangedKeys(
   const changed = new Set<string>();
   for (const [key, value] of current.entries()) {
     const prior = previous.get(key);
-    if (prior && prior !== value) {
+    if (prior === undefined || prior !== value) {
+      changed.add(key);
+    }
+  }
+  for (const key of previous.keys()) {
+    if (!current.has(key)) {
       changed.add(key);
     }
   }
   return changed;
 }
 
+// Intentionally hardcoded to America/New_York to match the server timezone.
+// All timestamps in the status dashboard display in EST/EDT for consistency
+// with server-side job scheduling and log correlation.
 export function formatAsOfEst(date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
@@ -117,15 +128,16 @@ export function formatAsOfEst(date = new Date()): string {
 }
 
 /**
- * Counts items by status bucket to avoid repeated filter calls
+ * Counts items by status bucket to avoid repeated filter calls.
+ * Includes all possible buckets from statusBucket() so totals match items.length.
  */
 export function countByBucket(
   items: Array<{ status?: string; error?: string }>
-): { pending: number; failed: number; completed: number } {
-  const counts = { pending: 0, failed: 0, completed: 0 };
+): { pending: number; failed: number; completed: number; warn: number; other: number } {
+  const counts = { pending: 0, failed: 0, completed: 0, warn: 0, other: 0 };
   for (const item of items) {
     const bucket = statusBucket(item.status ?? 'unknown', !!item.error);
-    if (bucket in counts) counts[bucket as keyof typeof counts]++;
+    counts[bucket]++;
   }
   return counts;
 }

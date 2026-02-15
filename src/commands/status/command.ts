@@ -8,6 +8,7 @@ import type { IContainer, ImmutableConfig } from '../../container/types';
 import { getAuthSource, isAuthenticated } from '../../utils/auth';
 import { formatJson, writeCommandOutput } from '../../utils/command';
 import { DEFAULT_API_URL } from '../../utils/defaults';
+import { cleanupOldJobs } from '../../utils/embed-queue';
 import { clearJobHistory } from '../../utils/job-history';
 import { validateOutputPath } from '../../utils/output';
 import { colorize, colors, fmt, icons } from '../../utils/theme';
@@ -113,6 +114,17 @@ export async function handleJobStatusCommand(
       filtersEcho,
     };
 
+    if (options.watch && wantsJson) {
+      console.warn(
+        fmt.warning(
+          'Warning: --watch is ignored when --json, --pretty, or --output is set. Producing a single snapshot.'
+        )
+      );
+    }
+
+    // Clean up old completed/failed embed jobs once per session (not per poll cycle)
+    await cleanupOldJobs(1);
+
     if (options.watch && !wantsJson) {
       const intervalSeconds =
         typeof options.intervalSeconds === 'number' &&
@@ -121,43 +133,63 @@ export async function handleJobStatusCommand(
           : 3;
       const intervalMs = Math.max(1000, intervalSeconds * 1000);
       let previousSnapshot: Map<string, string> | null = null;
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        const data = await executeJobStatus(container, options);
-        const nextSnapshot = new Map<string, string>();
-        for (const crawl of data.activeCrawls.crawls) {
-          nextSnapshot.set(`active:${crawl.id}`, 'active');
-        }
-        for (const crawl of data.crawls) {
-          if (crawl.id && crawl.status)
-            nextSnapshot.set(`crawl:${crawl.id}`, crawl.status);
-        }
-        for (const batch of data.batches) {
-          if (batch.id && batch.status)
-            nextSnapshot.set(`batch:${batch.id}`, batch.status);
-        }
-        for (const extract of data.extracts) {
-          if (extract.id && extract.status) {
-            nextSnapshot.set(`extract:${extract.id}`, extract.status);
+      let running = true;
+
+      const onSigint = () => {
+        running = false;
+      };
+      process.on('SIGINT', onSigint);
+
+      try {
+        while (running) {
+          const data = await executeJobStatus(container, options);
+          const nextSnapshot = new Map<string, string>();
+          for (const crawl of data.activeCrawls.crawls) {
+            nextSnapshot.set(`active:${crawl.id}`, 'active');
           }
+          for (const crawl of data.crawls) {
+            if (crawl.id && crawl.status)
+              nextSnapshot.set(`crawl:${crawl.id}`, crawl.status);
+          }
+          for (const batch of data.batches) {
+            if (batch.id && batch.status)
+              nextSnapshot.set(`batch:${batch.id}`, batch.status);
+          }
+          for (const extract of data.extracts) {
+            if (extract.id && extract.status) {
+              nextSnapshot.set(`extract:${extract.id}`, extract.status);
+            }
+          }
+          for (const job of data.embeddings.pending) {
+            nextSnapshot.set(`embed:${job.jobId}`, 'pending');
+          }
+          for (const job of data.embeddings.failed) {
+            nextSnapshot.set(`embed:${job.jobId}`, 'failed');
+          }
+          for (const job of data.embeddings.completed) {
+            nextSnapshot.set(`embed:${job.jobId}`, 'completed');
+          }
+          const changedKeys = computeChangedKeys(previousSnapshot, nextSnapshot);
+          if (process.stdout.isTTY) {
+            process.stdout.write('\x1bc');
+          }
+          renderHumanStatus(data, { ...renderOptionsBase, changedKeys });
+          previousSnapshot = nextSnapshot;
+
+          if (!running) break;
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, intervalMs);
+            const earlyExit = () => {
+              clearTimeout(timer);
+              resolve();
+            };
+            process.once('SIGINT', earlyExit);
+          });
         }
-        for (const job of data.embeddings.pending) {
-          nextSnapshot.set(`embed:${job.jobId}`, 'pending');
-        }
-        for (const job of data.embeddings.failed) {
-          nextSnapshot.set(`embed:${job.jobId}`, 'failed');
-        }
-        for (const job of data.embeddings.completed) {
-          nextSnapshot.set(`embed:${job.jobId}`, 'completed');
-        }
-        const changedKeys = computeChangedKeys(previousSnapshot, nextSnapshot);
-        if (process.stdout.isTTY) {
-          process.stdout.write('\x1bc');
-        }
-        renderHumanStatus(data, { ...renderOptionsBase, changedKeys });
-        previousSnapshot = nextSnapshot;
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      } finally {
+        process.removeListener('SIGINT', onSigint);
       }
+      return;
     }
 
     const data = await executeJobStatus(container, options);

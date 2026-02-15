@@ -2,6 +2,8 @@
  * Type definitions for the status command
  */
 
+import type { EmbedJob } from '../../utils/embed-queue';
+
 export type AuthSource = 'explicit' | 'env' | 'stored' | 'none';
 
 export interface StatusResult {
@@ -72,26 +74,6 @@ export type StatusBucket =
   | 'other';
 
 /**
- * Raw embed job shape from the queue
- */
-export interface RawEmbedJob {
-  id: string;
-  jobId: string;
-  url: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  retries: number;
-  maxRetries: number;
-  createdAt: string;
-  updatedAt: string;
-  lastError?: string;
-  apiKey?: string;
-  totalDocuments?: number;
-  processedDocuments?: number;
-  failedDocuments?: number;
-  progressUpdatedAt?: string;
-}
-
-/**
  * Return type of executeJobStatus
  */
 export interface JobStatusData {
@@ -132,7 +114,7 @@ export interface JobStatusData {
   };
   embeddings: {
     summary: EmbedQueueSummary;
-    job?: RawEmbedJob;
+    job?: EmbedJob;
     failed: FailedEmbed[];
     pending: PendingEmbed[];
     completed: EmbedJobBase[];
