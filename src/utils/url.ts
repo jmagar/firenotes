@@ -56,12 +56,12 @@ export function checkUrlSafety(url: string): string | null {
     return 'Blocked: cloud metadata endpoint (169.254.169.254)';
   }
 
-  // Strip IPv6 brackets for pattern matching
-  const cleanHost = hostname.replace(/^\[|\]$/g, '');
-
-  // Check against blocked IP patterns
+  // Check against blocked IP patterns.
+  // Note: URL.hostname already strips IPv6 brackets, so no manual stripping needed.
+  // This does NOT catch alternate numeric IP encodings (decimal 2130706433, hex 0x7f000001,
+  // octal 0177.0.0.1) -- DNS/encoding normalization would be required for those.
   for (const { pattern, description } of BLOCKED_IP_PATTERNS) {
-    if (pattern.test(cleanHost)) {
+    if (pattern.test(hostname)) {
       return `Blocked: ${description}`;
     }
   }

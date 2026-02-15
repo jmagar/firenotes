@@ -21,7 +21,7 @@ vi.mock('node:fs', () => ({
   realpathSync: vi.fn((p: string) => p), // Mock realpathSync to return the input path
 }));
 
-// Mock fs/promises module for async I/O (must match 'node:fs/promises' import specifier)
+// Mock fs/promises module for async I/O (use node: prefix to match production imports)
 vi.mock('node:fs/promises', () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
   mkdir: vi.fn().mockResolvedValue(undefined),

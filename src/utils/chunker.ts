@@ -11,16 +11,6 @@ export interface Chunk {
 }
 
 /**
- * Chunking configuration
- */
-interface ChunkingConfig {
-  maxChunkSize: number;
-  targetChunkSize: number;
-  overlapSize: number;
-  minChunkSize: number;
-}
-
-/**
  * Split text into chunks using markdown-aware hybrid strategy:
  * 1. Split on markdown headers
  * 2. Split large blocks on double newlines (paragraphs)
@@ -34,7 +24,7 @@ export function chunkText(
   text: string,
   chunkingConfig?: EffectiveUserSettings['chunking']
 ): Chunk[] {
-  const config: ChunkingConfig = chunkingConfig ?? getSettings().chunking;
+  const config = chunkingConfig ?? getSettings().chunking;
   const trimmed = text.trim();
   if (!trimmed) return [];
 
