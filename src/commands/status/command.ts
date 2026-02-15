@@ -169,7 +169,10 @@ export async function handleJobStatusCommand(
           for (const job of data.embeddings.completed) {
             nextSnapshot.set(`embed:${job.jobId}`, 'completed');
           }
-          const changedKeys = computeChangedKeys(previousSnapshot, nextSnapshot);
+          const changedKeys = computeChangedKeys(
+            previousSnapshot,
+            nextSnapshot
+          );
           if (process.stdout.isTTY) {
             process.stdout.write('\x1bc');
           }

@@ -44,7 +44,12 @@ export function checkUrlSafety(url: string): string | null {
     return 'Invalid URL format';
   }
 
-  const hostname = parsed.hostname.toLowerCase();
+  let hostname = parsed.hostname.toLowerCase();
+
+  // Strip IPv6 brackets if present (Node.js URL.hostname keeps them)
+  if (hostname.startsWith('[') && hostname.endsWith(']')) {
+    hostname = hostname.slice(1, -1);
+  }
 
   // Block cloud metadata endpoints
   if (BLOCKED_HOSTNAMES.has(hostname)) {
@@ -57,7 +62,6 @@ export function checkUrlSafety(url: string): string | null {
   }
 
   // Check against blocked IP patterns.
-  // Note: URL.hostname already strips IPv6 brackets, so no manual stripping needed.
   // This does NOT catch alternate numeric IP encodings (decimal 2130706433, hex 0x7f000001,
   // octal 0177.0.0.1) -- DNS/encoding normalization would be required for those.
   for (const { pattern, description } of BLOCKED_IP_PATTERNS) {

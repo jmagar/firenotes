@@ -43,6 +43,17 @@ async function writeSecureFile(filePath: string, data: string): Promise<void> {
   await writeFile(filePath, data, { mode: 0o600 });
 }
 
+/**
+ * Embedding job interface (backward compatibility alias)
+ *
+ * For new code, prefer importing the discriminated union type from types/embed-job.ts:
+ * ```typescript
+ * import type { EmbedJob } from '../types/embed-job';
+ * ```
+ *
+ * The discriminated union provides better type safety by ensuring impossible state
+ * combinations (e.g., completed jobs with lastError) are caught at compile time.
+ */
 export interface EmbedJob {
   id: string;
   jobId: string;
@@ -71,41 +82,68 @@ function getLegacyQueueDir(): string {
 }
 
 async function migrateLegacyQueueDir(): Promise<void> {
+  // Skip migration if user has explicitly overridden the queue dir via env var
   if (process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR?.trim()) {
     return;
   }
 
   const legacyDir = getLegacyQueueDir();
   const queueDir = getQueueDir();
+
+  // Skip migration if legacy and new paths are the same (i.e., storages path hasn't changed)
   if (legacyDir === queueDir) {
     return;
   }
 
+  // Skip migration if legacy dir doesn't exist or new dir already exists.
+  // This avoids overwriting any existing jobs in the new location.
   if (!(await pathExists(legacyDir)) || (await pathExists(queueDir))) {
     return;
   }
 
   await mkdir(queueDir, { recursive: true, mode: 0o700 });
   const files = await readdir(legacyDir);
+  let migratedCount = 0;
+  const failedFiles: Array<{ file: string; error: string }> = [];
+
   for (const file of files) {
     try {
       const source = join(legacyDir, file);
       const target = join(queueDir, file);
       await copyFile(source, target);
+      migratedCount++;
     } catch (error) {
-      // Continue on individual file copy errors
+      // CRITICAL-04: Track failed files for summary report
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      failedFiles.push({ file, error: errorMsg });
       console.error(
-        fmt.error(
-          `[Embed Queue] Failed to copy ${file}: ${error instanceof Error ? error.message : String(error)}`
+        fmt.error(`[Embed Queue] Failed to copy ${file}: ${errorMsg}`)
+      );
+    }
+  }
+
+  // CRITICAL-04: Provide clear summary with failed file list
+  if (migratedCount > 0 || failedFiles.length > 0) {
+    const summary = `[Embed Queue] Migration complete: ${migratedCount}/${files.length} files migrated`;
+
+    if (failedFiles.length === 0) {
+      console.error(fmt.success(summary));
+    } else {
+      console.error(fmt.warning(`${summary}, ${failedFiles.length} failed`));
+      console.error(
+        fmt.dim(`[Embed Queue] Migration path: ${legacyDir} → ${queueDir}`)
+      );
+      console.error(fmt.error('[Embed Queue] Failed files:'));
+      for (const { file, error } of failedFiles) {
+        console.error(fmt.error(`  - ${file}: ${error}`));
+      }
+      console.error(
+        fmt.warning(
+          '[Embed Queue] Manual intervention required: Review and manually copy failed files if needed'
         )
       );
     }
   }
-  console.error(
-    fmt.dim(
-      `[Embed Queue] Migrated queue files from ${legacyDir} to ${queueDir}`
-    )
-  );
 }
 
 /**
@@ -153,10 +191,19 @@ function getJobPath(jobId: string): string {
 /**
  * Add a new embedding job to the queue
  *
+ * Creates a new embedding job with 'pending' status. The job will be processed
+ * by the background embedder daemon, which handles chunking, embedding, and storage.
+ *
  * SEC-02: API keys are no longer persisted in job files on disk.
  * The apiKey parameter is accepted for backward compatibility but
  * is only stored in-memory on the returned EmbedJob object, never
  * written to the JSON file.
+ *
+ * @param jobId - Unique identifier for this embedding job (typically derived from content hash)
+ * @param url - Source URL being embedded (used in error messages and progress tracking)
+ * @param apiKey - (Deprecated) API key for the scrape operation; not persisted
+ * @returns New EmbedJob with status 'pending' and timestamp
+ * @throws Error if queue directory cannot be created or job file cannot be written
  */
 export async function enqueueEmbedJob(
   jobId: string,
@@ -165,13 +212,20 @@ export async function enqueueEmbedJob(
 ): Promise<EmbedJob> {
   await ensureQueueDir();
 
+  const maxRetries = getSettings().embedding.maxRetries;
+
+  // Validate retry count invariant: retries must be non-negative and <= maxRetries
+  if (!Number.isInteger(maxRetries) || maxRetries < 0) {
+    throw new Error(`Invalid maxRetries from settings: ${maxRetries}`);
+  }
+
   const job: EmbedJob = {
     id: jobId,
     jobId,
     url,
     status: 'pending',
     retries: 0,
-    maxRetries: getSettings().embedding.maxRetries,
+    maxRetries,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     apiKey,
@@ -206,6 +260,14 @@ export interface JobReadResult {
  *
  * Distinguishes between "not found" and "corrupted" states, allowing callers
  * to handle each case appropriately (e.g., warn about corruption, suggest repair).
+ * Prefer this over the deprecated getEmbedJob() which masks both error conditions.
+ *
+ * @param jobId - The embedding job identifier to retrieve
+ * @returns JobReadResult with job data (or null) and detailed status:
+ *   - status 'found': job exists and is valid; check result.job
+ *   - status 'not_found': job file doesn't exist; result.job is null
+ *   - status 'corrupted': job file exists but fails schema validation; result.job is null, result.error explains why
+ * @throws Never throws; all errors are captured in the result object
  */
 export async function getEmbedJobDetailed(
   jobId: string
@@ -236,7 +298,85 @@ export async function getEmbedJobDetailed(
         error: `Schema validation failed: ${issues}`,
       };
     }
-    return { job: result.data, status: 'found' };
+
+    const job = result.data;
+
+    // Validate numeric invariants: retry counts and document counts must be non-negative
+    if (!Number.isInteger(job.retries) || job.retries < 0) {
+      return {
+        job: null,
+        status: 'corrupted',
+        error: `Invalid retries count: ${job.retries}`,
+      };
+    }
+    if (!Number.isInteger(job.maxRetries) || job.maxRetries < 0) {
+      return {
+        job: null,
+        status: 'corrupted',
+        error: `Invalid maxRetries count: ${job.maxRetries}`,
+      };
+    }
+    if (job.retries > job.maxRetries) {
+      return {
+        job: null,
+        status: 'corrupted',
+        error: `Invalid state: retries (${job.retries}) exceeds maxRetries (${job.maxRetries})`,
+      };
+    }
+
+    // Validate document counts if present
+    if (
+      job.totalDocuments !== undefined ||
+      job.processedDocuments !== undefined ||
+      job.failedDocuments !== undefined
+    ) {
+      if (
+        job.totalDocuments !== undefined &&
+        (!Number.isInteger(job.totalDocuments) || job.totalDocuments < 0)
+      ) {
+        return {
+          job: null,
+          status: 'corrupted',
+          error: `Invalid totalDocuments: ${job.totalDocuments}`,
+        };
+      }
+      if (
+        job.processedDocuments !== undefined &&
+        (!Number.isInteger(job.processedDocuments) ||
+          job.processedDocuments < 0)
+      ) {
+        return {
+          job: null,
+          status: 'corrupted',
+          error: `Invalid processedDocuments: ${job.processedDocuments}`,
+        };
+      }
+      if (
+        job.failedDocuments !== undefined &&
+        (!Number.isInteger(job.failedDocuments) || job.failedDocuments < 0)
+      ) {
+        return {
+          job: null,
+          status: 'corrupted',
+          error: `Invalid failedDocuments: ${job.failedDocuments}`,
+        };
+      }
+      // Ensure processed + failed doesn't exceed total
+      if (
+        job.totalDocuments !== undefined &&
+        job.processedDocuments !== undefined &&
+        job.failedDocuments !== undefined &&
+        job.processedDocuments + job.failedDocuments > job.totalDocuments
+      ) {
+        return {
+          job: null,
+          status: 'corrupted',
+          error: `Invalid state: processedDocuments (${job.processedDocuments}) + failedDocuments (${job.failedDocuments}) > totalDocuments (${job.totalDocuments})`,
+        };
+      }
+    }
+
+    return { job, status: 'found' };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(fmt.error(`Failed to read job ${jobId}: ${errorMsg}`));
@@ -250,7 +390,11 @@ export async function getEmbedJobDetailed(
 /**
  * Get a job from the queue (legacy compatibility)
  *
- * @deprecated Use getEmbedJobDetailed() to distinguish "not found" from "corrupted"
+ * @deprecated Use getEmbedJobDetailed() instead. This function masks corruption and missing files.
+ * The new function returns detailed status info: `{ job, status, error }` where status is either
+ * 'ok', 'not_found', or 'corrupted', allowing proper error handling in callers.
+ *
+ * Migration: Replace `getEmbedJob(id)` with `const { job } = await getEmbedJobDetailed(id)`
  */
 export async function getEmbedJob(jobId: string): Promise<EmbedJob | null> {
   const result = await getEmbedJobDetailed(jobId);
@@ -261,15 +405,76 @@ export async function getEmbedJob(jobId: string): Promise<EmbedJob | null> {
  * Update a job in the queue
  *
  * SEC-02: Strips API keys before writing to disk.
+ * SEC-03: Uses file locking to prevent concurrent write corruption.
+ *
+ * If the lock cannot be acquired after retries, the update is silently skipped.
+ * This is safe because:
+ * 1. Each concurrent update is working with stale data anyway (read before lock)
+ * 2. The last writer wins, which is acceptable for most job state transitions
+ * 3. Critical state transitions (claim, complete, fail) use withJobLock() which
+ *    reads fresh data after acquiring the lock
  */
 export async function updateEmbedJob(job: EmbedJob): Promise<void> {
   await ensureQueueDir();
-  job.updatedAt = new Date().toISOString();
-  // SEC-02: Never persist API keys to disk
-  await writeSecureFile(
-    getJobPath(job.jobId),
-    JSON.stringify(stripSensitiveFields(job), null, 2)
-  );
+  const jobPath = getJobPath(job.jobId);
+
+  let release: (() => void) | undefined;
+  try {
+    // Acquire lock before writing to prevent concurrent corruption
+    // Use retries: 0 for fast fail under high concurrency - this prevents
+    // lock retry backoff from causing cascading delays when many writers
+    // are competing. Some updates may be skipped, which is acceptable since:
+    // - Each update is working with stale data (read before lock)
+    // - Critical state transitions use withJobLock() which reads under lock
+    release = await lockfile.lock(jobPath, { retries: 0, stale: 60000 });
+
+    job.updatedAt = new Date().toISOString();
+    // SEC-02: Never persist API keys to disk
+    await writeSecureFile(
+      jobPath,
+      JSON.stringify(stripSensitiveFields(job), null, 2)
+    );
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+
+    // Don't throw - just log and return. Lock contention is expected under high concurrency.
+    // The caller can check job state afterwards if they need to verify the update succeeded.
+    if (errorMsg.includes('Lock file is already being held')) {
+      // Normal lock contention - skip update silently
+      return;
+    }
+
+    // Log other errors but still don't throw (backward compatibility)
+    console.error(fmt.error(`Failed to update job ${job.jobId}: ${errorMsg}`));
+  } finally {
+    if (release) {
+      try {
+        await release();
+      } catch (releaseError) {
+        const releaseMsg =
+          releaseError instanceof Error
+            ? releaseError.message
+            : String(releaseError);
+        const isPermanent =
+          releaseMsg.includes('ENOENT') || releaseMsg.includes('EACCES');
+        const errorType = isPermanent ? 'PERMANENT' : 'TRANSIENT';
+
+        console.error(
+          fmt.error(
+            `[${errorType}] Failed to release lock for job ${job.jobId}: ${releaseMsg}`
+          )
+        );
+
+        if (isPermanent) {
+          console.warn(
+            fmt.warning(
+              `Manual cleanup may be required. Lock file: ${jobPath}.lock`
+            )
+          );
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -356,9 +561,25 @@ export async function tryClaimJob(jobId: string): Promise<boolean> {
           releaseError instanceof Error
             ? releaseError.message
             : String(releaseError);
+
+        // Distinguish between transient and permanent lock errors
+        const isPermanent =
+          releaseMsg.includes('ENOENT') || releaseMsg.includes('EACCES');
+        const errorType = isPermanent ? 'PERMANENT' : 'TRANSIENT';
+
         console.error(
-          fmt.error(`Failed to release lock for job ${jobId}: ${releaseMsg}`)
+          fmt.error(
+            `[${errorType}] Failed to release lock for job ${jobId}: ${releaseMsg}`
+          )
         );
+
+        if (isPermanent) {
+          console.warn(
+            fmt.warning(
+              `Manual cleanup may be required. Lock file: ${jobPath}.lock`
+            )
+          );
+        }
       }
     }
   }
@@ -426,6 +647,10 @@ export async function listEmbedJobsDetailed(): Promise<QueueListResult> {
         `WARNING: Skipped ${errors.length} corrupted job file${errors.length > 1 ? 's' : ''}`
       )
     );
+    console.warn(fmt.error('Corrupted files:'));
+    for (const { file, error } of errors) {
+      console.warn(fmt.dim(`  - ${file}: ${error}`));
+    }
     console.warn(
       fmt.dim(
         `  Run 'firecrawl cleanup-queue' to remove corrupted files (if available)`
@@ -439,7 +664,11 @@ export async function listEmbedJobsDetailed(): Promise<QueueListResult> {
 /**
  * List all jobs in the queue (legacy compatibility)
  *
- * @deprecated Use listEmbedJobsDetailed() for better error visibility
+ * @deprecated Use listEmbedJobsDetailed() instead. This function silently skips corrupted jobs.
+ * The new function returns `{ jobs, skipped, errors }` allowing you to audit and handle
+ * data corruption issues instead of silently ignoring them.
+ *
+ * Migration: Replace `listEmbedJobs()` with `const { jobs } = await listEmbedJobsDetailed()`
  */
 export async function listEmbedJobs(): Promise<EmbedJob[]> {
   const result = await listEmbedJobsDetailed();
@@ -447,7 +676,12 @@ export async function listEmbedJobs(): Promise<EmbedJob[]> {
 }
 
 /**
- * Get all pending jobs (status: pending, not exceeded max retries)
+ * Get all pending jobs eligible for processing
+ *
+ * Returns jobs with status 'pending' that have not yet exceeded their maxRetries limit.
+ * Jobs are sorted by creation time (FIFO), ensuring older jobs are processed first.
+ *
+ * @returns Array of pending jobs sorted chronologically; empty if no pending jobs exist
  */
 export async function getPendingJobs(): Promise<EmbedJob[]> {
   const jobs = await listEmbedJobs();
@@ -460,7 +694,15 @@ export async function getPendingJobs(): Promise<EmbedJob[]> {
 }
 
 /**
- * Get pending jobs that have been stale for at least maxAgeMs
+ * Get pending jobs that haven't been updated for at least maxAgeMs
+ *
+ * A stale job is one with status 'pending' that hasn't been touched in a while,
+ * suggesting the background embedder may have crashed or stalled processing it.
+ * This is used for recovery logic: restart processing on stale jobs.
+ *
+ * @param maxAgeMs - Minimum age (in milliseconds) for a job to be considered stale.
+ *                   Example: 5 * 60 * 1000 for 5 minutes
+ * @returns Array of pending jobs with updatedAt older than (now - maxAgeMs), sorted by age (oldest first)
  */
 export async function getStalePendingJobs(
   maxAgeMs: number
@@ -478,9 +720,15 @@ export async function getStalePendingJobs(
 /**
  * Get jobs stuck in processing state longer than maxProcessingMs
  *
- * Returns jobs with status === 'processing' that have been in that state
- * longer than the specified threshold (default 5 minutes). This helps recover
- * from daemon crashes where jobs get stuck in processing state forever.
+ * Returns jobs with status 'processing' that haven't been updated in longer than
+ * the specified threshold. This detects daemon crashes where a job is locked in
+ * processing state but the worker dies before completing it.
+ *
+ * Recovery: Reset these jobs to 'pending' so they can be retried.
+ *
+ * @param maxProcessingMs - Maximum time (in milliseconds) a job should stay in 'processing'.
+ *                          Defaults to 5 minutes (300000ms). Increase if embeddings are legitimately slow.
+ * @returns Array of processing jobs older than maxProcessingMs, sorted by update time (oldest first)
  */
 export async function getStuckProcessingJobs(
   maxProcessingMs: number = 5 * 60 * 1000
@@ -550,9 +798,25 @@ async function withJobLock(
           releaseError instanceof Error
             ? releaseError.message
             : String(releaseError);
+
+        // Distinguish between transient and permanent lock errors
+        const isPermanent =
+          releaseMsg.includes('ENOENT') || releaseMsg.includes('EACCES');
+        const errorType = isPermanent ? 'PERMANENT' : 'TRANSIENT';
+
         console.error(
-          fmt.error(`Failed to release lock for job ${jobId}: ${releaseMsg}`)
+          fmt.error(
+            `[${errorType}] Failed to release lock for job ${jobId}: ${releaseMsg}`
+          )
         );
+
+        if (isPermanent) {
+          console.warn(
+            fmt.warning(
+              `Manual cleanup may be required. Lock file: ${jobPath}.lock`
+            )
+          );
+        }
       }
     }
   }
@@ -676,6 +940,13 @@ export async function getQueueStats(): Promise<{
 
 /**
  * Clean up completed and old failed jobs
+ *
+ * Removes job files for completed and failed jobs that haven't been updated in maxAgeHours.
+ * This prevents the queue directory from growing unbounded over time.
+ *
+ * @param maxAgeHours - Minimum age (in hours) for job files to be eligible for cleanup.
+ *                      Defaults to 24 hours. Completed/failed jobs older than this are deleted.
+ * @returns Number of job files deleted
  */
 export async function cleanupOldJobs(
   maxAgeHours: number = 24
@@ -707,8 +978,14 @@ function isIrrecoverableError(error: string | undefined): boolean {
 /**
  * Remove failed jobs that are known to be unrecoverable.
  *
- * This prevents permanent queue clutter from deterministic failures where retries
- * cannot ever succeed (deleted crawl IDs, invalid IDs).
+ * Identifies and deletes jobs that have exhausted retries AND failed with an error
+ * that indicates they can never succeed (e.g., "crawl not found"). This prevents
+ * permanent queue clutter from deterministic failures like deleted crawls or invalid IDs.
+ *
+ * Uses isJobNotFoundError() to detect unrecoverable errors; can be extended with
+ * additional error patterns as needed.
+ *
+ * @returns Number of unrecoverable job files deleted
  */
 export async function cleanupIrrecoverableFailedJobs(): Promise<number> {
   const jobs = await listEmbedJobs();

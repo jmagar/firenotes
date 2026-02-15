@@ -58,22 +58,24 @@ export async function pollWithProgress<T>(
     formatProgress,
   } = config;
 
-  // Validate timeout
+  // Validate timeout: must be positive and finite to prevent infinite loops or invalid configs
   if (timeout !== undefined && (timeout <= 0 || !Number.isFinite(timeout))) {
-    throw new Error('Timeout must be a positive number');
+    throw new Error(`Timeout must be a positive number (got: ${timeout})`);
   }
 
   const startTime = Date.now();
   let isFirstPoll = true;
 
   while (true) {
-    // Skip delay on first poll to avoid unnecessary waiting
+    // Skip delay on first poll to avoid unnecessary waiting for the initial status check.
+    // Subsequent iterations respect pollInterval to avoid overwhelming the API.
     if (!isFirstPoll) {
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
     }
     isFirstPoll = false;
 
-    // Check timeout BEFORE making the API call
+    // Check timeout BEFORE making the API call to avoid wasting a request near the deadline.
+    // This ensures we fail fast if time has expired, rather than making a doomed API call.
     if (timeout && Date.now() - startTime > timeout) {
       if (showProgress) {
         process.stderr.write('\n');

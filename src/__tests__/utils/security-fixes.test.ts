@@ -9,6 +9,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { IContainer, ImmutableConfig } from '../../container/types';
 
 describe('SEC-02: API keys stripped from job files on disk', () => {
   let queueDir: string;
@@ -119,6 +120,75 @@ describe('SEC-04: SSRF URL safety checks', () => {
     // 172.15.x.x and 172.32.x.x are NOT private
     expect(checkUrlSafety('http://172.15.0.1/')).toBeNull();
     expect(checkUrlSafety('http://172.32.0.1/')).toBeNull();
+  });
+
+  it('should block IPv6 loopback addresses', async () => {
+    const { checkUrlSafety } = await import('../../utils/url');
+
+    // IPv6 loopback (::1)
+    expect(checkUrlSafety('http://[::1]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[::1]:8080/')).not.toBeNull();
+    expect(checkUrlSafety('https://[::1]/api')).not.toBeNull();
+  });
+
+  it('should block IPv6 unique local addresses (fc00::/7)', async () => {
+    const { checkUrlSafety } = await import('../../utils/url');
+
+    // fc00::/7 range (fc00:: - fdff::)
+    expect(checkUrlSafety('http://[fc00::1]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[fc00:1234::5678]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[fd00::1]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[fd12:3456:7890::1]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[fdff:ffff:ffff::1]/')).not.toBeNull();
+  });
+
+  it('should block IPv6 link-local addresses (fe80::/10)', async () => {
+    const { checkUrlSafety } = await import('../../utils/url');
+
+    // fe80::/10 range
+    expect(checkUrlSafety('http://[fe80::1]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[fe80::1234:5678]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[fe80::1%eth0]/')).not.toBeNull(); // With zone ID
+  });
+
+  it('should allow public IPv6 addresses', async () => {
+    const { checkUrlSafety } = await import('../../utils/url');
+
+    // Public IPv6 addresses (2000::/3 global unicast)
+    expect(checkUrlSafety('http://[2001:4860:4860::8888]/')).toBeNull(); // Google DNS
+    expect(checkUrlSafety('http://[2606:4700:4700::1111]/')).toBeNull(); // Cloudflare DNS
+    expect(checkUrlSafety('http://[2001:db8::1]/')).toBeNull(); // Documentation prefix
+  });
+
+  it('should handle IPv6 addresses with ports', async () => {
+    const { checkUrlSafety } = await import('../../utils/url');
+
+    // Blocked addresses with ports
+    expect(checkUrlSafety('http://[::1]:3000/')).not.toBeNull();
+    expect(checkUrlSafety('http://[fc00::1]:8080/')).not.toBeNull();
+    expect(checkUrlSafety('http://[fe80::1]:53/')).not.toBeNull();
+
+    // Allowed addresses with ports
+    expect(checkUrlSafety('http://[2001:4860:4860::8888]:443/')).toBeNull();
+  });
+
+  it('should handle IPv6 compressed notation', async () => {
+    const { checkUrlSafety } = await import('../../utils/url');
+
+    // Various compressed forms
+    expect(checkUrlSafety('http://[::1]/')).not.toBeNull(); // Loopback compressed
+    expect(checkUrlSafety('http://[fc00::]/')).not.toBeNull(); // ULA compressed
+    expect(checkUrlSafety('http://[fe80::]/')).not.toBeNull(); // Link-local compressed
+  });
+
+  it('should handle IPv6 case insensitivity', async () => {
+    const { checkUrlSafety } = await import('../../utils/url');
+
+    // IPv6 addresses are case-insensitive (hex digits)
+    expect(checkUrlSafety('http://[FC00::1]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[FD00::1]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[FE80::1]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[fc00::ABCD]/')).not.toBeNull();
   });
 });
 
@@ -316,16 +386,18 @@ describe('SEC-06: Qdrant collection name validation', () => {
     const { resolveCollectionName } = await import('../../commands/shared');
 
     // Should work with valid names
-    const container = {
-      config: { qdrantCollection: 'my-collection' },
-    } as any;
-    expect(resolveCollectionName(container)).toBe('my-collection');
+    const container: Partial<IContainer> = {
+      config: { qdrantCollection: 'my-collection' } as ImmutableConfig,
+    };
+    expect(resolveCollectionName(container as IContainer)).toBe(
+      'my-collection'
+    );
 
     // Should throw with invalid names
-    const badContainer = {
-      config: { qdrantCollection: '../evil' },
-    } as any;
-    expect(() => resolveCollectionName(badContainer)).toThrow(
+    const badContainer: Partial<IContainer> = {
+      config: { qdrantCollection: '../evil' } as ImmutableConfig,
+    };
+    expect(() => resolveCollectionName(badContainer as IContainer)).toThrow(
       'Invalid collection name'
     );
   });

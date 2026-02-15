@@ -124,8 +124,18 @@ async function processEmbedJob(
     // Check if TEI/Qdrant are configured
     if (!jobContainer.config.teiUrl || !jobContainer.config.qdrantUrl) {
       const missingConfigs = [];
-      if (!jobContainer.config.teiUrl) missingConfigs.push('TEI_URL');
-      if (!jobContainer.config.qdrantUrl) missingConfigs.push('QDRANT_URL');
+      if (!jobContainer.config.teiUrl) {
+        const value =
+          jobContainer.config.teiUrl === '' ? '(empty string)' : '(undefined)';
+        missingConfigs.push(`TEI_URL ${value}`);
+      }
+      if (!jobContainer.config.qdrantUrl) {
+        const value =
+          jobContainer.config.qdrantUrl === ''
+            ? '(empty string)'
+            : '(undefined)';
+        missingConfigs.push(`QDRANT_URL ${value}`);
+      }
 
       const errorMsg = `Missing required configuration: ${missingConfigs.join(', ')}. Set these environment variables to enable embedding.`;
 

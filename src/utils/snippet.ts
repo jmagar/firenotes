@@ -122,8 +122,7 @@ function scoreChunkForPreview(text: string, query?: string): number {
   }
 
   const richnessScore =
-    Math.min(sentences.length, 5) * 2 +
-    Math.min(cleaned.length, 500) / 100;
+    Math.min(sentences.length, 5) * 2 + Math.min(cleaned.length, 500) / 100;
 
   return relevanceScore * 10 + richnessScore;
 }

@@ -773,15 +773,19 @@ describe('HTTP utilities with timeout and retry', () => {
       abortError.name = 'AbortError';
       mockFetch.mockRejectedValueOnce(abortError);
 
-      await expect(
-        fetchWithRetry('http://test.com', undefined, {
+      try {
+        await fetchWithRetry('http://test.com', undefined, {
           timeoutMs: 1000,
           maxRetries: 0,
-        })
-      ).rejects.toMatchObject({
-        name: 'TimeoutError',
-        message: 'Request timeout after 1000ms',
-      });
+        });
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).name).toBe('TimeoutError');
+        expect((error as Error).message).toContain(
+          'Request timeout after 1000ms'
+        );
+      }
     });
 
     it('should clear timeout on successful response', async () => {
@@ -1201,12 +1205,16 @@ describe('HTTP utilities with timeout and retry', () => {
       abortError.name = 'AbortError';
       mockFetch.mockRejectedValueOnce(abortError);
 
-      await expect(
-        fetchWithTimeout('http://test.com', undefined, 1000)
-      ).rejects.toMatchObject({
-        name: 'TimeoutError',
-        message: 'Request timeout after 1000ms',
-      });
+      try {
+        await fetchWithTimeout('http://test.com', undefined, 1000);
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).name).toBe('TimeoutError');
+        expect((error as Error).message).toContain(
+          'Request timeout after 1000ms'
+        );
+      }
     });
 
     it('should clear timeout on error', async () => {
@@ -1229,10 +1237,16 @@ describe('HTTP utilities with timeout and retry', () => {
 
       mockFetch.mockRejectedValueOnce(error);
 
-      await expect(fetchWithTimeout('http://test.com')).rejects.toMatchObject({
-        name: 'TimeoutError',
-        message: 'Request timeout after 30000ms',
-      });
+      try {
+        await fetchWithTimeout('http://test.com');
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).name).toBe('TimeoutError');
+        expect((error as Error).message).toContain(
+          'Request timeout after 30000ms'
+        );
+      }
     });
   });
 

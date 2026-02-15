@@ -133,7 +133,13 @@ export function formatAsOfEst(date = new Date()): string {
  */
 export function countByBucket(
   items: Array<{ status?: string; error?: string }>
-): { pending: number; failed: number; completed: number; warn: number; other: number } {
+): {
+  pending: number;
+  failed: number;
+  completed: number;
+  warn: number;
+  other: number;
+} {
   const counts = { pending: 0, failed: 0, completed: 0, warn: 0, other: 0 };
   for (const item of items) {
     const bucket = statusBucket(item.status ?? 'unknown', !!item.error);

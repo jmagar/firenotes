@@ -97,8 +97,24 @@ src/
 This project uses a **self-hosted Firecrawl stack**, NOT the cloud API.
 
 **Important Files:**
-- `patchright-app.py` - Patched version of the patchright container's app.py with the `page.timeout()` bug fixed
-- `docker-compose.yaml` - Mounts patchright-app.py into the container at `/app/app.py`
+- `docker-compose.yaml` - Main compose file (run from project root)
+- `docker/patchright-app.py` - Patched version of the patchright container's app.py with the `page.timeout()` bug fixed
+- `docker/docker-compose.tei.yaml` - Alternative compose for local TEI setup
+- `docker/docker-compose.tei.mxbai.yaml` - Alternative compose using mxbai embedding model
+
+**Deployment:**
+All Docker Compose commands must be run from the **project root** (not the `docker/` directory):
+```bash
+# Correct - from project root
+docker compose up -d
+docker compose ps
+docker compose logs -f firecrawl
+
+# Using alternative TEI configs
+docker compose -f docker-compose.yaml -f docker/docker-compose.tei.yaml up -d
+```
+
+See `docker/README.md` for detailed Docker configuration documentation.
 
 ### Docker Services
 
@@ -291,7 +307,7 @@ pnpm type-check     # TypeScript type checking (no emit)
 
 The upstream `loorisr/patchright-scrape-api` image has a bug where `page.timeout()` should be `page.wait_for_timeout()`.
 
-**Our Fix**: We mount a patched `patchright-app.py` from the project root into the container via docker-compose volume. The fix changes line 374 from:
+**Our Fix**: We mount a patched `docker/patchright-app.py` into the container via docker-compose volume. The fix changes line 374 from:
 ```python
 await page.timeout(request_model.wait_after_load)
 ```

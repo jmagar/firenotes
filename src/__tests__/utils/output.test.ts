@@ -31,15 +31,12 @@ vi.mock('node:fs/promises', () => ({
 const resolvePath = (p: string) => path.resolve(process.cwd(), p);
 describe('Output Utilities', () => {
   let consoleErrorSpy: MockInstance;
-  let processExitSpy: MockInstance;
   let stdoutWriteSpy: MockInstance;
 
   beforeEach(() => {
     vi.clearAllMocks();
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    processExitSpy = vi
-      .spyOn(process, 'exit')
-      .mockImplementation(() => undefined as never);
+    vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
     stdoutWriteSpy = vi
       .spyOn(process.stdout, 'write')
       .mockImplementation(() => true);
@@ -75,10 +72,10 @@ describe('Output Utilities', () => {
     it('should write content to file when output path is provided', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      await writeOutput('Test content', './output/test.txt');
+      await writeOutput('Test content', './.firecrawl/test.txt');
 
       expect(fsPromises.writeFile).toHaveBeenCalledWith(
-        resolvePath('./output/test.txt'),
+        resolvePath('./.firecrawl/test.txt'),
         'Test content',
         'utf-8'
       );
@@ -87,16 +84,16 @@ describe('Output Utilities', () => {
     it('should create directory if it does not exist', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      await writeOutput('Test content', './output/subdir/test.txt');
+      await writeOutput('Test content', './.firecrawl/subdir/test.txt');
 
       expect(fsPromises.mkdir).toHaveBeenCalledWith(
-        resolvePath('./output/subdir'),
+        resolvePath('./.firecrawl/subdir'),
         {
           recursive: true,
         }
       );
       expect(fsPromises.writeFile).toHaveBeenCalledWith(
-        resolvePath('./output/subdir/test.txt'),
+        resolvePath('./.firecrawl/subdir/test.txt'),
         'Test content',
         'utf-8'
       );
@@ -105,17 +102,17 @@ describe('Output Utilities', () => {
     it('should print file confirmation when not silent', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      await writeOutput('Test content', './output/test.txt', false);
+      await writeOutput('Test content', './.firecrawl/test.txt', false);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining(resolvePath('./output/test.txt'))
+        expect.stringContaining(resolvePath('./.firecrawl/test.txt'))
       );
     });
 
     it('should not print file confirmation when silent', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      await writeOutput('Test content', './output/test.txt', true);
+      await writeOutput('Test content', './.firecrawl/test.txt', true);
 
       expect(consoleErrorSpy).not.toHaveBeenCalled();
     });
@@ -344,11 +341,11 @@ describe('Output Utilities', () => {
           data: { markdown: '# Test Content' },
         },
         ['markdown'],
-        './output/test.md'
+        './.firecrawl/test.md'
       );
 
       expect(fsPromises.writeFile).toHaveBeenCalledWith(
-        resolvePath('./output/test.md'),
+        resolvePath('./.firecrawl/test.md'),
         '# Test Content',
         'utf-8'
       );
@@ -465,7 +462,7 @@ describe('Output Utilities', () => {
           },
         },
         ['screenshot'],
-        './output/result.json', // .json extension
+        './.firecrawl/result.json', // .json extension
         false,
         false // no explicit json flag
       );
@@ -494,7 +491,7 @@ describe('Output Utilities', () => {
           },
         },
         ['screenshot'],
-        './output/result.md', // .md extension
+        './.firecrawl/result.md', // .md extension
         false,
         false // no explicit json flag
       );
@@ -530,8 +527,10 @@ describe('Output Utilities', () => {
 
   describe('validateOutputPath', () => {
     it('should allow relative paths within cwd', () => {
-      expect(() => validateOutputPath('./output/result.json')).not.toThrow();
-      expect(() => validateOutputPath('output/result.json')).not.toThrow();
+      expect(() =>
+        validateOutputPath('./.firecrawl/result.json')
+      ).not.toThrow();
+      expect(() => validateOutputPath('.firecrawl/result.json')).not.toThrow();
       expect(() => validateOutputPath('result.json')).not.toThrow();
     });
 
@@ -539,7 +538,7 @@ describe('Output Utilities', () => {
       expect(() => validateOutputPath('../../../etc/passwd')).toThrow(
         /resolves outside allowed directory/
       );
-      expect(() => validateOutputPath('output/../../etc/passwd')).toThrow(
+      expect(() => validateOutputPath('.firecrawl/../../etc/passwd')).toThrow(
         /resolves outside allowed directory/
       );
     });
@@ -554,14 +553,14 @@ describe('Output Utilities', () => {
     });
 
     it('should allow absolute paths within cwd', () => {
-      const validPath = path.join(process.cwd(), 'output', 'result.json');
+      const validPath = path.join(process.cwd(), '.firecrawl', 'result.json');
       expect(() => validateOutputPath(validPath)).not.toThrow();
     });
 
     it('should return resolved absolute path', () => {
-      const result = validateOutputPath('./output/result.json');
+      const result = validateOutputPath('./.firecrawl/result.json');
       expect(path.isAbsolute(result)).toBe(true);
-      expect(result).toBe(resolvePath('./output/result.json'));
+      expect(result).toBe(resolvePath('./.firecrawl/result.json'));
     });
   });
 });

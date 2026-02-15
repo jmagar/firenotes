@@ -82,6 +82,12 @@ function isRetryableError(error: unknown): boolean {
 
 /**
  * Calculate delay for exponential backoff with jitter
+ *
+ * Formula: delay = min(baseDelay * 2^attempt ± (25% * baseDelay * 2^attempt), maxDelayMs)
+ *
+ * The jitter (random ±25%) prevents thundering herd: if multiple clients all retry
+ * synchronously, they'll hit the server at staggered intervals instead of all at once.
+ * Without jitter, retry storms can overwhelm a recovering service.
  */
 function calculateBackoff(
   attempt: number,
@@ -90,10 +96,10 @@ function calculateBackoff(
 ): number {
   // Exponential backoff: baseDelay * 2^attempt
   const exponentialDelay = baseDelayMs * 2 ** attempt;
-  // Add jitter (±25% randomization)
+  // Add jitter: ±25% randomization. (Math.random() * 2 - 1) gives [-1, 1] uniform range
   const jitter = exponentialDelay * 0.25 * (Math.random() * 2 - 1);
   const delay = exponentialDelay + jitter;
-  // Cap at maximum delay
+  // Cap at maximum delay to prevent excessively long waits
   return Math.min(delay, maxDelayMs);
 }
 
@@ -143,7 +149,17 @@ export async function fetchWithRetry(
         // If we have retries left, delay and continue
         if (attempt < config.maxRetries) {
           // Release connection by consuming the response body
-          await response.body?.cancel().catch(() => {});
+          // Properly drain the response to prevent connection leaks
+          try {
+            await response.text();
+          } catch {
+            // Ignore errors from consuming the body
+          }
+
+          // Log retry attempt with error type
+          console.error(
+            `[HTTP Retry] Status ${response.status} on ${url} - attempt ${attempt + 1}/${config.maxRetries}`
+          );
 
           let delay = calculateBackoff(
             attempt,
@@ -192,7 +208,9 @@ export async function fetchWithRetry(
 
       // Wrap AbortError with more context
       if (error instanceof Error && error.name === 'AbortError') {
-        lastError = new Error(`Request timeout after ${config.timeoutMs}ms`);
+        lastError = new Error(
+          `Request timeout after ${config.timeoutMs}ms: ${url}`
+        );
         lastError.name = 'TimeoutError';
       } else if (error instanceof Error) {
         lastError = error;
@@ -202,6 +220,12 @@ export async function fetchWithRetry(
 
       // Only retry if it's a retryable error and we have attempts left
       if (isRetryableError(error) && attempt < config.maxRetries) {
+        // Log retry attempt with error type
+        const errorType = lastError?.name || 'NetworkError';
+        console.error(
+          `[HTTP Retry] ${errorType} on ${url} - attempt ${attempt + 1}/${config.maxRetries}`
+        );
+
         const delay = calculateBackoff(
           attempt,
           config.baseDelayMs,
@@ -286,7 +310,9 @@ export async function fetchWithTimeout(
   } catch (error) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
-      const timeoutError = new Error(`Request timeout after ${timeoutMs}ms`);
+      const timeoutError = new Error(
+        `Request timeout after ${timeoutMs}ms: ${url}`
+      );
       timeoutError.name = 'TimeoutError';
       throw timeoutError;
     }

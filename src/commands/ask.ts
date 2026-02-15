@@ -250,7 +250,7 @@ async function callAICLI(context: string, model: string): Promise<string> {
 
     // Spawn the appropriate CLI
     const aiProcess = spawn(cliTool, args, {
-      stdio: ['pipe', 'pipe', 'inherit'], // stdin: pipe, stdout: pipe, stderr: inherit (shows progress)
+      stdio: ['pipe', 'pipe', 'ignore'], // stdin: pipe, stdout: pipe, stderr: ignore (suppress MCP/diagnostic output)
     });
 
     let output = '';

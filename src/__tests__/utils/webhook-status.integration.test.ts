@@ -40,6 +40,40 @@ describe('webhook server status endpoint', () => {
       });
     });
 
+  /**
+   * Wait for server to become available by polling the status endpoint.
+   * Retries with exponential backoff up to maxWaitMs.
+   */
+  const waitForServer = async (
+    port: number,
+    maxWaitMs = 5000
+  ): Promise<void> => {
+    const startTime = Date.now();
+    let lastError: Error | null = null;
+    let attempt = 0;
+
+    while (Date.now() - startTime < maxWaitMs) {
+      attempt++;
+      try {
+        const response = await fetch(`http://localhost:${port}/status`, {
+          signal: AbortSignal.timeout(1000),
+        });
+        if (response.ok) {
+          return; // Server is ready
+        }
+      } catch (err) {
+        lastError = err as Error;
+        // Wait before retry with exponential backoff (10ms, 20ms, 40ms, ...)
+        const delayMs = Math.min(10 * 2 ** attempt, 500);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
+    throw new Error(
+      `Server did not become available within ${maxWaitMs}ms. Last error: ${lastError?.message}`
+    );
+  };
+
   beforeEach(async () => {
     port = await getAvailablePort();
     queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
@@ -127,8 +161,8 @@ describe('webhook server status endpoint', () => {
     // Start daemon in background and store cleanup function
     cleanup = await startEmbedderDaemon(mockContainer);
 
-    // Wait a bit for server to start
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait for server to become available
+    await waitForServer(port);
 
     // Make request to status endpoint
     const response = await fetch(`http://localhost:${port}/status`);
@@ -176,8 +210,8 @@ describe('webhook server status endpoint', () => {
     // Start daemon in background and store cleanup function
     cleanup = await startEmbedderDaemon(mockContainer);
 
-    // Wait for server to start
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait for server to become available
+    await waitForServer(port);
 
     // Make request to status endpoint
     const response = await fetch(`http://localhost:${port}/status`);

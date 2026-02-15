@@ -135,10 +135,12 @@ export class TeiService implements ITeiService {
         lastError = error instanceof Error ? error : new Error(String(error));
 
         if (batchAttempt < BATCH_RETRY_ATTEMPTS) {
+          const errorType =
+            lastError.name !== 'Error' ? `[${lastError.name}] ` : '';
           console.error(
             fmt.warning(
               `[TEI] Batch retry ${batchAttempt + 1}/${BATCH_RETRY_ATTEMPTS} ` +
-                `after error: ${lastError.message}`
+                `after ${errorType}${lastError.message} (batch size: ${inputs.length})`
             )
           );
           await sleep(BATCH_RETRY_DELAY_MS);

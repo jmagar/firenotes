@@ -12,12 +12,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Environment variables
+# Environment variables (only .env.example should be tracked)
 .env
-.env.local
-.env.*.local
-.env.tei
-.env.tei.mxbai
+.env.*
+!.env.example
 
 # IDE
 .vscode/
@@ -32,7 +30,6 @@ Thumbs.db
 
 # Testing
 .nyc_output/
-output/
 
 # Python
 __pycache__/
@@ -48,6 +45,11 @@ __pycache__/
 .serena/
 
 .firecrawl/
+
+# Documentation (session logs, plans, reports)
+docs/plans/
+docs/sessions/
+docs/reports/
 
 # Git worktrees
 .worktrees/

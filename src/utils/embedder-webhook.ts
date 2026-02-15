@@ -114,6 +114,12 @@ export function extractEmbedderWebhookJobInfo(
 ): EmbedderWebhookJobInfo | null {
   const root = asRecord(payload);
   if (!root) {
+    if (process.env.DEBUG_WEBHOOK_PARSER) {
+      console.error(
+        '[Webhook Parser] Payload is not an object:',
+        typeof payload
+      );
+    }
     return null;
   }
 
@@ -129,6 +135,16 @@ export function extractEmbedderWebhookJobInfo(
     asString(rootCrawl?.id);
 
   if (!jobId) {
+    if (process.env.DEBUG_WEBHOOK_PARSER) {
+      console.error('[Webhook Parser] No jobId found. Checked fields:', {
+        'root.jobId': root.jobId,
+        'root.id': root.id,
+        'root.data?.jobId': rootData?.jobId,
+        'root.data?.id': rootData?.id,
+        'root.crawl?.jobId': rootCrawl?.jobId,
+        'root.crawl?.id': rootCrawl?.id,
+      });
+    }
     return null;
   }
 
@@ -147,9 +163,19 @@ export function extractEmbedderWebhookJobInfo(
       ? (rootCrawl?.data as { data?: unknown }).data
       : undefined);
 
-  return {
+  const result = {
     jobId,
     status,
     pages: pages as Document[] | undefined,
   };
+
+  if (process.env.DEBUG_WEBHOOK_PARSER) {
+    console.error('[Webhook Parser] Extracted:', {
+      jobId: result.jobId,
+      status: result.status,
+      pagesCount: result.pages?.length ?? 0,
+    });
+  }
+
+  return result;
 }

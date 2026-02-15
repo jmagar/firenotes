@@ -63,6 +63,18 @@ export function buildEmbeddingPoints<T extends BaseEmbedMetadata>(
 
 /**
  * Run embed work and log failures consistently without throwing.
+ *
+ * Design rationale: Embedding is an async background operation that should not block or
+ * cascade failures to the main scrape/crawl operation. If embedding fails for a specific URL,
+ * we want to:
+ * 1. Log the error so admins can diagnose issues
+ * 2. Continue processing other URLs rather than abandoning the entire batch
+ * 3. Return normally so the scrape result is still valid
+ *
+ * This prevents transient TEI/Qdrant issues from breaking the CLI for users.
+ *
+ * @param url - The source URL being embedded (for context in error logs)
+ * @param operation - The embedding operation to run (chunking, TEI call, Qdrant upsert, etc.)
  */
 export async function runEmbedSafely(
   url: string,
@@ -76,5 +88,6 @@ export async function runEmbedSafely(
         `Embed failed for ${url}: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
     );
+    // Note: We intentionally do NOT rethrow. Embedding failure is non-fatal.
   }
 }

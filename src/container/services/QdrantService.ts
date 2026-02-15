@@ -266,6 +266,14 @@ export class QdrantService implements IQdrantService {
     );
 
     if (checkResponse.ok) {
+      // Verify dimension matches expected value
+      const info = await this.getCollectionInfo(collection);
+      if (info.config.dimension !== dimension) {
+        throw new Error(
+          `Collection '${collection}' exists with dimension ${info.config.dimension} ` +
+            `but expected ${dimension}. Delete and re-embed.`
+        );
+      }
       this.collectionCache.set(collection, true);
       return;
     }
@@ -301,9 +309,10 @@ export class QdrantService implements IQdrantService {
       );
     }
 
-    // Create payload indexes for fast filtering (in parallel)
+    // CRITICAL-07: Create payload indexes for fast filtering (in parallel)
+    // Use Promise.allSettled to capture ALL failures, not just the first
     const indexFields = ['url', 'domain', 'source_command'];
-    const indexResponses = await Promise.all(
+    const indexResults = await Promise.allSettled(
       indexFields.map((field) =>
         this.httpClient.fetchWithRetry(
           `${this.qdrantUrl}/collections/${this.encodeCollection(collection)}/index`,
@@ -320,17 +329,38 @@ export class QdrantService implements IQdrantService {
       )
     );
 
-    // Verify all indexes were created successfully
-    for (let i = 0; i < indexResponses.length; i++) {
-      const response = indexResponses[i];
-      if (!response.ok) {
-        throw new Error(
-          await this.formatError(
-            response,
-            `Failed to create index for field '${indexFields[i]}'`
-          )
+    // CRITICAL-07: Comprehensive error reporting for ALL failed indexes
+    const failures: Array<{ field: string; error: string }> = [];
+
+    for (let i = 0; i < indexResults.length; i++) {
+      const result = indexResults[i];
+      const field = indexFields[i];
+
+      if (result.status === 'rejected') {
+        const errorMsg =
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason);
+        failures.push({ field, error: errorMsg });
+      } else if (!result.value.ok) {
+        const errorMsg = await this.formatError(
+          result.value,
+          `HTTP ${result.value.status}`
         );
+        failures.push({ field, error: errorMsg });
       }
+    }
+
+    // If any indexes failed, report ALL failures comprehensively
+    if (failures.length > 0) {
+      const failedFields = failures.map((f) => f.field).join(', ');
+      const errorDetails = failures
+        .map((f) => `  - ${f.field}: ${f.error}`)
+        .join('\n');
+
+      throw new Error(
+        `Failed to create ${failures.length}/${indexFields.length} payload indexes [${failedFields}]:\n${errorDetails}`
+      );
     }
 
     this.collectionCache.set(collection, true);

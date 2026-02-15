@@ -240,12 +240,41 @@ export class EmbedPipeline implements IEmbedPipeline {
               const current = result.succeeded + result.failed;
               await onProgress(current, total);
             } catch (error) {
-              // Log but don't throw - progress callback errors shouldn't break embedding
-              console.error(
-                fmt.warning(
-                  `Progress callback error: ${error instanceof Error ? error.message : 'Unknown error'}`
-                )
-              );
+              // CRITICAL-06: Distinguish between retriable and permanent callback errors
+              const errorMsg =
+                error instanceof Error ? error.message : String(error);
+
+              // Classify error type for better diagnosis
+              const isRetriable =
+                errorMsg.includes('ENOSPC') || // Disk full
+                errorMsg.includes('EDQUOT') || // Quota exceeded
+                errorMsg.includes('ETIMEDOUT') || // Timeout
+                errorMsg.includes('ECONNREFUSED') || // Connection refused
+                errorMsg.includes('ENOTFOUND'); // DNS lookup failed
+
+              if (isRetriable) {
+                console.error(
+                  fmt.error(
+                    `[RETRIABLE] Progress callback error (may recover): ${errorMsg}`
+                  )
+                );
+                console.error(
+                  fmt.warning(
+                    '[Pipeline] Embedding continues, but progress tracking may be stale. Check disk space and network connectivity.'
+                  )
+                );
+              } else {
+                console.error(
+                  fmt.error(
+                    `[PERMANENT] Progress callback error (callback may be broken): ${errorMsg}`
+                  )
+                );
+                console.error(
+                  fmt.warning(
+                    '[Pipeline] Embedding continues, but progress UI will not update. Check callback implementation.'
+                  )
+                );
+              }
             }
           }
         }

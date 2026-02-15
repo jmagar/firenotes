@@ -49,7 +49,7 @@ services:
     environment:
       PORT: "${PLAYWRIGHT_PORT:-53006}"
     volumes:
-      - ./patchright-app.py:/app/app.py:ro
+      - ./docker/patchright-app.py:/app/app.py:ro
     tmpfs:
       - /tmp/.cache:noexec,nosuid,size=1g
     healthcheck:

@@ -85,9 +85,10 @@ export function renderCrawlStatusSection(
         completedValue >= totalValue;
       const icon = getStatusIcon(status, isFailed);
       const statusColor = getStatusColor(status, isFailed);
-      const progress = hasProgress && totalValue > 0
-        ? formatProgress(completedValue, totalValue)
-        : null;
+      const progress =
+        hasProgress && totalValue > 0
+          ? formatProgress(completedValue, totalValue)
+          : null;
       const age = formatRelativeAge(crawl.updatedAt);
 
       let line = `${changedPrefix(`crawl:${crawl.id}`, options.changedKeys)}${colorize(statusColor, icon)} ${accentJobId(crawl.id ?? 'unknown')} `;
