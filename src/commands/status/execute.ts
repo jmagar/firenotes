@@ -168,7 +168,8 @@ async function fetchJobStatuses(
 }
 
 /**
- * Builds a map of crawl IDs to their source URLs
+ * Builds a map of crawl IDs to their source URLs by checking crawl data
+ * and falling back to active crawl URLs.
  */
 function buildCrawlSourceMap(
   activeCrawls: { crawls: Array<{ id: string; url: string }> },
@@ -184,22 +185,32 @@ function buildCrawlSourceMap(
   const crawlSourceById = new Map<string, string>();
 
   for (const crawl of crawlStatuses) {
-    const maybeData = (
-      crawl as {
-        data?: Array<{ metadata?: { sourceURL?: string; url?: string } }>;
-      }
-    ).data;
-    const sourceUrl = Array.isArray(maybeData)
-      ? (maybeData[0]?.metadata?.sourceURL ?? maybeData[0]?.metadata?.url)
+    const sourceUrl = Array.isArray(crawl.data)
+      ? (crawl.data[0]?.metadata?.sourceURL ?? crawl.data[0]?.metadata?.url)
       : undefined;
     const displayUrl = sourceUrl ?? activeUrlById.get(crawl.id);
     if (displayUrl && crawl.id) {
       crawlSourceById.set(crawl.id, displayUrl);
-      (crawl as { url?: string }).url = displayUrl;
     }
   }
 
   return crawlSourceById;
+}
+
+/**
+ * Annotates crawl status objects with resolved source URLs.
+ * Mutates the input array elements to set the url field.
+ */
+function annotateCrawlUrls(
+  crawlStatuses: Array<{ id: string; url?: string }>,
+  crawlSourceById: Map<string, string>
+): void {
+  for (const crawl of crawlStatuses) {
+    const displayUrl = crawlSourceById.get(crawl.id);
+    if (displayUrl) {
+      crawl.url = displayUrl;
+    }
+  }
 }
 
 /**
@@ -318,8 +329,9 @@ export async function executeJobStatus(
   await removeJobIds('batch', batchPruneIds);
   await removeJobIds('extract', extractStatusPruneIds);
 
-  // Build source URL mapping and update embed job URLs in batch
+  // Build source URL mapping, annotate crawl statuses, and update embed job URLs
   const crawlSourceById = buildCrawlSourceMap(activeCrawls, crawlStatuses);
+  annotateCrawlUrls(crawlStatuses, crawlSourceById);
   await updateEmbedJobUrls(embedQueue.jobs, crawlSourceById);
 
   // Find specific embed job if requested
