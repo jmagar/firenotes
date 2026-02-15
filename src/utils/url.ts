@@ -19,7 +19,7 @@ const BLOCKED_IP_PATTERNS: Array<{ pattern: RegExp; description: string }> = [
   { pattern: /^0\./, description: 'current network (0.x.x.x)' },
   { pattern: /^::1$/, description: 'IPv6 loopback' },
   { pattern: /^fc00:/i, description: 'IPv6 unique local' },
-  { pattern: /^fd/i, description: 'IPv6 unique local' },
+  { pattern: /^fd[0-9a-f]{0,2}:/i, description: 'IPv6 unique local' },
   { pattern: /^fe80:/i, description: 'IPv6 link-local' },
 ];
 
