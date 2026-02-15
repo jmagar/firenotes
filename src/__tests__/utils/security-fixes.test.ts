@@ -140,6 +140,12 @@ describe('SEC-04: SSRF URL safety checks', () => {
     expect(checkUrlSafety('http://[fd00::1]/')).not.toBeNull();
     expect(checkUrlSafety('http://[fd12:3456:7890::1]/')).not.toBeNull();
     expect(checkUrlSafety('http://[fdff:ffff:ffff::1]/')).not.toBeNull();
+
+    // Additional fd...: pattern coverage
+    expect(checkUrlSafety('http://[fd::]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[fda::1]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[fde::1]/')).not.toBeNull();
+    expect(checkUrlSafety('http://[fdf::1]/')).not.toBeNull();
   });
 
   it('should block IPv6 link-local addresses (fe80::/10)', async () => {

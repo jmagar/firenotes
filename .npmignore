@@ -27,7 +27,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Testing
-coverage/
+.cache/
 .nyc_output/
 
 # OS files

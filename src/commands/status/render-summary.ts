@@ -119,9 +119,18 @@ export function renderHumanStatus(
     batchBuckets.completed +
     extractBuckets.completed +
     data.embeddings.completed.length;
+  // Deduplicate crawls between activeCrawls and crawls to prevent double-counting
+  const crawlIds = new Set<string>();
+  for (const crawl of data.activeCrawls.crawls) {
+    crawlIds.add(crawl.id);
+  }
+  for (const crawl of data.crawls) {
+    if (crawl.id) {
+      crawlIds.add(crawl.id);
+    }
+  }
   const totalJobs =
-    data.activeCrawls.crawls.length +
-    data.crawls.length +
+    crawlIds.size +
     data.batches.length +
     data.extracts.length +
     data.embeddings.pending.length +

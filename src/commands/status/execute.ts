@@ -79,8 +79,39 @@ const STATUS_MAX_RETRIES = 3;
 const STATUS_RETRY_BASE_MS = 500;
 
 /**
+ * Determines if an error is retryable (transient server errors).
+ * Client errors (4xx) won't succeed on retry, so we skip them.
+ */
+function isRetryableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+
+  // Skip client errors that won't succeed on retry
+  if (message.includes('404') ||
+      message.includes('not found') ||
+      message.includes('401') ||
+      message.includes('unauthorized') ||
+      message.includes('403') ||
+      message.includes('forbidden')) {
+    return false;
+  }
+
+  // Retry transient server errors and timeouts
+  return (
+    message.includes('500') ||
+    message.includes('502') ||
+    message.includes('503') ||
+    message.includes('504') ||
+    message.includes('timeout') ||
+    message.includes('network') ||
+    message.includes('econnrefused') ||
+    message.includes('econnreset')
+  );
+}
+
+/**
  * Retries a thunk up to maxRetries times with exponential backoff
- * for transient errors (timeouts, network errors).
+ * for transient errors (5xx, timeouts). Skips retrying client errors (4xx).
  */
 async function withRetry<T>(
   fn: () => Promise<T>,
@@ -92,9 +123,13 @@ async function withRetry<T>(
       return await fn();
     } catch (error) {
       lastError = error;
-      if (attempt < maxRetries) {
+      // Only retry if it's a transient error and we have retries left
+      if (attempt < maxRetries && isRetryableError(error)) {
         const delay = STATUS_RETRY_BASE_MS * 2 ** attempt;
         await new Promise((resolve) => setTimeout(resolve, delay));
+      } else {
+        // Non-retryable error or out of retries - throw immediately
+        throw error;
       }
     }
   }

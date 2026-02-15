@@ -34,7 +34,7 @@ docker compose ps
 
 **Note:** TEI (Text Embeddings Inference) runs on a remote GPU server and is not part of the local Docker stack.
 
-**Important:** The project includes a patched `patchright-app.py` file that fixes a bug in the upstream `loorisr/patchright-scrape-api` image. This file is automatically mounted into the container via `docker-compose.yaml`. The fix changes `page.timeout()` to `page.wait_for_timeout()` to prevent 500 errors when using the `--wait-for` flag.
+**Important:** The project includes a patched `docker/patchright-app.py` file that fixes a bug in the upstream `loorisr/patchright-scrape-api` image. This file is automatically mounted into the container via `docker-compose.yaml`. The fix changes `page.timeout()` to `page.wait_for_timeout()` to prevent 500 errors when using the `--wait-for` flag.
 
 See `CLAUDE.md` for detailed infrastructure documentation.
 

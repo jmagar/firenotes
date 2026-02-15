@@ -217,20 +217,20 @@ docker logs firecrawl-playwright --tail 50 | grep timeout
 
 **Root Causes**:
 - Volume mount missing in docker-compose.yaml
-- patchright-app.py file missing in project root
+- docker/patchright-app.py file missing in docker/ directory
 - Container rebuilt without patch
 
 **Remediation**:
 ```bash
 # Verify patch file exists
-ls -la patchright-app.py
+ls -la docker/patchright-app.py
 
 # Check docker-compose.yaml has volume mount:
 grep -A5 "firecrawl-playwright:" docker-compose.yaml
 
 # Should see:
 # volumes:
-#   - ./patchright-app.py:/app/app.py
+#   - ./docker/patchright-app.py:/app/app.py:ro
 
 # If missing, add volume mount to docker-compose.yaml
 # Then restart container:

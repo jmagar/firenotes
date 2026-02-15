@@ -549,7 +549,13 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
 
     try {
       const payload = await readJsonBody(req);
-      void handleWebhookPayload(payload);
+      handleWebhookPayload(payload).catch((error: unknown) => {
+        console.error(
+          fmt.error(
+            `[Embedder] Webhook payload processing failed: ${error instanceof Error ? error.message : String(error)}`
+          )
+        );
+      });
       res.statusCode = 202;
       res.end();
     } catch (error) {

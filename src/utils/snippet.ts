@@ -12,15 +12,18 @@ import { truncateWithMarker } from './display';
 
 type ScoreBand = 'high' | 'medium' | 'low';
 
+const SCORE_THRESHOLD_HIGH = 0.75;
+const SCORE_THRESHOLD_MED = 0.55;
+
 export function scoreBand(score: number): ScoreBand {
-  if (score >= 0.75) return 'high';
-  if (score >= 0.55) return 'medium';
+  if (score >= SCORE_THRESHOLD_HIGH) return 'high';
+  if (score >= SCORE_THRESHOLD_MED) return 'medium';
   return 'low';
 }
 
 export function scoreBandRank(score: number): number {
-  if (score >= 0.75) return 0;
-  if (score >= 0.55) return 1;
+  if (score >= SCORE_THRESHOLD_HIGH) return 0;
+  if (score >= SCORE_THRESHOLD_MED) return 1;
   return 2;
 }
 

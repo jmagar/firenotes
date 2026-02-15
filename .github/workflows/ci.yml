@@ -75,7 +75,7 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
-          files: ./coverage/coverage-final.json
+          files: ./.cache/coverage/coverage-final.json
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -83,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: coverage/
+          path: .cache/coverage/
           retention-days: 7
 
   build-quality:

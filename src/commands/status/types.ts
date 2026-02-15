@@ -2,9 +2,10 @@
  * Type definitions for the status command
  */
 
+import type { AuthSource } from '../../utils/auth';
 import type { EmbedJob } from '../../utils/embed-queue';
 
-export type AuthSource = 'explicit' | 'env' | 'stored' | 'none';
+export type { AuthSource };
 
 export interface StatusResult {
   version: string;
