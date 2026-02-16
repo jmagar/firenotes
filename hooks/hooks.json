@@ -1,0 +1,10 @@
+{
+  "hooks": [
+    {
+      "name": "firecrawl-dependency-check",
+      "event": "SessionStart",
+      "command": "command -v docker >/dev/null 2>&1 && docker compose ps firecrawl >/dev/null 2>&1 || echo '⚠️  Firecrawl services not running. Run: docker compose up -d'",
+      "description": "Check if Firecrawl Docker services are running on session start"
+    }
+  ]
+}

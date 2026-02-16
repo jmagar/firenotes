@@ -1,0 +1,14 @@
+{
+  "name": "cli-firecrawl-marketplace",
+  "owner": {
+    "name": "jmagar",
+    "url": "https://github.com/jmagar"
+  },
+  "plugins": [
+    {
+      "name": "cli-firecrawl",
+      "source": "https://github.com/jmagar/cli-firecrawl.git",
+      "description": "Firecrawl CLI with semantic search and embedding capabilities"
+    }
+  ]
+}

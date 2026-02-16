@@ -86,7 +86,9 @@ services:
     <<: *common-service
     image: redis:alpine
     container_name: firecrawl-redis
-    command: redis-server --bind 0.0.0.0 --port "${REDIS_PORT:-53379}"
+    command: redis-server --bind 0.0.0.0 --port "${REDIS_PORT:-53379}" --appendonly yes
+    volumes:
+      - firecrawl_redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "-p", "${REDIS_PORT:-53379}", "ping"]
       interval: 10s
@@ -110,6 +112,8 @@ services:
     <<: *common-service
     build: apps/nuq-postgres
     container_name: nuq-postgres
+    volumes:
+      - firecrawl_postgres_data:/var/lib/postgresql/data
     command:
       [
         "postgres",
@@ -150,3 +154,7 @@ services:
 networks:
   jakenet:
     driver: bridge
+
+volumes:
+  firecrawl_redis_data:
+  firecrawl_postgres_data:

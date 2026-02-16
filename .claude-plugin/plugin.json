@@ -1,0 +1,28 @@
+{
+  "name": "cli-firecrawl",
+  "version": "1.0.0",
+  "description": "Firecrawl CLI with integrated semantic search, TEI embeddings, and Qdrant vector database for web scraping and RAG workflows",
+  "license": "MIT",
+  "keywords": [
+    "firecrawl",
+    "web-scraping",
+    "embeddings",
+    "qdrant",
+    "rag",
+    "docker",
+    "testing",
+    "semantic-search",
+    "tei"
+  ],
+  "author": {
+    "name": "jmagar",
+    "url": "https://github.com/jmagar"
+  },
+  "repository": "https://github.com/jmagar/cli-firecrawl",
+  "homepage": "https://github.com/jmagar/cli-firecrawl#readme",
+  "dependencies": {
+    "docker": ">=20.10.0",
+    "nodejs": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

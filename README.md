@@ -4,15 +4,38 @@ Command-line interface for Firecrawl. Scrape, crawl, extract, and embed data fro
 
 ## Installation
 
+### CLI Tool
+
 ```bash
 npm install -g firecrawl-cli
 ```
 
-If you are using in any AI agent like Claude Code, you can install the skill with:
+### Claude Code Plugin
+
+Install the complete Firecrawl plugin for Claude Code with skills and slash commands:
 
 ```bash
-npx skills add firecrawl/cli
+# Install from GitHub
+/plugin install https://github.com/jmagar/cli-firecrawl.git
+
+# Or via marketplace
+/plugin marketplace add jmagar/cli-firecrawl
+/plugin install cli-firecrawl @cli-firecrawl-marketplace
 ```
+
+**Included in the plugin:**
+- **Skills**: Automatic Firecrawl integration for web scraping and research tasks
+- **Slash Commands**: 10 commands for direct control
+  - `/cli-firecrawl:scrape` - Scrape single URLs
+  - `/cli-firecrawl:crawl` - Crawl entire websites
+  - `/cli-firecrawl:search` - Web search with scraping
+  - `/cli-firecrawl:map` - Discover all URLs on a site
+  - `/cli-firecrawl:extract` - Structured data extraction
+  - `/cli-firecrawl:batch` - Batch operations
+  - `/cli-firecrawl:query` - Semantic search
+  - `/cli-firecrawl:retrieve` - Document retrieval
+  - `/cli-firecrawl:ask` - AI-powered Q&A
+  - `/cli-firecrawl:status` - Job status checking
 
 ## Self-Hosted Setup
 
