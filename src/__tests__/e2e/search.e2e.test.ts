@@ -2,7 +2,7 @@
  * E2E tests for search command
  *
  * These tests require:
- * 1. A valid Firecrawl API key in TEST_FIRECRAWL_API_KEY or FIRECRAWL_API_KEY env var
+ * 1. A valid API key in TEST_FIRECRAWL_API_KEY or FIRECRAWL_API_KEY env var
  */
 
 import { existsSync } from 'node:fs';
@@ -146,9 +146,8 @@ describe('E2E: search command', () => {
         timeout: 60000,
       });
 
-      if (result.exitCode === 0) {
-        expect(result.stdout.length).toBeGreaterThan(0);
-      }
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.length).toBeGreaterThan(0);
     });
 
     it('should limit results with --limit flag', async () => {
@@ -164,11 +163,10 @@ describe('E2E: search command', () => {
         }
       );
 
-      if (result.exitCode === 0) {
-        const json = parseJSONOutput<{ results?: unknown[] }>(result.stdout);
-        if (json.results) {
-          expect(json.results.length).toBeLessThanOrEqual(3);
-        }
+      expect(result.exitCode).toBe(0);
+      const json = parseJSONOutput<{ results?: unknown[] }>(result.stdout);
+      if (json.results) {
+        expect(json.results.length).toBeLessThanOrEqual(3);
       }
     });
 
@@ -185,11 +183,10 @@ describe('E2E: search command', () => {
         }
       );
 
-      if (result.exitCode === 0) {
-        const json = parseJSONOutput(result.stdout);
-        expect(json).toBeDefined();
-        expect(typeof json).toBe('object');
-      }
+      expect(result.exitCode).toBe(0);
+      const json = parseJSONOutput(result.stdout);
+      expect(json).toBeDefined();
+      expect(typeof json).toBe('object');
     });
 
     it('should save output to file with --output flag', async () => {
@@ -214,11 +211,10 @@ describe('E2E: search command', () => {
         }
       );
 
-      if (result.exitCode === 0) {
-        expect(existsSync(outputPath)).toBe(true);
-        const content = await readFile(outputPath, 'utf-8');
-        expect(content.length).toBeGreaterThan(0);
-      }
+      expect(result.exitCode).toBe(0);
+      expect(existsSync(outputPath)).toBe(true);
+      const content = await readFile(outputPath, 'utf-8');
+      expect(content.length).toBeGreaterThan(0);
     });
 
     it('should handle --scrape flag to scrape results', async () => {
@@ -235,7 +231,7 @@ describe('E2E: search command', () => {
       );
 
       // Should complete without error
-      expect(result.exitCode).toBeDefined();
+      expect(result.exitCode).toBe(0);
     });
   });
 

@@ -97,7 +97,7 @@ describe('doctor helpers', () => {
           },
           {
             category: 'directories',
-            name: 'FIRECRAWL_HOME',
+            name: 'AXON_HOME',
             status: 'warn',
             message: 'Path not configured',
           },

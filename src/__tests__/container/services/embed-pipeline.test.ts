@@ -539,7 +539,7 @@ describe('EmbedPipeline', () => {
       );
     });
 
-    it('should default to firecrawl collection', () => {
+    it('should default to axon collection', () => {
       const defaultPipeline = new EmbedPipeline(
         mockTeiService,
         mockQdrantService

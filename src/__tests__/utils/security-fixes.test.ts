@@ -15,14 +15,14 @@ describe('SEC-02: API keys stripped from job files on disk', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-sec02-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-sec02-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -290,14 +290,14 @@ describe('SEC-05: Zod schema validation for embed job files', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-sec05-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-sec05-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -432,7 +432,7 @@ describe('SEC-06: Qdrant collection name validation', () => {
   it('should accept valid collection names', async () => {
     const { validateCollectionName } = await import('../../commands/shared');
 
-    expect(validateCollectionName('firecrawl')).toBe('firecrawl');
+    expect(validateCollectionName('axon')).toBe('axon');
     expect(validateCollectionName('my-collection')).toBe('my-collection');
     expect(validateCollectionName('test_collection_v2')).toBe(
       'test_collection_v2'
@@ -501,14 +501,14 @@ describe('SEC-13: Job ID path traversal prevention', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-sec13-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-sec13-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -584,14 +584,14 @@ describe('SEC-03: File locking for job mutations', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-sec03-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-sec03-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 

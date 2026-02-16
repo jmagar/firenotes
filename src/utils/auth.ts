@@ -32,7 +32,7 @@ function promptInput(question: string): Promise<string> {
  */
 async function manualLogin(): Promise<{ apiKey: string; apiUrl: string }> {
   console.log('');
-  const apiKey = await promptInput('Enter your Firecrawl API key: ');
+  const apiKey = await promptInput('Enter your API key: ');
 
   if (!apiKey || apiKey.trim().length === 0) {
     throw new Error('API key cannot be empty');
@@ -63,7 +63,7 @@ function envVarLogin(): { apiKey: string; apiUrl: string } | null {
 }
 
 /**
- * Print the Firecrawl CLI banner
+ * Print the Axon CLI banner
  */
 function printBanner(): void {
   // Get version from package.json
@@ -73,9 +73,11 @@ function printBanner(): void {
 
   console.log('');
   console.log(
-    `  ${fmt.primary(`${icons.success} firecrawl`)} ${fmt.dim('cli')} ${fmt.dim(`v${version}`)}`
+    `  ${fmt.primary(`${icons.success} axon`)} ${fmt.dim('cli')} ${fmt.dim(`v${version}`)}`
   );
-  console.log(`  ${fmt.dim('Turn websites into LLM-ready data')}`);
+  console.log(
+    `  ${fmt.dim('Self-hosted RAG pipeline for web scraping, semantic search, and AI-powered Q&A')}`
+  );
   console.log('');
 }
 
@@ -95,9 +97,7 @@ async function interactiveLogin(): Promise<{
   }
 
   printBanner();
-  console.log(
-    fmt.dim('Welcome! To get started, provide your Firecrawl API key.\n')
-  );
+  console.log(fmt.dim('Welcome! To get started, provide your API key.\n'));
   console.log(
     fmt.dim(
       'Tip: You can also set FIRECRAWL_API_KEY and FIRECRAWL_API_URL environment variables\n'

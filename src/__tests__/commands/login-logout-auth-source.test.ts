@@ -7,7 +7,7 @@ vi.mock('../../utils/auth', () => ({
 }));
 
 vi.mock('../../utils/credentials', () => ({
-  getConfigDirectoryPath: vi.fn().mockReturnValue('/tmp/firecrawl-home'),
+  getConfigDirectoryPath: vi.fn().mockReturnValue('/tmp/axon-home'),
   loadCredentials: vi.fn(),
   saveCredentials: vi.fn(),
   deleteCredentials: vi.fn(),

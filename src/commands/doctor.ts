@@ -274,7 +274,7 @@ function pickDockerProbeContainer(
 
   const preferred =
     running.find((entry) => entry.Service === 'firecrawl') ||
-    running.find((entry) => entry.Service === 'firecrawl-embedder') ||
+    running.find((entry) => entry.Service === 'axon-embedder') ||
     running[0];
 
   return preferred.Name;
@@ -496,7 +496,7 @@ function formatDoctorHuman(
   ]);
 
   lines.push(
-    `  ${fmt.primary(`${icons.success} firecrawl`)} ${fmt.dim('cli')} ${fmt.dim(`v${packageJson.version}`)}`
+    `  ${fmt.primary(`${icons.success} axon`)} ${fmt.dim('cli')} ${fmt.dim(`v${packageJson.version}`)}`
   );
   lines.push('');
   lines.push(`  ${fmt.primary('Doctor Checks')}`);
@@ -555,7 +555,7 @@ function formatDoctorHuman(
     if (hasDoctorDebugBackendConfigured()) {
       lines.push(
         `  ${fmt.warning(`${icons.warning} Troubleshooting`)}`,
-        `  ${fmt.dim(`Next: run ${fmt.primary('firecrawl doctor debug')}`)}`,
+        `  ${fmt.dim(`Next: run ${fmt.primary('axon doctor debug')}`)}`,
         ''
       );
     } else {
@@ -665,10 +665,10 @@ function buildServiceEndpointInputs(
       raw: container.config.qdrantUrl || process.env.QDRANT_URL,
     },
     {
-      key: 'FIRECRAWL_EMBEDDER_WEBHOOK_URL',
+      key: 'AXON_EMBEDDER_WEBHOOK_URL',
       raw:
         container.config.embedderWebhookUrl ||
-        process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL,
+        process.env.AXON_EMBEDDER_WEBHOOK_URL,
     },
     {
       key: 'PLAYWRIGHT_MICROSERVICE_URL',
@@ -816,8 +816,8 @@ async function collectDirectoryChecks(
 ): Promise<DoctorCheck[]> {
   const checks: DoctorCheck[] = [];
   const directories: Array<{ name: string; path: string | undefined }> = [
-    { name: 'FIRECRAWL_HOME', path: getStorageRoot() },
-    { name: 'FIRECRAWL_EMBEDDER_QUEUE_DIR', path: getEmbedQueueDir() },
+    { name: 'AXON_HOME', path: getStorageRoot() },
+    { name: 'AXON_EMBEDDER_QUEUE_DIR', path: getEmbedQueueDir() },
     { name: 'QDRANT_DATA_DIR', path: process.env.QDRANT_DATA_DIR },
   ];
 
@@ -840,7 +840,7 @@ async function collectDirectoryChecks(
     ) {
       const qdrantContainer = findComposeServiceContainerName(
         composeEntries,
-        'firecrawl-qdrant'
+        'axon-qdrant'
       );
       if (qdrantContainer) {
         const containerProbe = await runContainerWriteProbe(
@@ -879,7 +879,7 @@ function collectConfigFileChecks(): DoctorCheck[] {
   const checks: DoctorCheck[] = [];
   const authSource = getAuthSource();
   const files = [
-    { name: 'FIRECRAWL_HOME', path: getStorageRoot(), type: 'directory' },
+    { name: 'AXON_HOME', path: getStorageRoot(), type: 'directory' },
     { name: 'credentials.json', path: getCredentialsPath(), type: 'file' },
     { name: 'settings.json', path: getSettingsPath(), type: 'file' },
     { name: 'job-history.json', path: getJobHistoryPath(), type: 'file' },

@@ -4,10 +4,10 @@
 
 /**
  * Check if a string looks like a UUID/job ID
- * Firecrawl job IDs are UUIDs (e.g., "550e8400-e29b-41d4-a716-446655440000")
+ * Axon job IDs are UUIDs (e.g., "550e8400-e29b-41d4-a716-446655440000")
  */
 export function isJobId(str: string): boolean {
-  // Match any UUID format (v1-v7) — self-hosted Firecrawl uses UUID v7
+  // Match any UUID format (v1-v7) — self-hosted backend uses UUID v7
   const uuidPattern =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidPattern.test(str);

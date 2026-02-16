@@ -1,14 +1,14 @@
 {
-  "name": "cli-firecrawl-marketplace",
+  "name": "axon-marketplace",
   "owner": {
     "name": "jmagar",
     "url": "https://github.com/jmagar"
   },
   "plugins": [
     {
-      "name": "cli-firecrawl",
-      "source": "https://github.com/jmagar/cli-firecrawl.git",
-      "description": "Firecrawl CLI with semantic search and embedding capabilities"
+      "name": "axon",
+      "source": "https://github.com/jmagar/axon.git",
+      "description": "Axon CLI with semantic search and embedding capabilities"
     }
   ]
 }

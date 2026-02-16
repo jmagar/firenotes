@@ -1,8 +1,8 @@
 /**
- * Unified storage paths for Firecrawl CLI.
+ * Unified storage paths for Axon CLI.
  *
- * Storage root can be configured via FIRECRAWL_HOME.
- * Default: ~/.firecrawl
+ * Storage root can be configured via AXON_HOME.
+ * Default: ~/.axon
  */
 
 import { homedir } from 'node:os';
@@ -22,11 +22,11 @@ function expandLeadingTilde(inputPath: string): string {
  * Get the root directory for all persistent CLI storage.
  */
 export function getStorageRoot(): string {
-  const configuredRoot = process.env.FIRECRAWL_HOME;
+  const configuredRoot = process.env.AXON_HOME;
   if (configuredRoot && configuredRoot.trim().length > 0) {
     return path.resolve(expandLeadingTilde(configuredRoot.trim()));
   }
-  return path.join(homedir(), '.firecrawl');
+  return path.join(homedir(), '.axon');
 }
 
 /**
@@ -58,7 +58,7 @@ export function getJobHistoryPath(): string {
 }
 
 export function getEmbedQueueDir(): string {
-  const trimmedConfiguredDir = process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR?.trim();
+  const trimmedConfiguredDir = process.env.AXON_EMBEDDER_QUEUE_DIR?.trim();
   if (trimmedConfiguredDir) {
     return path.isAbsolute(trimmedConfiguredDir)
       ? trimmedConfiguredDir

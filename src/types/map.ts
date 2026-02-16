@@ -4,7 +4,7 @@
 import type { CommandResult } from './common';
 
 export interface MapOptions {
-  /** API key for Firecrawl */
+  /** API key */
   apiKey?: string;
   /** URL to map or job ID to check status */
   urlOrJobId: string;

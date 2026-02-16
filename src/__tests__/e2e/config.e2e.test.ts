@@ -19,14 +19,14 @@ describe('E2E: config command', () => {
   );
 
   beforeEach(async () => {
-    configDir = join(tempDir, 'firecrawl-cli');
+    configDir = join(tempDir, 'axon-cli');
     await mkdir(configDir, { recursive: true });
   });
 
   describe('config help', () => {
     it('should display config command help', async () => {
       const result = await runCLISuccess(['config', '--help']);
-      expect(result.stdout).toContain('Configure Firecrawl');
+      expect(result.stdout).toContain('Configure Axon');
       expect(result.stdout).toContain('--api-key');
       expect(result.stdout).toContain('--api-url');
     });
@@ -193,7 +193,7 @@ describe('E2E: login command', () => {
   describe('login help', () => {
     it('should display login command help', async () => {
       const result = await runCLISuccess(['login', '--help']);
-      expect(result.stdout).toContain('Login to Firecrawl');
+      expect(result.stdout).toContain('Login to Axon');
       expect(result.stdout).toContain('--api-key');
       expect(result.stdout).toContain('--api-url');
     });

@@ -106,9 +106,9 @@ export async function executeExtract(
   options: ExtractOptions
 ): Promise<ExtractResult> {
   try {
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
 
-    // Build single-arg object for new Firecrawl SDK extract()
+    // Build single-arg object for SDK extract()
     const extractArgs: Record<string, unknown> = {
       urls: options.urls,
       ignoreInvalidURLs: true,
@@ -178,7 +178,7 @@ export async function executeExtract(
   } catch (error: unknown) {
     let message = buildApiErrorMessage(error, container.config.apiUrl);
 
-    // Surface validation details from Firecrawl SDK errors
+    // Surface validation details from SDK errors
     const details = (error as { details?: unknown })?.details;
     if (Array.isArray(details)) {
       const msgs = details
@@ -317,7 +317,7 @@ async function handleExtractStatusCommand(
   command: Command
 ): Promise<void> {
   try {
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
     const status = await app.getExtractStatus(jobId);
 
     if (status.error) {
@@ -380,7 +380,7 @@ export function createExtractCommand(container?: IContainer): Command {
   const settings = getSettings();
 
   const extractCmd = new Command('extract')
-    .description('Extract structured data from URLs using Firecrawl')
+    .description('Extract structured data from URLs using Axon')
     .argument('[urls...]', 'URL(s) to extract from')
     .option('--prompt <prompt>', 'Extraction prompt describing what to extract')
     .option('--schema <json>', 'JSON schema for structured extraction')
@@ -411,10 +411,7 @@ export function createExtractCommand(container?: IContainer): Command {
       settings.extract.showSources
     )
     .option('--no-show-sources', 'Hide source URLs in result')
-    .option(
-      '-k, --api-key <key>',
-      'Firecrawl API key (overrides global --api-key)'
-    )
+    .option('-k, --api-key <key>', 'API key (overrides global --api-key)')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as JSON format', false)
     .option('--pretty', 'Pretty print JSON output', false)

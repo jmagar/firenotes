@@ -1,4 +1,4 @@
-# Firecrawl CLI Testing Guide
+# Axon CLI Testing Guide
 
 **Last Updated**: 2026-02-11
 **Version**: 1.1.2
@@ -19,7 +19,7 @@
 
 ## Overview
 
-The Firecrawl CLI has a comprehensive test suite with **346 total tests** across unit and end-to-end (e2e) test suites. Tests are designed to run in both isolated (unit) and integrated (e2e) environments.
+The Axon CLI has a comprehensive test suite with **346 total tests** across unit and end-to-end (e2e) test suites. Tests are designed to run in both isolated (unit) and integrated (e2e) environments.
 
 ### Test Statistics
 
@@ -39,7 +39,7 @@ The e2e tests use a **local Astro test website** instead of live URLs for predic
 
 **Server Details**:
 - **URL**: `http://127.0.0.1:4321`
-- **Location**: `~/workspace/firecrawl-test-server/apps/test-site`
+- **Location**: `~/workspace/axon-test-server/apps/test-site`
 - **Framework**: Astro v5.16.0
 - **Purpose**: Stable, deterministic content for testing
 
@@ -54,9 +54,9 @@ The e2e tests use a **local Astro test website** instead of live URLs for predic
 **One-time Setup (minimal checkout)**:
 
 ```bash
-mkdir -p ~/workspace/firecrawl-test-server
-git clone --filter=blob:none --no-checkout https://github.com/firecrawl/firecrawl ~/workspace/firecrawl-test-server
-cd ~/workspace/firecrawl-test-server
+mkdir -p ~/workspace/axon-test-server
+git clone --filter=blob:none --no-checkout https://github.com/firecrawl/firecrawl ~/workspace/axon-test-server
+cd ~/workspace/axon-test-server
 git sparse-checkout init --cone
 git sparse-checkout set apps/test-site
 git checkout main
@@ -67,20 +67,20 @@ pnpm build
 
 **Starting the Test Server**:
 ```bash
-cd ~/workspace/firecrawl-test-server/apps/test-site
+cd ~/workspace/axon-test-server/apps/test-site
 pnpm preview --port 4321 --host 127.0.0.1
 ```
 
 **Background Mode (optional)**:
 ```bash
-cd ~/workspace/firecrawl-test-server/apps/test-site
-nohup pnpm preview --port 4321 --host 127.0.0.1 >/tmp/firecrawl-test-server.log 2>&1 &
-echo $! >/tmp/firecrawl-test-server.pid
+cd ~/workspace/axon-test-server/apps/test-site
+nohup pnpm preview --port 4321 --host 127.0.0.1 >/tmp/axon-test-server.log 2>&1 &
+echo $! >/tmp/axon-test-server.pid
 ```
 
 **Stop Background Server**:
 ```bash
-kill "$(cat /tmp/firecrawl-test-server.pid)"
+kill "$(cat /tmp/axon-test-server.pid)"
 ```
 
 ### Required Services
@@ -109,7 +109,7 @@ For full e2e test execution, the following services must be running:
 - Utility functions (auth, config, credentials, output, etc.)
 - Input validation
 - Error handling
-- Mock external dependencies (Firecrawl SDK, fetch calls)
+- Mock external dependencies (Firecrawl SDK upstream, fetch calls)
 
 **Characteristics**:
 - **Isolated**: No external services required
@@ -134,7 +134,7 @@ src/__tests__/utils/embeddings.test.ts
 **Scope**:
 - Full command execution via spawned CLI process
 - Real HTTP calls to local test server
-- Integration with TEI, Qdrant, Firecrawl API
+- Integration with TEI, Qdrant, Firecrawl backend API
 - File I/O and output validation
 - Signal handling and graceful shutdown
 
@@ -174,7 +174,7 @@ src/__tests__/e2e/status.e2e.test.ts      (20 tests)
    docker compose up -d
 
    # Test server
-   cd ~/workspace/firecrawl-test-server/apps/test-site
+   cd ~/workspace/axon-test-server/apps/test-site
    pnpm preview --port 4321 --host 127.0.0.1
    ```
 
@@ -194,11 +194,21 @@ TEI_URL=http://100.74.16.82:52000 \
 QDRANT_URL=http://localhost:53333 \
 pnpm test:e2e
 
+# Run e2e tests in strict mode (fail if prerequisites are missing)
+FIRECRAWL_API_KEY=local-dev \
+FIRECRAWL_API_URL=http://localhost:53002 \
+TEI_URL=http://100.74.16.82:52000 \
+QDRANT_URL=http://localhost:53333 \
+pnpm test:e2e:strict
+
 # Run e2e tests in watch mode
 pnpm test:e2e:watch
 
-# Run ALL tests (unit + e2e)
+# Run ALL tests (unit + strict e2e)
 pnpm test:all
+
+# Run ALL tests allowing e2e skips
+pnpm test:all:lenient
 
 # Run tests with coverage
 pnpm test -- --coverage
@@ -235,6 +245,16 @@ QDRANT_URL=http://localhost:53333 \
 pnpm test:e2e
 ```
 
+### Strict Prerequisite Policy
+
+E2E tests now support strict prerequisite enforcement:
+
+- `AXON_E2E_STRICT_PREREQS=1`: fail tests instead of skipping when API keys/services are missing
+- `AXON_E2E_ALLOW_SKIPS=1`: allow skip behavior even in CI
+- In CI, strict mode is enabled by default unless `AXON_E2E_ALLOW_SKIPS=1`
+
+This prevents false-green runs where prerequisite-dependent tests silently skip.
+
 **Why env vars are required**: The e2e test helper (`src/__tests__/e2e/helpers.ts`) intentionally clears environment variables to prevent local `.env` files from affecting test results. This ensures tests are reproducible across different environments.
 
 ---
@@ -262,14 +282,14 @@ pnpm test:e2e
 **Coverage Summary**:
 - **11/13 commands** have e2e tests (85%)
 - **13/13 commands** have unit tests (100%)
-- **Note**: login/logout e2e tests not needed for self-hosted Firecrawl deployments
+- **Note**: login/logout e2e tests not needed for self-hosted deployments
 
 ### Utility Coverage
 
 All utilities have comprehensive unit tests:
 - `auth.ts` - Authentication flow
 - `chunker.ts` - Markdown-aware text chunking
-- `client.ts` - Firecrawl SDK client
+- `client.ts` - API client (Firecrawl SDK)
 - `config.ts` - Configuration management
 - `credentials.ts` - OS credential storage
 - `embeddings.ts` - TEI integration
@@ -433,7 +453,7 @@ cleanupTempDir(dir: string): Promise<void>
 ### Mocking Strategy
 
 **Unit Tests**:
-- Mock Firecrawl SDK client (`vi.mock('@mendable/firecrawl-js')`)
+- Mock upstream Firecrawl SDK client (`vi.mock('@mendable/firecrawl-js')`)
 - Mock fetch for TEI/Qdrant calls
 - Reset caches between tests (`resetTeiCache()`, `resetQdrantCache()`)
 - Stub environment variables
@@ -634,6 +654,11 @@ pnpm test:e2e
 
 **Why**: E2E tests intentionally clear env vars for isolation (see `helpers.ts:36-44`)
 
+**Need hard failure instead of skip?**
+```bash
+AXON_E2E_STRICT_PREREQS=1 pnpm test:e2e
+```
+
 #### 2. Test Server Not Available
 
 **Symptom**: Tests show "Skipping: No test server"
@@ -641,7 +666,7 @@ pnpm test:e2e
 **Solution**:
 ```bash
 # Start the test server
-cd ~/workspace/firecrawl-test-server/apps/test-site
+cd ~/workspace/axon-test-server/apps/test-site
 pnpm preview --port 4321 --host 127.0.0.1
 ```
 
@@ -766,7 +791,7 @@ jobs:
       - run: pnpm install
       - run: pnpm build
       - run: pnpm test              # Unit tests
-      - run: pnpm test:e2e          # E2E tests (services required)
+      - run: pnpm test:e2e:strict   # E2E tests (services required, no silent skips)
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           FIRECRAWL_API_URL: http://localhost:53002
@@ -805,7 +830,7 @@ jobs:
 ### Test Enhancements
 
 - [ ] Add coverage reporting to CI
-- [ ] Add integration tests with real Firecrawl API (staging)
+- [ ] Add integration tests with real Firecrawl backend API (staging)
 - [ ] Add performance regression tests
 - [ ] Add visual regression tests for output formatting
 - [ ] Add mutation testing for critical paths
@@ -828,4 +853,4 @@ jobs:
 ---
 
 **Questions or Issues?**
-Open an issue at: https://github.com/firecrawl/firecrawl-cli/issues
+Open an issue at: https://github.com/jmagar/axon/issues

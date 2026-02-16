@@ -55,7 +55,7 @@ function isPermanentJobError(error: string): boolean {
   return isJobNotFoundError(error);
 }
 
-// String matching is necessary here because the Firecrawl API returns plain
+// String matching is necessary here because the API returns plain
 // error messages (e.g. "Crawl still scraping"), not structured error codes.
 // The message is generated locally in processEmbedJob (line ~152) so the
 // format is stable within this codebase.
@@ -78,7 +78,7 @@ export function logEmbedderConfig(config: Partial<ImmutableConfig>): void {
   );
   console.error(
     fmt.dim(
-      `[Embedder]   QDRANT_COLLECTION: ${config.qdrantCollection || 'firecrawl'}`
+      `[Embedder]   QDRANT_COLLECTION: ${config.qdrantCollection || 'axon'}`
     )
   );
 }
@@ -153,7 +153,7 @@ async function processEmbedJob(
     }
 
     // Get crawl status and data (from webhook or API)
-    const client = jobContainer.getFirecrawlClient();
+    const client = jobContainer.getAxonClient();
     const status = crawlStatus?.status
       ? crawlStatus
       : await client.getCrawlStatus(job.jobId);
@@ -430,7 +430,7 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
 
   // Calculate polling intervals
   const staleMinutes = Number.parseFloat(
-    process.env.FIRECRAWL_EMBEDDER_STALE_MINUTES ?? '10'
+    process.env.AXON_EMBEDDER_STALE_MINUTES ?? '10'
   );
   const staleMs =
     Number.isFinite(staleMinutes) && staleMinutes > 0
@@ -448,7 +448,7 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
   // SEC-01: Determine bind address before emitting warnings so the message is accurate.
   // Default to 127.0.0.1 (localhost only). Only bind to 0.0.0.0 if explicitly opted in.
   const bindAddress =
-    process.env.FIRECRAWL_EMBEDDER_BIND_ADDRESS === '0.0.0.0'
+    process.env.AXON_EMBEDDER_BIND_ADDRESS === '0.0.0.0'
       ? '0.0.0.0'
       : '127.0.0.1';
 
@@ -456,7 +456,7 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
     if (bindAddress !== '127.0.0.1') {
       console.error(
         fmt.warning(
-          '[Embedder] No webhook secret configured but server is bound to 0.0.0.0. All requests will be rejected (401). Set FIRECRAWL_EMBEDDER_WEBHOOK_SECRET to enable access.'
+          '[Embedder] No webhook secret configured but server is bound to 0.0.0.0. All requests will be rejected (401). Set AXON_EMBEDDER_WEBHOOK_SECRET to enable access.'
         )
       );
     } else {
@@ -467,7 +467,7 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
       );
       console.error(
         fmt.dim(
-          '[Embedder] For authenticated webhooks, set FIRECRAWL_EMBEDDER_WEBHOOK_SECRET in .env'
+          '[Embedder] For authenticated webhooks, set AXON_EMBEDDER_WEBHOOK_SECRET in .env'
         )
       );
     }
@@ -607,9 +607,7 @@ async function startEmbedderWebhookServer(container: IContainer): Promise<{
       )
     );
     console.error(
-      fmt.dim(
-        '[Embedder] For faster processing, set FIRECRAWL_EMBEDDER_WEBHOOK_URL'
-      )
+      fmt.dim('[Embedder] For faster processing, set AXON_EMBEDDER_WEBHOOK_URL')
     );
   }
 

@@ -151,11 +151,11 @@ async function handleBatchSubcommand<T>(
   container: IContainer,
   jobId: string,
   options: { output?: string; json?: boolean; pretty?: boolean },
-  operation: (app: ReturnType<IContainer['getFirecrawlClient']>) => Promise<T>,
+  operation: (app: ReturnType<IContainer['getAxonClient']>) => Promise<T>,
   formatHuman: (data: T) => string
 ): Promise<void> {
   try {
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
     const data = await operation(app);
 
     await recordJob('batch', jobId);
@@ -209,7 +209,7 @@ export async function executeBatch(
   options: BatchOptions
 ): Promise<CommandResult<unknown>> {
   try {
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
 
     if (options.urls && options.urls.length > 0) {
       const batchOptions = buildBatchScrapeOptions(options);
@@ -347,7 +347,7 @@ export function createBatchCommand(): Command {
   const settings = getSettings();
 
   const batchCmd = new Command('batch')
-    .description('Batch scrape multiple URLs using Firecrawl')
+    .description('Batch scrape multiple URLs using Axon')
     .argument('[urls...]', 'URLs to scrape')
     .option('--wait', 'Wait for batch scrape to complete', false)
     .option(
@@ -385,10 +385,7 @@ export function createBatchCommand(): Command {
     .option('--idempotency-key <key>', 'Idempotency key for batch job')
     .option('--append-to-id <id>', 'Append results to existing batch id')
     .option('--integration <name>', 'Integration name for analytics')
-    .option(
-      '-k, --api-key <key>',
-      'Firecrawl API key (overrides global --api-key)'
-    )
+    .option('-k, --api-key <key>', 'API key (overrides global --api-key)')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as JSON', false)
     .option('--pretty', 'Pretty print JSON output', false)

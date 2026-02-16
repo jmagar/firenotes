@@ -29,12 +29,12 @@ import {
 
 ## Mock Setup Utilities
 
-### createMockFirecrawlClient()
+### createMockAxonClient()
 
-Create a fully-featured mock Firecrawl client with all methods:
+Create a fully-featured mock Axon client with all methods:
 
 ```typescript
-const mockClient = createMockFirecrawlClient({
+const mockClient = createMockAxonClient({
   scrape: vi.fn().mockResolvedValue(createScrapeResponse()),
 });
 ```
@@ -246,7 +246,7 @@ Temporarily set environment variables with automatic cleanup:
 
 ```typescript
 const cleanup = setupEnvVars({
-  FIRECRAWL_HOME: '/custom/path',
+  AXON_HOME: '/custom/path',
   API_KEY: undefined, // Delete this var
 });
 
@@ -260,7 +260,7 @@ cleanup(); // Restore original env
 Run function with temporary environment variables:
 
 ```typescript
-await withEnv({ FIRECRAWL_HOME: '/tmp' }, async () => {
+await withEnv({ AXON_HOME: '/tmp' }, async () => {
   // Code runs with modified env
   const result = await someFunction();
   expect(result).toBeDefined();
@@ -272,12 +272,12 @@ await withEnv({ FIRECRAWL_HOME: '/tmp' }, async () => {
 Setup comprehensive file system mocks:
 
 ```typescript
-const { cleanup, setFirecrawlHome } = setupFileSystemMocks(
+const { cleanup, setAxonHome } = setupFileSystemMocks(
   '/home/testuser', // homedir
   '/test/working/dir' // cwd
 );
 
-setFirecrawlHome('/custom/path');
+setAxonHome('/custom/path');
 
 // Test code...
 
@@ -311,7 +311,7 @@ cleanup(); // Restore original console
 
 ```typescript
 describe('executeScrape', () => {
-  let mockClient: MockFirecrawlClient;
+  let mockClient: MockAxonClient;
   let mockContainer: IContainer;
 
   beforeEach(() => {
@@ -322,12 +322,12 @@ describe('executeScrape', () => {
     mockContainer = {
       config: {
         apiKey: 'test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
+        apiUrl: 'https://api.axon.dev',
         teiUrl: 'http://localhost:8080',
         qdrantUrl: 'http://localhost:6333',
         qdrantCollection: 'test_collection',
       },
-      getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+      getAxonClient: vi.fn().mockReturnValue(mockClient),
       getEmbedPipeline: vi.fn().mockReturnValue({
         autoEmbed: vi.fn().mockResolvedValue(undefined),
       }),
@@ -363,7 +363,7 @@ describe('executeScrape', () => {
 ```typescript
 import {
   createMockContainer,
-  createMockFirecrawlClient,
+  createMockAxonClient,
   createScrapeResponse,
   expectSuccessResult,
   expectCalledWithUrlAndOptions,
@@ -371,12 +371,12 @@ import {
 } from '../helpers';
 
 describe('executeScrape', () => {
-  let mockClient: MockFirecrawlClient;
+  let mockClient: MockAxonClient;
   let container: IContainer;
 
   setupTestLifecycle(
     () => {
-      mockClient = createMockFirecrawlClient();
+      mockClient = createMockAxonClient();
       container = createMockContainer({ scrape: mockClient.scrape });
     }
   );

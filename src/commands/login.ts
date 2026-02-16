@@ -57,8 +57,8 @@ export async function handleLoginCommand(
       console.log(fmt.primary('Next:'));
       console.log(fmt.dim('To login with a different account, either:'));
       console.log(fmt.dim('  unset FIRECRAWL_API_KEY'));
-      console.log(fmt.dim('  firecrawl login'));
-      console.log(fmt.dim('Or use: firecrawl login --api-key <key>'));
+      console.log(fmt.dim('  axon login'));
+      console.log(fmt.dim('Or use: axon login --api-key <key>'));
       return;
     }
 
@@ -70,8 +70,8 @@ export async function handleLoginCommand(
     console.log('');
     console.log(fmt.primary('Next:'));
     console.log(fmt.dim('To login with a different account, run:'));
-    console.log(fmt.dim('  firecrawl logout'));
-    console.log(fmt.dim('  firecrawl login'));
+    console.log(fmt.dim('  axon logout'));
+    console.log(fmt.dim('  axon login'));
     return;
   }
 
@@ -132,7 +132,7 @@ import { Command } from 'commander';
  */
 export function createLoginCommand(): Command {
   const loginCmd = new Command('login')
-    .description('Login to Firecrawl (alias for config)')
+    .description('Login to Axon (alias for config)')
     .option(
       '-k, --api-key <key>',
       'Provide API key directly (skips interactive flow)'

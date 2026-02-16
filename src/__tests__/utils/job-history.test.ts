@@ -35,31 +35,31 @@ let mockCwd = '/test/working/directory';
 
 describe('Job History Utilities', () => {
   const mockHome = '/home/testuser';
-  const expectedDataDir = join(mockHome, '.firecrawl');
+  const expectedDataDir = join(mockHome, '.axon');
   const expectedHistoryPath = join(expectedDataDir, 'job-history.json');
   const legacyPath = join(mockCwd, '.cache', 'job-history.json');
-  let originalFirecrawlHome: string | undefined;
+  let originalAxonHome: string | undefined;
 
   beforeEach(() => {
-    originalFirecrawlHome = process.env.FIRECRAWL_HOME;
+    originalAxonHome = process.env.AXON_HOME;
     vi.clearAllMocks();
     vi.mocked(homedir).mockReturnValue(mockHome);
     process.cwd = vi.fn(() => mockCwd) as () => string;
-    delete process.env.FIRECRAWL_HOME;
+    delete process.env.AXON_HOME;
   });
 
   afterEach(() => {
     vi.clearAllMocks();
     process.cwd = originalCwd;
-    if (originalFirecrawlHome === undefined) {
-      delete process.env.FIRECRAWL_HOME;
+    if (originalAxonHome === undefined) {
+      delete process.env.AXON_HOME;
     } else {
-      process.env.FIRECRAWL_HOME = originalFirecrawlHome;
+      process.env.AXON_HOME = originalAxonHome;
     }
   });
 
   describe('Storage root support', () => {
-    it('should use default ~/.firecrawl path when FIRECRAWL_HOME is not set', async () => {
+    it('should use default ~/.axon path when AXON_HOME is not set', async () => {
       // Mock empty history file
       vi.mocked(fs.readFile).mockResolvedValue(
         JSON.stringify({ crawl: [], batch: [], extract: [] })

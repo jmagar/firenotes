@@ -3,7 +3,7 @@
  *
  * These tests require:
  * 1. The test server running at http://127.0.0.1:4321
- * 2. A valid Firecrawl API key in TEST_FIRECRAWL_API_KEY or FIRECRAWL_API_KEY env var
+ * 2. A valid API key in TEST_FIRECRAWL_API_KEY or FIRECRAWL_API_KEY env var
  */
 
 import { existsSync } from 'node:fs';
@@ -306,7 +306,7 @@ describe('E2E: scrape command', () => {
         return;
       }
 
-      // firecrawl <url> is shorthand for firecrawl scrape <url>
+      // axon <url> is shorthand for axon scrape <url>
       const result = await runCLI([TEST_SERVER_URL], {
         env: { FIRECRAWL_API_KEY: apiKey ?? 'test-key' },
         timeout: 60000,

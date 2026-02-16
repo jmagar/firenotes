@@ -11,7 +11,7 @@ import type { EffectiveUserSettings } from '../schemas/storage';
  * Configuration is frozen after container creation - no mutations allowed
  */
 export interface ImmutableConfig {
-  // Firecrawl API
+  // API connection
   readonly apiKey?: string;
   readonly apiUrl?: string;
   readonly timeoutMs?: number;
@@ -40,7 +40,7 @@ export interface ImmutableConfig {
  * Used to build immutable config during factory resolution
  */
 export interface ConfigOptions {
-  // Firecrawl API
+  // API connection
   apiKey?: string;
   apiUrl?: string;
   timeoutMs?: number;
@@ -329,10 +329,10 @@ export interface IContainer {
   readonly config: ImmutableConfig;
 
   /**
-   * Get or create Firecrawl SDK client
+   * Get or create API client
    * Throws if API key not configured
    */
-  getFirecrawlClient(): Firecrawl;
+  getAxonClient(): Firecrawl;
 
   /**
    * Get or create HTTP client

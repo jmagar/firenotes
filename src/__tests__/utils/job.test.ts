@@ -31,7 +31,7 @@ describe('isJobId', () => {
   });
 
   it('should return true for UUID v7 format', () => {
-    // UUID v7 has version 7 in the third group — used by self-hosted Firecrawl
+    // UUID v7 has version 7 in the third group — used by self-hosted Axon
     expect(isJobId('019bfe41-f924-77db-8041-13f0d170c87e')).toBe(true);
     expect(isJobId('019bfe41-f924-7aaa-bbbb-cccccccccccc')).toBe(true);
   });

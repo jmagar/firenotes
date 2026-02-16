@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Firecrawl CLI
+ * Axon CLI
  * Entry point for the CLI application
  */
 
@@ -154,9 +154,14 @@ function isCloudApiUrl(apiUrl?: string): boolean {
   }
   try {
     const parsed = new URL(apiUrl);
-    return parsed.hostname === 'api.firecrawl.dev';
+    return (
+      parsed.hostname === 'api.firecrawl.dev' ||
+      parsed.hostname === 'api.axon.dev'
+    );
   } catch {
-    return apiUrl.includes('api.firecrawl.dev');
+    return (
+      apiUrl.includes('api.firecrawl.dev') || apiUrl.includes('api.axon.dev')
+    );
   }
 }
 
@@ -185,10 +190,10 @@ function renderTopLevelHelp(): string {
     {
       title: 'Core Web Operations',
       commands: [
-        ['scrape [url] [formats...]', 'Scrape a URL using Firecrawl'],
-        ['crawl [url-or-job-id]', 'Crawl a website using Firecrawl'],
-        ['map [url]', 'Map URLs on a website using Firecrawl'],
-        ['search <query>', 'Search the web using Firecrawl'],
+        ['scrape [url] [formats...]', 'Scrape a URL using Axon'],
+        ['crawl [url-or-job-id]', 'Crawl a website using Axon'],
+        ['map [url]', 'Map URLs on a website using Axon'],
+        ['search <query>', 'Search the web using Axon'],
         ['extract [urls...]', 'Extract structured data from URLs'],
         ['batch [urls...]', 'Batch scrape multiple URLs'],
       ],
@@ -214,9 +219,9 @@ function renderTopLevelHelp(): string {
         ['list', 'List active crawl jobs'],
         ['status', 'Show active jobs and embedding queue status'],
         ['doctor', 'Run local diagnostics for service health/config'],
-        ['config', 'Configure Firecrawl (login if not authenticated)'],
+        ['config', 'Configure Axon (login if not authenticated)'],
         ['view-config', 'View current configuration and auth status'],
-        ['login', 'Login to Firecrawl (alias for config)'],
+        ['login', 'Login to Axon (alias for config)'],
         ['logout', 'Logout and clear stored credentials'],
         ['version', 'Display version information'],
       ],
@@ -228,7 +233,7 @@ function renderTopLevelHelp(): string {
   const formatRow = (left: string, right: string, width: number): string =>
     `  ${colorize(colors.materialLightBlue, left.padEnd(width, ' '))}  ${fmt.dim(right)}`;
 
-  const title = fmt.bold(colorize(colors.primary, 'FIRECRAWL CLI'));
+  const title = fmt.bold(colorize(colors.primary, 'AXON CLI'));
   const titleRule = colorize(
     colors.primary,
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
@@ -248,15 +253,15 @@ function renderTopLevelHelp(): string {
     `  ${title}`,
     `  ${titleRule}`,
     `  ${muted(`Version ${packageJson.version}  ${icons.separator}  Turn websites into LLM-ready data`)}`,
-    `  ${muted('CLI tool for Firecrawl web scraping')}`,
+    `  ${muted('CLI tool for Axon web scraping')}`,
     '',
     `  ${section('Usage')}`,
-    `  ${chip('firecrawl [options] [command]')}`,
+    `  ${chip('axon [options] [command]')}`,
     '',
     `  ${section('Quick Start')}`,
-    `  ${muted('firecrawl https://example.com markdown')}`,
-    `  ${muted('firecrawl crawl https://docs.example.com --limit 50')}`,
-    `  ${muted('firecrawl extract https://example.com --prompt "Get contact info"')}`,
+    `  ${muted('axon https://example.com markdown')}`,
+    `  ${muted('axon crawl https://docs.example.com --limit 50')}`,
+    `  ${muted('axon extract https://example.com --prompt "Get contact info"')}`,
     '',
     `  ${section('Global Options')}`,
     ...globalOptions.map(([left, right]) =>
@@ -277,23 +282,21 @@ function renderTopLevelHelp(): string {
   lines.push('');
   lines.push(`  ${section('Examples')}`);
   lines.push(
-    `  ${muted('firecrawl scrape https://example.com markdown --output result.md')}`
+    `  ${muted('axon scrape https://example.com markdown --output result.md')}`
   );
   lines.push(
-    `  ${muted('firecrawl map https://example.com --search docs --limit 100')}`
+    `  ${muted('axon map https://example.com --search docs --limit 100')}`
+  );
+  lines.push(`  ${muted('axon search "firecrawl blog" --limit 5 --scrape')}`);
+  lines.push(
+    `  ${muted('axon query "pricing and limits" --domain docs.firecrawl.dev')}`
   );
   lines.push(
-    `  ${muted('firecrawl search "firecrawl blog" --limit 5 --scrape')}`
-  );
-  lines.push(
-    `  ${muted('firecrawl query "pricing and limits" --domain docs.firecrawl.dev')}`
-  );
-  lines.push(
-    `  ${muted('firecrawl ask "How do I use the crawl command?" --limit 3')}`
+    `  ${muted('axon ask "How do I use the crawl command?" --limit 3')}`
   );
   lines.push('');
   lines.push(
-    `  ${muted(`${icons.arrow} Run firecrawl <command> --help for command-specific flags`)}`
+    `  ${muted(`${icons.arrow} Run axon <command> --help for command-specific flags`)}`
   );
   lines.push('');
 
@@ -301,8 +304,8 @@ function renderTopLevelHelp(): string {
 }
 
 program
-  .name('firecrawl')
-  .description('CLI tool for Firecrawl web scraping')
+  .name('axon')
+  .description('CLI tool for Axon web scraping')
   .version(packageJson.version)
   .option(
     '-k, --api-key <key>',
@@ -446,9 +449,9 @@ async function main() {
       console.log(
         `  ${fmt.success(`${icons.success} You're all set. Try scraping a URL:`)}`
       );
-      console.log(`  ${fmt.dim('firecrawl https://example.com')}`);
+      console.log(`  ${fmt.dim('axon https://example.com')}`);
       console.log(
-        `  ${fmt.dim(`${icons.arrow} For more commands, run: firecrawl --help`)}`
+        `  ${fmt.dim(`${icons.arrow} For more commands, run: axon --help`)}`
       );
       console.log('');
       return;

@@ -152,7 +152,7 @@ describe('handleAsyncEmbedding', () => {
       expect.stringContaining('Embedder webhook not configured')
     );
     expect(consoleError).toHaveBeenCalledWith(
-      expect.stringContaining('firecrawl crawl job-456 --embed')
+      expect.stringContaining('axon crawl job-456 --embed')
     );
 
     consoleError.mockRestore();

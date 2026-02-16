@@ -293,19 +293,17 @@ function buildRuntimeEnvItems(): EnvItem[] {
       value: presentValue(openAiModel),
     },
     {
-      key: 'FIRECRAWL_EMBEDDER_WEBHOOK_URL',
+      key: 'AXON_EMBEDDER_WEBHOOK_URL',
       value: maskUrlCredentials(
-        presentValue(process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL)
+        presentValue(process.env.AXON_EMBEDDER_WEBHOOK_URL)
       ),
     },
     {
-      key: 'FIRECRAWL_EMBEDDER_WEBHOOK_SECRET',
-      value: maskValue(
-        presentValue(process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET)
-      ),
+      key: 'AXON_EMBEDDER_WEBHOOK_SECRET',
+      value: maskValue(presentValue(process.env.AXON_EMBEDDER_WEBHOOK_SECRET)),
       masked: true,
     },
-    { key: 'FIRECRAWL_HOME', value: presentValue(process.env.FIRECRAWL_HOME) },
+    { key: 'AXON_HOME', value: presentValue(process.env.AXON_HOME) },
     {
       key: 'QDRANT_DATA_DIR',
       value: presentValue(process.env.QDRANT_DATA_DIR),
@@ -561,9 +559,7 @@ export async function configure(options: ConfigureOptions = {}): Promise<void> {
   // Already authenticated - show config and offer to re-authenticate
   viewConfig({ json: options.json });
   if (options.json) return;
-  console.log(
-    fmt.dim('To re-authenticate, run: firecrawl logout && firecrawl config\n')
-  );
+  console.log(fmt.dim('To re-authenticate, run: axon logout && axon config\n'));
 }
 
 /**
@@ -578,7 +574,7 @@ export function viewConfig(options: { json?: boolean } = {}): void {
 
   console.log('');
   console.log(
-    `  ${fmt.primary(`${icons.success} firecrawl`)} ${fmt.dim('cli')} ${fmt.dim(`v${packageJson.version}`)}`
+    `  ${fmt.primary(`${icons.success} axon`)} ${fmt.dim('cli')} ${fmt.dim(`v${packageJson.version}`)}`
   );
   console.log('');
   console.log(`  ${configHeading('Configuration')}`);
@@ -625,17 +621,17 @@ export function viewConfig(options: { json?: boolean } = {}): void {
     console.log('');
     console.log(configHeading('Commands'));
     console.log(
-      `  ${icons.bullet} ${colorize(colors.primary, 'firecrawl logout')} ${fmt.dim('      Clear credentials')}`
+      `  ${icons.bullet} ${colorize(colors.primary, 'axon logout')} ${fmt.dim('      Clear credentials')}`
     );
     console.log(
-      `  ${icons.bullet} ${colorize(colors.primary, 'firecrawl config')} ${fmt.dim('      Re-authenticate')}`
+      `  ${icons.bullet} ${colorize(colors.primary, 'axon config')} ${fmt.dim('      Re-authenticate')}`
     );
   } else {
     console.log(`  ${fmt.error(icons.active)} Not authenticated`);
     console.log('');
     console.log(fmt.dim('Run any command to start authentication, or use:'));
     console.log(
-      fmt.dim('  firecrawl config    Authenticate with browser or API key')
+      fmt.dim('  axon config    Authenticate with browser or API key')
     );
   }
   console.log('');
@@ -878,7 +874,7 @@ export function handleConfigReset(key?: string): void {
  */
 export function createConfigCommand(): Command {
   const configCmd = new Command('config')
-    .description('Configure Firecrawl (login if not authenticated)')
+    .description('Configure Axon (login if not authenticated)')
     .option(
       '-k, --api-key <key>',
       'Provide API key directly (skips interactive flow)'

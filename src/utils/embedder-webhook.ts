@@ -7,7 +7,7 @@ import type { ImmutableConfig } from '../container/types';
 
 export const DEFAULT_EMBEDDER_WEBHOOK_PORT = 53000;
 export const DEFAULT_EMBEDDER_WEBHOOK_PATH = '/webhooks/crawl';
-export const EMBEDDER_WEBHOOK_HEADER = 'x-firecrawl-embedder-secret';
+export const EMBEDDER_WEBHOOK_HEADER = 'x-axon-embedder-secret';
 
 export interface EmbedderWebhookSettings {
   url?: string;

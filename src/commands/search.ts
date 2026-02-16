@@ -3,7 +3,7 @@
  */
 
 import type {
-  ScrapeOptions as FirecrawlScrapeOptions,
+  ScrapeOptions as AxonScrapeOptions,
   SearchData,
   SearchRequest,
 } from '@mendable/firecrawl-js';
@@ -56,7 +56,7 @@ export async function executeSearch(
   options: SearchOptions
 ): Promise<SearchResult> {
   try {
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
 
     // Build search options for the SDK using extended type for additional CLI options
     const searchParams: ExtendedSearchRequest = {};
@@ -106,7 +106,7 @@ export async function executeSearch(
 
     // Add scrape options if scraping is enabled
     if (options.scrape) {
-      const scrapeOptions: FirecrawlScrapeOptions = {};
+      const scrapeOptions: AxonScrapeOptions = {};
 
       // Add formats
       if (options.scrapeFormats && options.scrapeFormats.length > 0) {
@@ -410,7 +410,7 @@ export function createSearchCommand(): Command {
   const settings = getSettings();
 
   const searchCmd = new Command('search')
-    .description('Search the web using Firecrawl')
+    .description('Search the web using Axon')
     .argument('<query>', 'Search query')
     .option(
       '--limit <number>',
@@ -446,7 +446,7 @@ export function createSearchCommand(): Command {
     )
     .option(
       '--ignore-invalid-urls',
-      'Exclude URLs invalid for other Firecrawl endpoints (default: true)',
+      'Exclude invalid URLs (default: true)',
       settings.search.ignoreInvalidUrls
     )
     .option(
@@ -469,10 +469,7 @@ export function createSearchCommand(): Command {
       settings.search.onlyMainContent
     )
     .option('--no-embed', 'Skip auto-embedding of search results')
-    .option(
-      '-k, --api-key <key>',
-      'Firecrawl API key (overrides global --api-key)'
-    )
+    .option('-k, --api-key <key>', 'API key (overrides global --api-key)')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as compact JSON', false)
     .option(

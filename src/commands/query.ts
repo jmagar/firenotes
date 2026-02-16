@@ -422,7 +422,7 @@ function formatGrouped(
  * @returns Formatted hint message for users
  */
 function getRetrievalHint(): string {
-  return `${fmt.dim(`${icons.arrow} To retrieve full documents from the vector DB, use: firecrawl retrieve <url>`)}`;
+  return `${fmt.dim(`${icons.arrow} To retrieve full documents from the vector DB, use: axon retrieve <url>`)}`;
 }
 
 /**
@@ -532,10 +532,7 @@ export function createQueryCommand(): Command {
       'Show request timing and other useful information',
       false
     )
-    .option(
-      '--collection <name>',
-      'Qdrant collection name (default: firecrawl)'
-    )
+    .option('--collection <name>', 'Qdrant collection name (default: axon)')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as JSON format', false)
     .action(async (query: string, options, command: Command) => {

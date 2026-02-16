@@ -223,7 +223,7 @@ async function handleInfoCommand(
       const filters = buildFiltersEcho([
         [
           'collection',
-          options.collection && options.collection !== 'firecrawl'
+          options.collection && options.collection !== 'axon'
             ? options.collection
             : undefined,
         ],
@@ -295,14 +295,14 @@ export function createInfoCommand(): Command {
     )
     .option(
       '-c, --collection <name>',
-      'Qdrant collection name (default: firecrawl)',
-      'firecrawl'
+      'Qdrant collection name (default: axon)',
+      'axon'
     )
     .option('-o, --output <file>', 'Write output to file (default: stdout)')
     .option('--json', 'Output as JSON', false)
     .action(async (url: string, options, command: Command) => {
       if (!url) {
-        command.error('URL is required. Use "firecrawl info <url>".');
+        command.error('URL is required. Use "axon info <url>".');
       }
       const container = requireContainer(command);
       const parsedOptions = parseInfoOptions(normalizeUrl(url), options);

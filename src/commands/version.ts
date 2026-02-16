@@ -19,7 +19,7 @@ export function handleVersionCommand(options: VersionOptions = {}): void {
   const summary = [`version: v${packageJson.version}`];
 
   for (const line of formatHeaderBlock({
-    title: 'firecrawl Version',
+    title: 'axon Version',
     summary,
   })) {
     console.log(line);

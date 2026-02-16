@@ -20,7 +20,7 @@ export interface ExtractOptions {
   includeSubdomains?: boolean;
   /** Include source URLs in result */
   showSources?: boolean;
-  /** API key for Firecrawl */
+  /** API key */
   apiKey?: string;
   /** Output file path */
   output?: string;

@@ -21,7 +21,7 @@ describe('URL Utilities', () => {
         expect(isUrl('https://www.example.com')).toBe(true);
         expect(isUrl('https://example.com/path')).toBe(true);
         expect(isUrl('https://example.com/path?query=value')).toBe(true);
-        expect(isUrl('https://api.firecrawl.dev')).toBe(true);
+        expect(isUrl('https://api.axon.dev')).toBe(true);
       });
 
       it('should be case-insensitive for protocol', () => {
@@ -94,7 +94,7 @@ describe('URL Utilities', () => {
       it('should handle subdomains', () => {
         expect(isUrl('api.example.com')).toBe(true);
         expect(isUrl('v2.api.example.com')).toBe(true);
-        expect(isUrl('https://api.firecrawl.dev/v2')).toBe(true);
+        expect(isUrl('https://api.axon.dev/v2')).toBe(true);
       });
     });
   });
@@ -134,8 +134,8 @@ describe('URL Utilities', () => {
     });
 
     it('should handle complex URLs', () => {
-      expect(normalizeUrl('api.firecrawl.dev/v2/scrape?url=test')).toBe(
-        'https://api.firecrawl.dev/v2/scrape?url=test'
+      expect(normalizeUrl('api.axon.dev/v2/scrape?url=test')).toBe(
+        'https://api.axon.dev/v2/scrape?url=test'
       );
       expect(normalizeUrl('example.com:8080/api')).toBe(
         'https://example.com:8080/api'

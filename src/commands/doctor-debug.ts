@@ -117,8 +117,8 @@ function buildDoctorDebugPrompt(report: DoctorReport): string {
 
   const reportJson = JSON.stringify(report, null, 2);
   return [
-    'You are a Firecrawl CLI infrastructure troubleshooting assistant.',
-    'Analyze this `firecrawl doctor` report and provide a practical fix plan.',
+    'You are an Axon CLI infrastructure troubleshooting assistant.',
+    'Analyze this `axon doctor` report and provide a practical fix plan.',
     'Return only the final answer. Do not narrate your internal process.',
     'Do not say things like "I will investigate" or "I am checking".',
     'Requirements:',
@@ -371,7 +371,7 @@ export async function runDoctorDebugChat(
     console.log(line);
   }
   console.log(
-    `  ${fmt.primary('You:')} Diagnose and fix my Firecrawl setup issues.`
+    `  ${fmt.primary('You:')} Diagnose and fix my Axon setup issues.`
   );
   console.log('');
   console.log(`  ${fmt.primary(`${speaker}:`)}`);

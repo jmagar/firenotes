@@ -75,7 +75,7 @@ export async function executeEmbed(
       url = options.url;
     } else if (isUrl(options.input)) {
       // URL mode -- scrape first
-      const app = container.getFirecrawlClient();
+      const app = container.getAxonClient();
       const result = await app.scrape(options.input, {
         formats: ['markdown'],
       });
@@ -353,19 +353,13 @@ export function createEmbedCommand(): Command {
       '--url <url>',
       'Explicit URL for metadata (required for file/stdin)'
     )
-    .option(
-      '--collection <name>',
-      'Qdrant collection name (default: firecrawl)'
-    )
+    .option('--collection <name>', 'Qdrant collection name (default: axon)')
     .option(
       '--no-chunk',
       'Disable chunking, embed as single vector (default: false)',
       false
     )
-    .option(
-      '-k, --api-key <key>',
-      'Firecrawl API key (overrides global --api-key)'
-    )
+    .option('-k, --api-key <key>', 'API key (overrides global --api-key)')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as JSON format', false)
     .action(async (input: string | undefined, options, command: Command) => {

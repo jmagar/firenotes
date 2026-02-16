@@ -25,7 +25,7 @@ export class Container implements IContainer {
   public readonly config: ImmutableConfig;
 
   // Lazy-initialized services (memoized)
-  private firecrawlClient: Firecrawl | undefined;
+  private axonClient: Firecrawl | undefined;
   private httpClient: IHttpClient | undefined;
   private teiService: ITeiService | undefined;
   private qdrantService: IQdrantService | undefined;
@@ -45,20 +45,20 @@ export class Container implements IContainer {
   }
 
   /**
-   * Get or create Firecrawl SDK client
+   * Get or create API client
    * Lazy initialization with memoization
    * @throws Error if API key is not configured
    */
-  getFirecrawlClient(): Firecrawl {
-    if (!this.firecrawlClient) {
+  getAxonClient(): Firecrawl {
+    if (!this.axonClient) {
       if (!this.config.apiKey) {
         throw new Error(
           'API key is required. Set FIRECRAWL_API_KEY environment variable, ' +
-            'use --api-key flag, or run "firecrawl config" to set the API key.'
+            'use --api-key flag, or run "axon config" to set the API key.'
         );
       }
 
-      this.firecrawlClient = new Firecrawl({
+      this.axonClient = new Firecrawl({
         apiKey: this.config.apiKey,
         apiUrl: this.config.apiUrl ?? undefined,
         timeoutMs: this.config.timeoutMs,
@@ -66,7 +66,7 @@ export class Container implements IContainer {
         backoffFactor: this.config.backoffFactor,
       });
     }
-    return this.firecrawlClient;
+    return this.axonClient;
   }
 
   /**
@@ -142,7 +142,7 @@ export class Container implements IContainer {
     this.embedPipeline = new EmbedPipeline(
       this.getTeiService(),
       this.getQdrantService(),
-      this.config.qdrantCollection || 'firecrawl',
+      this.config.qdrantCollection || 'axon',
       this.config.settings
     );
     return this.embedPipeline;
@@ -154,7 +154,7 @@ export class Container implements IContainer {
    */
   async dispose(): Promise<void> {
     // Clear all service references
-    this.firecrawlClient = undefined;
+    this.axonClient = undefined;
     this.httpClient = undefined;
     this.teiService = undefined;
     this.qdrantService = undefined;

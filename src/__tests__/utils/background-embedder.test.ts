@@ -45,7 +45,7 @@ function createMockContainer(options?: {
     teiUrl?: string;
     qdrantUrl?: string;
   };
-  firecrawlClient?: unknown;
+  axonClient?: unknown;
   embedPipeline?: unknown;
 }): IContainer {
   const hasConfig = options?.config;
@@ -65,7 +65,7 @@ function createMockContainer(options?: {
       qdrantCollection: 'test_collection',
       settings: getDefaultSettings(),
     },
-    getFirecrawlClient: vi.fn().mockReturnValue(options?.firecrawlClient),
+    getAxonClient: vi.fn().mockReturnValue(options?.axonClient),
     getHttpClient: vi.fn(),
     getTeiService: vi.fn(),
     getQdrantService: vi.fn(),
@@ -180,7 +180,7 @@ describe('processStaleJobsOnce', () => {
     };
 
     const mockContainer = createMockContainer({
-      firecrawlClient: mockClient,
+      axonClient: mockClient,
       embedPipeline: mockEmbedPipeline,
     });
 
@@ -232,7 +232,7 @@ describe('processStaleJobsOnce', () => {
       getCrawlStatus: vi.fn().mockRejectedValue(new Error('Job not found')),
     };
     vi.mocked(createDaemonContainer).mockReturnValue(
-      createMockContainer({ firecrawlClient: mockClient })
+      createMockContainer({ axonClient: mockClient })
     );
 
     const { processStaleJobsOnce } = await import(
@@ -282,7 +282,7 @@ describe('processStaleJobsOnce', () => {
     };
 
     vi.mocked(createDaemonContainer).mockReturnValue(
-      createMockContainer({ firecrawlClient: mockClient })
+      createMockContainer({ axonClient: mockClient })
     );
 
     const { processStaleJobsOnce } = await import(
@@ -496,7 +496,7 @@ describe('processEmbedJob - success logging', () => {
 
     const mockContainer = createMockContainer({
       config: { apiKey: 'test' },
-      firecrawlClient: mockClient,
+      axonClient: mockClient,
       embedPipeline: mockEmbedPipeline,
     });
 

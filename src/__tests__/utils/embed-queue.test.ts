@@ -11,14 +11,14 @@ describe('getStalePendingJobs', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-queue-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -80,14 +80,14 @@ describe('getStuckProcessingJobs', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-queue-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -213,14 +213,14 @@ describe('markJobConfigError', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-queue-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -260,14 +260,14 @@ describe('markJobPermanentFailed', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-queue-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -290,14 +290,14 @@ describe('cleanupIrrecoverableFailedJobs', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-queue-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -346,14 +346,14 @@ describe('clearEmbedQueue', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-queue-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -377,14 +377,14 @@ describe('cleanupEmbedQueue', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-queue-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -460,14 +460,14 @@ describe('tryClaimJob', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-queue-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -593,14 +593,14 @@ describe('secure file permissions', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-queue-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -634,14 +634,14 @@ describe('getQueueStats', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-queue-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 
@@ -729,15 +729,15 @@ describe('getQueueStats', () => {
 });
 
 describe('legacy queue migration resilience', () => {
-  const originalFirecrawlHome = process.env.FIRECRAWL_HOME;
+  const originalAxonHome = process.env.AXON_HOME;
   let testStorageRoot: string;
   let testHome: string;
 
   beforeEach(() => {
-    testStorageRoot = mkdtempSync(join(tmpdir(), 'firecrawl-storage-'));
-    testHome = mkdtempSync(join(tmpdir(), 'firecrawl-home-'));
-    process.env.FIRECRAWL_HOME = testStorageRoot;
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    testStorageRoot = mkdtempSync(join(tmpdir(), 'axon-storage-'));
+    testHome = mkdtempSync(join(tmpdir(), 'axon-home-'));
+    process.env.AXON_HOME = testStorageRoot;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
     vi.doMock('node:os', async () => {
       const actual = await vi.importActual<typeof import('node:os')>('node:os');
@@ -751,12 +751,12 @@ describe('legacy queue migration resilience', () => {
   afterEach(() => {
     rmSync(testStorageRoot, { recursive: true, force: true });
     rmSync(testHome, { recursive: true, force: true });
-    if (originalFirecrawlHome === undefined) {
-      delete process.env.FIRECRAWL_HOME;
+    if (originalAxonHome === undefined) {
+      delete process.env.AXON_HOME;
     } else {
-      process.env.FIRECRAWL_HOME = originalFirecrawlHome;
+      process.env.AXON_HOME = originalAxonHome;
     }
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.doUnmock('node:os');
     vi.resetModules();
   });

@@ -87,12 +87,14 @@ function isRetryableError(error: unknown): boolean {
   const message = error.message.toLowerCase();
 
   // Skip client errors that won't succeed on retry
-  if (message.includes('404') ||
-      message.includes('not found') ||
-      message.includes('401') ||
-      message.includes('unauthorized') ||
-      message.includes('403') ||
-      message.includes('forbidden')) {
+  if (
+    message.includes('404') ||
+    message.includes('not found') ||
+    message.includes('401') ||
+    message.includes('unauthorized') ||
+    message.includes('403') ||
+    message.includes('forbidden')
+  ) {
     return false;
   }
 
@@ -137,10 +139,10 @@ async function withRetry<T>(
 }
 
 /**
- * Fetches job statuses from the Firecrawl API in parallel with retry logic.
+ * Fetches job statuses from the API in parallel with retry logic.
  */
 async function fetchJobStatuses(
-  client: ReturnType<IContainer['getFirecrawlClient']>,
+  client: ReturnType<IContainer['getAxonClient']>,
   resolvedIds: {
     crawls: string[];
     batches: string[];
@@ -344,7 +346,7 @@ export async function executeJobStatus(
   container: IContainer,
   options: JobStatusOptions
 ): Promise<JobStatusData> {
-  const client = container.getFirecrawlClient();
+  const client = container.getAxonClient();
 
   const embedQueue = await summarizeEmbedQueue();
   const crawlIds = parseIds(options.crawl);

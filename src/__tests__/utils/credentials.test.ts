@@ -29,39 +29,39 @@ vi.mock('node:os', () => ({
 }));
 
 describe('Credentials Utilities', () => {
-  let originalFirecrawlHome: string | undefined;
+  let originalAxonHome: string | undefined;
 
   beforeEach(() => {
-    originalFirecrawlHome = process.env.FIRECRAWL_HOME;
+    originalAxonHome = process.env.AXON_HOME;
     vi.clearAllMocks();
     vi.mocked(os.homedir).mockReturnValue('/home/testuser');
-    delete process.env.FIRECRAWL_HOME;
+    delete process.env.AXON_HOME;
     __resetCredentialsStateForTests();
   });
 
   afterEach(() => {
     vi.clearAllMocks();
-    if (originalFirecrawlHome === undefined) {
-      delete process.env.FIRECRAWL_HOME;
+    if (originalAxonHome === undefined) {
+      delete process.env.AXON_HOME;
     } else {
-      process.env.FIRECRAWL_HOME = originalFirecrawlHome;
+      process.env.AXON_HOME = originalAxonHome;
     }
     __resetCredentialsStateForTests();
   });
 
   describe('getConfigDirectoryPath', () => {
-    it('should return default FIRECRAWL_HOME path', () => {
+    it('should return default AXON_HOME path', () => {
       const configPath = getConfigDirectoryPath();
 
-      expect(configPath).toBe('/home/testuser/.firecrawl');
+      expect(configPath).toBe('/home/testuser/.axon');
     });
 
-    it('should use FIRECRAWL_HOME override when set', () => {
-      process.env.FIRECRAWL_HOME = '/tmp/custom-firecrawl-home';
+    it('should use AXON_HOME override when set', () => {
+      process.env.AXON_HOME = '/tmp/custom-axon-home';
 
       const configPath = getConfigDirectoryPath();
 
-      expect(configPath).toBe('/tmp/custom-firecrawl-home');
+      expect(configPath).toBe('/tmp/custom-axon-home');
     });
   });
 
@@ -77,7 +77,7 @@ describe('Credentials Utilities', () => {
     it('should return credentials when file exists and is valid', () => {
       const mockCredentials = {
         apiKey: 'fc-test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
+        apiUrl: 'https://api.axon.dev',
       };
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
@@ -111,7 +111,7 @@ describe('Credentials Utilities', () => {
     });
 
     it('migrates valid legacy credentials from ~/.config/firecrawl-cli', () => {
-      const targetPath = '/home/testuser/.firecrawl/credentials.json';
+      const targetPath = '/home/testuser/.axon/credentials.json';
       const legacyPath =
         '/home/testuser/.config/firecrawl-cli/credentials.json';
       let targetExists = false;
@@ -148,7 +148,7 @@ describe('Credentials Utilities', () => {
     });
 
     it('skips invalid legacy credentials and returns null when target is missing', () => {
-      const targetPath = '/home/testuser/.firecrawl/credentials.json';
+      const targetPath = '/home/testuser/.axon/credentials.json';
       const legacyPath =
         '/home/testuser/.config/firecrawl-cli/credentials.json';
 
@@ -184,7 +184,7 @@ describe('Credentials Utilities', () => {
 
       saveCredentials({ apiKey: 'fc-test-key' });
 
-      expect(fs.mkdirSync).toHaveBeenCalledWith('/home/testuser/.firecrawl', {
+      expect(fs.mkdirSync).toHaveBeenCalledWith('/home/testuser/.axon', {
         recursive: true,
         mode: 0o700,
       });
@@ -195,7 +195,7 @@ describe('Credentials Utilities', () => {
 
       saveCredentials({
         apiKey: 'fc-test-key',
-        apiUrl: 'https://api.firecrawl.dev',
+        apiUrl: 'https://api.axon.dev',
       });
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(

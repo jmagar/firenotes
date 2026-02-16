@@ -9,7 +9,7 @@
  *
  * @example
  * ```typescript
- * const options = new OptionsBuilder<FirecrawlOptions>()
+ * const options = new OptionsBuilder<AxonOptions>()
  *   .add('limit', 10)
  *   .addMapped('limit', cliOptions.limit) // Same as add() for type safety
  *   .addNested('scrapeOptions.onlyMainContent', true)

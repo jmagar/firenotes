@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeJobStatus } from '../../commands/status/execute';
 import { computeChangedKeys } from '../../commands/status/helpers';
 import type { IContainer } from '../../container/types';
-import type { MockFirecrawlClient } from '../utils/mock-client';
+import type { MockAxonClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 const createContainer = (...args: Parameters<typeof createTestContainer>) =>
@@ -33,7 +33,7 @@ vi.mock('../../utils/job-history', () => ({
 describe('Status command - Watch mode change detection', () => {
   it('should detect when crawl status changes from scraping to completed', async () => {
     const crawlId = '019c161c-8a80-7051-a438-2ec8707e1bc9';
-    const mockClient: Partial<MockFirecrawlClient> = {
+    const mockClient: Partial<MockAxonClient> = {
       getActiveCrawls: vi.fn().mockResolvedValue({ success: true, crawls: [] }),
       getCrawlStatus: vi.fn(),
       getBatchScrapeStatus: vi.fn(),
@@ -91,7 +91,7 @@ describe('Status command - Watch mode change detection', () => {
   });
 
   it('should detect when new embed jobs appear', async () => {
-    const mockClient: Partial<MockFirecrawlClient> = {
+    const mockClient: Partial<MockAxonClient> = {
       getActiveCrawls: vi.fn().mockResolvedValue({ success: true, crawls: [] }),
       getCrawlStatus: vi.fn(),
       getBatchScrapeStatus: vi.fn(),
@@ -140,7 +140,7 @@ describe('Status command - Watch mode change detection', () => {
 
   it('should detect when jobs are removed', async () => {
     const crawlId = '019c161c-8a80-7051-a438-2ec8707e1bc7';
-    const mockClient: Partial<MockFirecrawlClient> = {
+    const mockClient: Partial<MockAxonClient> = {
       getActiveCrawls: vi.fn().mockResolvedValue({ success: true, crawls: [] }),
       getCrawlStatus: vi.fn(),
       getBatchScrapeStatus: vi.fn().mockImplementation((id: string) =>
@@ -225,14 +225,14 @@ describe('Status command - Service failure handling', () => {
     vi.clearAllMocks();
   });
 
-  it('should handle Firecrawl API 503 errors gracefully', async () => {
+  it('should handle Axon API 503 errors gracefully', async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
     vi.mocked(getRecentJobIds).mockImplementation(async (type: string) => {
       if (type === 'crawl') return ['crawl-1'];
       return [];
     });
 
-    const mockClient: Partial<MockFirecrawlClient> = {
+    const mockClient: Partial<MockAxonClient> = {
       getActiveCrawls: vi
         .fn()
         .mockRejectedValue(new Error('503 Service Unavailable')),
@@ -261,7 +261,7 @@ describe('Status command - Service failure handling', () => {
       new Error('ECONNREFUSED: Connection refused')
     );
 
-    const mockClient: Partial<MockFirecrawlClient> = {
+    const mockClient: Partial<MockAxonClient> = {
       getActiveCrawls: vi.fn().mockResolvedValue({ success: true, crawls: [] }),
       getCrawlStatus: vi.fn(),
       getBatchScrapeStatus: vi.fn(),
@@ -287,7 +287,7 @@ describe('Status command - Service failure handling', () => {
       return [];
     });
 
-    const mockClient: Partial<MockFirecrawlClient> = {
+    const mockClient: Partial<MockAxonClient> = {
       getActiveCrawls: vi.fn().mockResolvedValue({ success: true, crawls: [] }),
       getCrawlStatus: vi.fn().mockImplementation((id: string) => {
         if (id === crawlSuccess) {
@@ -327,7 +327,7 @@ describe('Status command - Service failure handling', () => {
     });
 
     let attemptCount = 0;
-    const mockClient: Partial<MockFirecrawlClient> = {
+    const mockClient: Partial<MockAxonClient> = {
       getActiveCrawls: vi.fn().mockResolvedValue({ success: true, crawls: [] }),
       getCrawlStatus: vi.fn().mockImplementation(() => {
         attemptCount++;

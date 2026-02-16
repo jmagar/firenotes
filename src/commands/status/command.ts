@@ -70,7 +70,7 @@ export async function handleStatusCommand(
 
   console.log('');
   console.log(
-    `  ${fmt.primary(`${icons.success} firecrawl`)} ${fmt.dim('cli')} ${fmt.dim(`v${status.version}`)}`
+    `  ${fmt.primary(`${icons.success} axon`)} ${fmt.dim('cli')} ${fmt.dim(`v${status.version}`)}`
   );
   console.log('');
 
@@ -86,7 +86,7 @@ export async function handleStatusCommand(
     );
   } else {
     console.log(`  ${fmt.error(icons.active)} Not authenticated`);
-    console.log(fmt.dim("Run 'firecrawl login' to authenticate"));
+    console.log(fmt.dim("Run 'axon login' to authenticate"));
     console.log('');
     return;
   }
@@ -232,7 +232,7 @@ export async function handleJobStatusCommand(
 export function createStatusCommand(): Command {
   const statusCmd = new Command('status')
     .description('Show active jobs and embedding queue status')
-    .option('-k, --api-key <key>', 'Firecrawl API key override')
+    .option('-k, --api-key <key>', 'API key override')
     .option('--clear', 'Clear job history cache', false)
     .option('--compact', 'Compact one-line rows', false)
     .option('--wide', 'Show extra columns (domain/queue lag)', false)

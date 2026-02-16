@@ -1,8 +1,8 @@
-# CLI Defaults Reference
+# Axon CLI Defaults Reference
 
 **Last Updated:** 2026-02-03
 
-This document provides a comprehensive reference of all default values used across the Firecrawl CLI. All default values listed here are the authoritative source and match the implementation in the codebase.
+This document provides a comprehensive reference of all default values used across the Axon CLI. All default values listed here are the authoritative source and match the implementation in the codebase.
 
 ## Table of Contents
 
@@ -40,7 +40,7 @@ Configuration values are resolved in the following order (highest priority first
 
 1. **Runtime flags** - Command-line options (e.g., `--api-key`, `--timeout`)
 2. **Environment variables** - Shell environment (e.g., `FIRECRAWL_API_KEY`, `TEI_URL`)
-3. **Storage root** - Stored credentials/settings/state at `~/.firecrawl/` (or `FIRECRAWL_HOME`)
+3. **Storage root** - Stored credentials/settings/state at `~/.axon/` (or `AXON_HOME`)
 4. **Built-in defaults** - Documented in this file
 
 ---
@@ -51,10 +51,10 @@ Configuration values are resolved in the following order (highest priority first
 |----------|---------|-------------|
 | `FIRECRAWL_API_KEY` | `local-dev` | API authentication (for self-hosted deployments) |
 | `FIRECRAWL_API_URL` | `http://localhost:53002` | API endpoint |
-| `FIRECRAWL_HOME` | `~/.firecrawl` | Unified storage root for credentials, settings, history, and queue |
+| `AXON_HOME` | `~/.axon` | Unified storage root for credentials, settings, history, and queue |
 | `TEI_URL` | `http://localhost:53010` | Text embeddings service |
 | `QDRANT_URL` | `http://localhost:53333` | Vector database |
-| `QDRANT_COLLECTION` | `firecrawl` | Default collection name |
+| `QDRANT_COLLECTION` | `axon` | Default collection name |
 
 ---
 
@@ -64,11 +64,11 @@ These flags are available across multiple commands:
 
 | Flag | Default | Description | Available In |
 |------|---------|-------------|--------------|
-| `--api-key` | from env/credentials | Firecrawl API key | All commands |
+| `--api-key` | from env/credentials | API key | All commands |
 | `--json` | `false` | Output as JSON format | scrape, crawl, map, search, extract, query, batch, info, status, retrieve, embed, delete, stats, sources, domains, history |
 | `--pretty` | `false` | Pretty print JSON output | scrape, crawl, batch, status, list |
 | `--output` | stdout | Output file path | scrape, crawl, map, search, extract, query, batch, info, status, retrieve, sources, stats, domains, history |
-| `--collection` | `firecrawl` | Qdrant collection name (from `QDRANT_COLLECTION` env var) | query, retrieve, info, embed, delete, stats, sources, domains, history |
+| `--collection` | `axon` | Qdrant collection name (from `QDRANT_COLLECTION` env var) | query, retrieve, info, embed, delete, stats, sources, domains, history |
 
 ---
 
@@ -256,7 +256,7 @@ Display version information.
 
 ### login
 
-Login to Firecrawl.
+Login to the Firecrawl backend API.
 
 | Flag | Default | Type | Description | Notes |
 |------|---------|------|-------------|-------|
@@ -264,7 +264,7 @@ Login to Firecrawl.
 
 ### config
 
-Configure Firecrawl (login if not authenticated).
+Configure Axon (login if not authenticated).
 
 | Flag | Default | Type | Description | Notes |
 |------|---------|------|-------------|-------|
@@ -295,7 +295,7 @@ When using the CLI, omitting the flag uses the default value. To override a `tru
 
 ### Collection Default
 
-The `--collection` flag defaults to the `QDRANT_COLLECTION` environment variable or `firecrawl` if not set. This applies to commands that interact with Qdrant:
+The `--collection` flag defaults to the `QDRANT_COLLECTION` environment variable or `axon` if not set. This applies to commands that interact with Qdrant:
 
 - query, retrieve, info, embed, delete, stats, sources, domains, history
 
@@ -328,7 +328,7 @@ This is intentional to provide different behavior for batch operations.
 The `--format` flag in the `scrape` command accepts multiple comma-separated values:
 
 ```bash
-firecrawl scrape https://example.com --format markdown,html,screenshot
+axon scrape https://example.com --format markdown,html,screenshot
 ```
 
 Default is `markdown`.

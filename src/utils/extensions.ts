@@ -2,7 +2,7 @@
  * Utilities for converting file extensions to excludePaths patterns
  *
  * This module handles the conversion of extension lists (e.g., ['.pkg', '.exe'])
- * to wildcard path patterns compatible with Firecrawl SDK's excludePaths
+ * to wildcard path patterns compatible with the SDK's excludePaths
  * (e.g., ['**\/*.pkg', '**\/*.exe']).
  */
 
@@ -69,7 +69,7 @@ function isValidExtension(ext: string): boolean {
  * Convert file extensions to excludePaths regex patterns
  *
  * Takes a list of file extensions and converts them to regex patterns that can be
- * used with Firecrawl SDK's excludePaths option. Invalid extensions are
+ * used with the SDK's excludePaths option. Invalid extensions are
  * silently filtered out.
  *
  * Process:

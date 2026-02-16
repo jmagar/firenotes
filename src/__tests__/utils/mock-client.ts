@@ -1,14 +1,14 @@
 /**
- * Test utilities for mocking the Firecrawl client
+ * Test utilities for mocking the Axon client
  */
 
 import type { Mock } from 'vitest';
 
 /**
- * Mock Firecrawl client methods
+ * Mock Axon client methods
  * These are typed as any to allow flexible mocking in tests
  */
-export interface MockFirecrawlClient {
+export interface MockAxonClient {
   scrape: Mock;
   crawl?: Mock;
   search?: Mock;

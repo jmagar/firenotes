@@ -76,9 +76,9 @@ describe('webhook server status endpoint', () => {
 
   beforeEach(async () => {
     port = await getAvailablePort();
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
-    process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = String(port);
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-queue-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
+    process.env.AXON_EMBEDDER_WEBHOOK_PORT = String(port);
     vi.clearAllMocks();
     vi.resetModules();
   });
@@ -89,8 +89,8 @@ describe('webhook server status endpoint', () => {
       cleanup = undefined;
     }
     rmSync(queueDir, { recursive: true, force: true });
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
-    delete process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_WEBHOOK_PORT;
     vi.resetModules();
   });
 
@@ -146,7 +146,7 @@ describe('webhook server status endpoint', () => {
         embedderWebhookPath: '/webhooks/crawl',
         settings: getDefaultSettings(),
       },
-      getFirecrawlClient: vi.fn(),
+      getAxonClient: vi.fn(),
       getHttpClient: vi.fn(),
       getTeiService: vi.fn(),
       getQdrantService: vi.fn(),
@@ -191,7 +191,7 @@ describe('webhook server status endpoint', () => {
         embedderWebhookPath: '/webhooks/crawl',
         settings: getDefaultSettings(),
       },
-      getFirecrawlClient: vi.fn(),
+      getAxonClient: vi.fn(),
       getHttpClient: vi.fn(),
       getTeiService: vi.fn(),
       getQdrantService: vi.fn(),
@@ -200,7 +200,7 @@ describe('webhook server status endpoint', () => {
     };
 
     // Update port for this test BEFORE importing to avoid module cache issues
-    process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = String(port);
+    process.env.AXON_EMBEDDER_WEBHOOK_PORT = String(port);
     vi.resetModules();
 
     const { startEmbedderDaemon } = await import(

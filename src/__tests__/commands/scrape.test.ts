@@ -11,8 +11,8 @@ import {
 } from '../../commands/scrape';
 import type { IContainer, IQdrantService } from '../../container/types';
 import {
+  createMockAxonClient,
   createMockContainer,
-  createMockFirecrawlClient,
   createMockQdrantService,
   createScrapeResponse,
   expectCalledWithUrlAndOptions,
@@ -30,11 +30,11 @@ vi.mock('../../utils/output', () => ({
 }));
 
 describe('executeScrape', () => {
-  let mockClient: ReturnType<typeof createMockFirecrawlClient>;
+  let mockClient: ReturnType<typeof createMockAxonClient>;
   let mockContainer: IContainer;
 
   setupTestLifecycle(() => {
-    mockClient = createMockFirecrawlClient();
+    mockClient = createMockAxonClient();
     mockContainer = createMockContainer({ scrape: mockClient.scrape });
   });
 
@@ -257,7 +257,7 @@ describe('executeScrape', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('fetch failed');
       expect(result.error).toContain(
-        'Could not reach Firecrawl API at http://localhost:53002'
+        'Could not reach Axon API at http://localhost:53002'
       );
     });
   });
@@ -319,13 +319,13 @@ describe('createScrapeCommand', () => {
 });
 
 describe('handleScrapeCommand auto-embed', () => {
-  let mockClient: ReturnType<typeof createMockFirecrawlClient>;
+  let mockClient: ReturnType<typeof createMockAxonClient>;
   let mockContainer: IContainer;
   let mockAutoEmbed: Mock;
 
   setupTestLifecycle(() => {
     mockHandleScrapeOutput.mockReset();
-    mockClient = createMockFirecrawlClient();
+    mockClient = createMockAxonClient();
     mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
     mockContainer = createMockContainer(
       { scrape: mockClient.scrape },
@@ -499,7 +499,7 @@ describe('executeScrape --remove', () => {
     expect(result.removed).toBe(42);
   });
 
-  it('should not call Firecrawl API when --remove is set', async () => {
+  it('should not call Axon API when --remove is set', async () => {
     const mockClient = { scrape: vi.fn() };
     container = createTestContainer(mockClient, {
       qdrantUrl: 'http://localhost:53333',

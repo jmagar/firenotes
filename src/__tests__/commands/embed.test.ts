@@ -10,7 +10,7 @@ import type {
   IQdrantService,
   ITeiService,
 } from '../../container/types';
-import type { MockFirecrawlClient } from '../utils/mock-client';
+import type { MockAxonClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 vi.mock('fs', async () => {
@@ -35,7 +35,7 @@ function mockReadFile(content: string): void {
 }
 
 describe('executeEmbed', () => {
-  let mockClient: Partial<MockFirecrawlClient>;
+  let mockClient: Partial<MockAxonClient>;
   let container: IContainer;
   let mockTeiService: ITeiService;
   let mockQdrantService: IQdrantService;
@@ -80,7 +80,7 @@ describe('executeEmbed', () => {
 
     container = createTestContainer(mockClient, {
       apiKey: 'test-api-key',
-      apiUrl: 'https://api.firecrawl.dev',
+      apiUrl: 'https://api.axon.dev',
       teiUrl: 'http://localhost:52000',
       qdrantUrl: 'http://localhost:53333',
       qdrantCollection: 'test_col',
@@ -185,7 +185,7 @@ describe('executeEmbed', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(result.data?.collection).toBe('firecrawl');
+    expect(result.data?.collection).toBe('axon');
   });
 
   it('should use custom collection from options', async () => {

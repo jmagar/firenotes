@@ -6,64 +6,64 @@ vi.mock('node:os', () => ({
 }));
 
 describe('storage-paths', () => {
-  let originalFirecrawlHome: string | undefined;
+  let originalAxonHome: string | undefined;
   let originalEmbedQueueDir: string | undefined;
 
   beforeEach(() => {
-    originalFirecrawlHome = process.env.FIRECRAWL_HOME;
-    originalEmbedQueueDir = process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    originalAxonHome = process.env.AXON_HOME;
+    originalEmbedQueueDir = process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.clearAllMocks();
     // Required: module reads process.env during import.
     vi.resetModules();
-    delete process.env.FIRECRAWL_HOME;
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_HOME;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
   });
 
   afterEach(() => {
-    if (originalFirecrawlHome === undefined) {
-      delete process.env.FIRECRAWL_HOME;
+    if (originalAxonHome === undefined) {
+      delete process.env.AXON_HOME;
     } else {
-      process.env.FIRECRAWL_HOME = originalFirecrawlHome;
+      process.env.AXON_HOME = originalAxonHome;
     }
     if (originalEmbedQueueDir === undefined) {
-      delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+      delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     } else {
-      process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = originalEmbedQueueDir;
+      process.env.AXON_EMBEDDER_QUEUE_DIR = originalEmbedQueueDir;
     }
   });
 
-  it('should default to ~/.firecrawl', async () => {
+  it('should default to ~/.axon', async () => {
     const { getStorageRoot } = await import('../../utils/storage-paths');
-    expect(getStorageRoot()).toBe('/home/testuser/.firecrawl');
+    expect(getStorageRoot()).toBe('/home/testuser/.axon');
   });
 
-  it('should use FIRECRAWL_HOME override', async () => {
-    process.env.FIRECRAWL_HOME = '/tmp/custom-firecrawl-home';
+  it('should use AXON_HOME override', async () => {
+    process.env.AXON_HOME = '/tmp/custom-axon-home';
     const { getStorageRoot } = await import('../../utils/storage-paths');
-    expect(getStorageRoot()).toBe('/tmp/custom-firecrawl-home');
+    expect(getStorageRoot()).toBe('/tmp/custom-axon-home');
   });
 
-  it('should expand leading tilde in FIRECRAWL_HOME', async () => {
-    process.env.FIRECRAWL_HOME = '~/.firecrawl';
+  it('should expand leading tilde in AXON_HOME', async () => {
+    process.env.AXON_HOME = '~/.axon';
     const { getStorageRoot } = await import('../../utils/storage-paths');
-    expect(getStorageRoot()).toBe('/home/testuser/.firecrawl');
+    expect(getStorageRoot()).toBe('/home/testuser/.axon');
   });
 
-  it('should use trimmed FIRECRAWL_EMBEDDER_QUEUE_DIR when absolute', async () => {
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = '  /tmp/embed-queue  ';
+  it('should use trimmed AXON_EMBEDDER_QUEUE_DIR when absolute', async () => {
+    process.env.AXON_EMBEDDER_QUEUE_DIR = '  /tmp/embed-queue  ';
     const { getEmbedQueueDir } = await import('../../utils/storage-paths');
     expect(getEmbedQueueDir()).toBe('/tmp/embed-queue');
   });
 
-  it('should resolve relative FIRECRAWL_EMBEDDER_QUEUE_DIR from cwd', async () => {
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = 'relative/queue-dir';
+  it('should resolve relative AXON_EMBEDDER_QUEUE_DIR from cwd', async () => {
+    process.env.AXON_EMBEDDER_QUEUE_DIR = 'relative/queue-dir';
     const { getEmbedQueueDir } = await import('../../utils/storage-paths');
     expect(getEmbedQueueDir()).toBe(join(process.cwd(), 'relative/queue-dir'));
   });
 
-  it('should ignore whitespace-only FIRECRAWL_EMBEDDER_QUEUE_DIR', async () => {
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = '   ';
+  it('should ignore whitespace-only AXON_EMBEDDER_QUEUE_DIR', async () => {
+    process.env.AXON_EMBEDDER_QUEUE_DIR = '   ';
     const { getEmbedQueueDir } = await import('../../utils/storage-paths');
-    expect(getEmbedQueueDir()).toBe('/home/testuser/.firecrawl/embed-queue');
+    expect(getEmbedQueueDir()).toBe('/home/testuser/.axon/embed-queue');
   });
 });

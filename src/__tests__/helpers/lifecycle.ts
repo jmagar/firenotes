@@ -204,7 +204,7 @@ export function setupFileSystemMocks(
   cwd = '/test/working/directory'
 ) {
   const originalCwd = process.cwd;
-  const originalFirecrawlHome = process.env.FIRECRAWL_HOME;
+  const originalAxonHome = process.env.AXON_HOME;
 
   // Setup mocks
   vi.doMock('node:os', () => ({
@@ -212,24 +212,24 @@ export function setupFileSystemMocks(
   }));
 
   process.cwd = vi.fn(() => cwd) as () => string;
-  delete process.env.FIRECRAWL_HOME;
+  delete process.env.AXON_HOME;
 
   // Return cleanup function
   return {
     cleanup: () => {
       process.cwd = originalCwd;
-      if (originalFirecrawlHome === undefined) {
-        delete process.env.FIRECRAWL_HOME;
+      if (originalAxonHome === undefined) {
+        delete process.env.AXON_HOME;
       } else {
-        process.env.FIRECRAWL_HOME = originalFirecrawlHome;
+        process.env.AXON_HOME = originalAxonHome;
       }
       vi.doUnmock('node:os');
     },
-    setFirecrawlHome: (path: string | undefined) => {
+    setAxonHome: (path: string | undefined) => {
       if (path === undefined) {
-        delete process.env.FIRECRAWL_HOME;
+        delete process.env.AXON_HOME;
       } else {
-        process.env.FIRECRAWL_HOME = path;
+        process.env.AXON_HOME = path;
       }
     },
   };

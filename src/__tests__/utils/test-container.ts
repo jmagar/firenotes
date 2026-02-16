@@ -6,17 +6,17 @@ import type { Mock } from 'vitest';
 import { vi } from 'vitest';
 import type { IContainer } from '../../container/types';
 import { getDefaultSettings } from '../../utils/default-settings';
-import type { MockFirecrawlClient } from './mock-client';
+import type { MockAxonClient } from './mock-client';
 
 /**
  * Create a test container with mock dependencies
  *
- * @param mockClient - Optional mock Firecrawl client to use
+ * @param mockClient - Optional mock Axon client to use
  * @param options - Optional configuration overrides
  * @returns Mock container for testing
  */
 export function createTestContainer(
-  mockClient?: Partial<MockFirecrawlClient>,
+  mockClient?: Partial<MockAxonClient>,
   options?: {
     apiKey?: string;
     apiUrl?: string;
@@ -34,8 +34,8 @@ export function createTestContainer(
   const mockAutoEmbed =
     options?.mockAutoEmbed ?? vi.fn().mockResolvedValue(undefined);
 
-  // Ensure scrape is always present (required by MockFirecrawlClient interface)
-  const fullMockClient: MockFirecrawlClient = {
+  // Ensure scrape is always present (required by MockAxonClient interface)
+  const fullMockClient: MockAxonClient = {
     scrape: vi.fn(),
     ...mockClient,
   };
@@ -71,9 +71,7 @@ export function createTestContainer(
   const config = Object.freeze({
     apiKey: options && 'apiKey' in options ? options.apiKey : 'test-api-key',
     apiUrl:
-      options && 'apiUrl' in options
-        ? options.apiUrl
-        : 'https://api.firecrawl.dev',
+      options && 'apiUrl' in options ? options.apiUrl : 'https://api.axon.dev',
     teiUrl:
       options && 'teiUrl' in options ? options.teiUrl : 'http://localhost:8080',
     qdrantUrl:
@@ -94,7 +92,7 @@ export function createTestContainer(
 
   return {
     config,
-    getFirecrawlClient: vi.fn().mockReturnValue(fullMockClient),
+    getAxonClient: vi.fn().mockReturnValue(fullMockClient),
     getEmbedPipeline: vi.fn().mockReturnValue({
       autoEmbed: mockAutoEmbed,
       batchEmbed: vi.fn().mockResolvedValue(undefined),

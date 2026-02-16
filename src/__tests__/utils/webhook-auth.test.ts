@@ -155,7 +155,7 @@ describe('Webhook Authentication Bypass Prevention', () => {
 
     it('should use consistent header name constant', () => {
       // Verify header name constant is as expected
-      expect(EMBEDDER_WEBHOOK_HEADER).toBe('x-firecrawl-embedder-secret');
+      expect(EMBEDDER_WEBHOOK_HEADER).toBe('x-axon-embedder-secret');
     });
 
     it('should handle undefined secret gracefully', () => {

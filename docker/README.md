@@ -1,6 +1,6 @@
 # Docker Configuration
 
-This directory contains Docker-related configuration files and patches for the CLI Firecrawl project.
+This directory contains Docker-related configuration files and patches for the Axon CLI project.
 
 ## Files
 
@@ -26,7 +26,7 @@ This directory contains Docker-related configuration files and patches for the C
 **All Docker Compose commands should be run from the project root:**
 
 ```bash
-# From project root (cli-firecrawl/)
+# From project root (axon/)
 docker compose up -d                    # Start main stack
 docker compose ps                       # Check service status
 docker compose logs -f firecrawl        # View logs
@@ -46,7 +46,7 @@ docker compose -f docker-compose.yaml -f docker/docker-compose.tei.mxbai.yaml up
 ## Directory Structure
 
 ```
-cli-firecrawl/
+axon/
 ├── .env                              # Main environment variables (stays in root)
 ├── .env.example                      # Main env template (stays in root)
 ├── docker-compose.yaml               # Main compose file (stays in root)

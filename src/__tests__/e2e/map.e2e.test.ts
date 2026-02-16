@@ -3,7 +3,7 @@
  *
  * These tests require:
  * 1. The test server running at http://127.0.0.1:4321
- * 2. A valid Firecrawl API key in TEST_FIRECRAWL_API_KEY or FIRECRAWL_API_KEY env var
+ * 2. A valid API key in TEST_FIRECRAWL_API_KEY or FIRECRAWL_API_KEY env var
  */
 
 import { existsSync } from 'node:fs';

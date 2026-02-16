@@ -26,12 +26,12 @@ describe('executeExtract', () => {
     mockContainer = {
       config: {
         apiKey: 'test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
+        apiUrl: 'https://api.axon.dev',
         teiUrl: 'http://localhost:53001',
         qdrantUrl: 'http://localhost:53002',
-        qdrantCollection: 'firecrawl',
+        qdrantCollection: 'axon',
       },
-      getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+      getAxonClient: vi.fn().mockReturnValue(mockClient),
       getEmbedPipeline: vi.fn().mockReturnValue({
         autoEmbed: mockAutoEmbed,
       }),
@@ -209,7 +209,7 @@ describe('executeExtract', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('fetch failed');
     expect(result.error).toContain(
-      'Could not reach Firecrawl API at http://localhost:53002'
+      'Could not reach Axon API at http://localhost:53002'
     );
   });
 
@@ -255,12 +255,12 @@ describe('createExtractCommand', () => {
       const mockContainer = {
         config: {
           apiKey: 'test-api-key',
-          apiUrl: 'https://api.firecrawl.dev',
+          apiUrl: 'https://api.axon.dev',
           teiUrl: 'http://localhost:53001',
           qdrantUrl: 'http://localhost:53002',
-          qdrantCollection: 'firecrawl',
+          qdrantCollection: 'axon',
         },
-        getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+        getAxonClient: vi.fn().mockReturnValue(mockClient),
         getEmbedPipeline: vi.fn(),
         getHttpClient: vi.fn(),
         getTeiService: vi.fn(),
@@ -291,12 +291,12 @@ describe('createExtractCommand', () => {
       const mockContainer = {
         config: {
           apiKey: 'test-api-key',
-          apiUrl: 'https://api.firecrawl.dev',
+          apiUrl: 'https://api.axon.dev',
           teiUrl: 'http://localhost:53001',
           qdrantUrl: 'http://localhost:53002',
-          qdrantCollection: 'firecrawl',
+          qdrantCollection: 'axon',
         },
-        getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+        getAxonClient: vi.fn().mockReturnValue(mockClient),
         getEmbedPipeline: vi.fn(),
         getHttpClient: vi.fn(),
         getTeiService: vi.fn(),
@@ -340,12 +340,12 @@ describe('handleExtractCommand', () => {
     mockContainer = {
       config: {
         apiKey: 'test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
+        apiUrl: 'https://api.axon.dev',
         teiUrl: 'http://localhost:53001',
         qdrantUrl: 'http://localhost:53002',
-        qdrantCollection: 'firecrawl',
+        qdrantCollection: 'axon',
       },
-      getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+      getAxonClient: vi.fn().mockReturnValue(mockClient),
       getEmbedPipeline: vi.fn().mockReturnValue({
         autoEmbed: mockAutoEmbed,
       }),

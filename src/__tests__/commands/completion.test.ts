@@ -32,7 +32,7 @@ describe('completion command output formatting', () => {
       expect.stringContaining('state: script generated')
     );
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('firecrawl completion script zsh >> /tmp/.zshrc')
+      expect.stringContaining('axon completion script zsh >> /tmp/.zshrc')
     );
   });
 
@@ -59,7 +59,7 @@ describe('completion command output formatting', () => {
     });
 
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('# firecrawl CLI fish completion')
+      expect.stringContaining('# axon CLI fish completion')
     );
     expect(console.log).not.toHaveBeenCalledWith(
       expect.stringContaining('Completion Install for')

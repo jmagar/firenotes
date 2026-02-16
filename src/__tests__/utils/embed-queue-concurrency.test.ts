@@ -22,8 +22,8 @@ describe('Embed Queue Concurrency Tests', () => {
   let queueDir: string;
 
   beforeEach(() => {
-    queueDir = mkdtempSync(join(tmpdir(), 'firecrawl-queue-concurrency-'));
-    process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR = queueDir;
+    queueDir = mkdtempSync(join(tmpdir(), 'axon-queue-concurrency-'));
+    process.env.AXON_EMBEDDER_QUEUE_DIR = queueDir;
     vi.resetModules();
     // Verify directory was created (synchronous — no sleep needed)
     expect(existsSync(queueDir)).toBe(true);
@@ -35,7 +35,7 @@ describe('Embed Queue Concurrency Tests', () => {
     } catch {
       // Ignore cleanup errors
     }
-    delete process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR;
+    delete process.env.AXON_EMBEDDER_QUEUE_DIR;
     vi.resetModules();
   });
 

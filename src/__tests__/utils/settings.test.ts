@@ -26,14 +26,14 @@ vi.mock('node:os', async () => {
 });
 
 describe('settings materialization', () => {
-  const originalHome = process.env.FIRECRAWL_HOME;
+  const originalHome = process.env.AXON_HOME;
   let testHome: string;
   let testUserHome: string;
 
   beforeEach(() => {
-    testHome = mkdtempSync(join(tmpdir(), 'firecrawl-settings-'));
-    testUserHome = mkdtempSync(join(tmpdir(), 'firecrawl-legacy-home-'));
-    process.env.FIRECRAWL_HOME = testHome;
+    testHome = mkdtempSync(join(tmpdir(), 'axon-settings-'));
+    testUserHome = mkdtempSync(join(tmpdir(), 'axon-legacy-home-'));
+    process.env.AXON_HOME = testHome;
     vi.mocked(homedir).mockReturnValue(testUserHome);
     __resetSettingsStateForTests();
   });
@@ -42,9 +42,9 @@ describe('settings materialization', () => {
     rmSync(testHome, { recursive: true, force: true });
     rmSync(testUserHome, { recursive: true, force: true });
     if (originalHome === undefined) {
-      delete process.env.FIRECRAWL_HOME;
+      delete process.env.AXON_HOME;
     } else {
-      process.env.FIRECRAWL_HOME = originalHome;
+      process.env.AXON_HOME = originalHome;
     }
     __resetSettingsStateForTests();
   });

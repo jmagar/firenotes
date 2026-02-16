@@ -10,7 +10,7 @@ import type { Mock } from 'vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { executeMap } from '../../commands/map';
 import { DEFAULT_USER_AGENT } from '../../utils/defaults';
-import type { MockFirecrawlClient } from '../utils/mock-client';
+import type { MockAxonClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 const createContainer = (...args: Parameters<typeof createTestContainer>) =>
@@ -50,11 +50,9 @@ function mockFetchResponse(data: unknown, ok = true, status = 200) {
 }
 
 /**
- * Helper to create a mock SDK map client that satisfies MockFirecrawlClient
+ * Helper to create a mock SDK map client that satisfies MockAxonClient
  */
-function createMockMapClient(
-  links: unknown[] = []
-): Partial<MockFirecrawlClient> {
+function createMockMapClient(links: unknown[] = []): Partial<MockAxonClient> {
   return {
     scrape: vi.fn() as Mock,
     map: vi.fn().mockResolvedValue({ links }) as Mock,
@@ -302,7 +300,7 @@ describe('executeMap', () => {
 
       expect(mockHttpClient.fetchWithRetry).toHaveBeenCalledTimes(1);
       const [url, options] = mockHttpClient.fetchWithRetry.mock.calls[0];
-      expect(url).toBe('https://api.firecrawl.dev/v2/map');
+      expect(url).toBe('https://api.axon.dev/v2/map');
       expect(options.method).toBe('POST');
       expect(options.headers.Authorization).toBe('Bearer test-api-key');
       expect(options.headers['Content-Type']).toBe('application/json');
@@ -452,7 +450,7 @@ describe('executeMap', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('fetch failed');
       expect(result.error).toContain(
-        'Could not reach Firecrawl API at http://localhost:53002'
+        'Could not reach Axon API at http://localhost:53002'
       );
     });
 

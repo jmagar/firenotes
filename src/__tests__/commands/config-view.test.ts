@@ -8,7 +8,7 @@ vi.mock('../../utils/auth', () => ({
 
 vi.mock('../../utils/credentials', () => ({
   loadCredentials: vi.fn(),
-  getConfigDirectoryPath: vi.fn().mockReturnValue('/tmp/firecrawl-config'),
+  getConfigDirectoryPath: vi.fn().mockReturnValue('/tmp/axon-config'),
 }));
 
 vi.mock('../../utils/settings', () => ({
@@ -134,9 +134,9 @@ describe('viewConfig', () => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.OPENAI_BASE_URL;
     delete process.env.OPENAI_MODEL;
-    delete process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL;
-    delete process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET;
-    delete process.env.FIRECRAWL_HOME;
+    delete process.env.AXON_EMBEDDER_WEBHOOK_URL;
+    delete process.env.AXON_EMBEDDER_WEBHOOK_SECRET;
+    delete process.env.AXON_HOME;
     delete process.env.QDRANT_DATA_DIR;
     delete process.env.REDIS_URL;
     delete process.env.REDIS_RATE_LIMIT_URL;

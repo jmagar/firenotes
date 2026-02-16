@@ -6,7 +6,7 @@ import type { Document } from '@mendable/firecrawl-js';
 import type { CommandResult } from './common';
 
 export interface CrawlOptions {
-  /** API key for Firecrawl */
+  /** API key */
   apiKey?: string;
   /** URL to crawl or job ID to check status */
   urlOrJobId?: string;

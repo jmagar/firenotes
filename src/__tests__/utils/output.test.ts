@@ -70,10 +70,10 @@ describe('Output Utilities', () => {
     it('should write content to file when output path is provided', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      await writeOutput('Test content', './.firecrawl/test.txt');
+      await writeOutput('Test content', './.axon/test.txt');
 
       expect(fsPromises.writeFile).toHaveBeenCalledWith(
-        resolvePath('./.firecrawl/test.txt'),
+        resolvePath('./.axon/test.txt'),
         'Test content',
         'utf-8'
       );
@@ -82,16 +82,16 @@ describe('Output Utilities', () => {
     it('should create directory if it does not exist', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
 
-      await writeOutput('Test content', './.firecrawl/subdir/test.txt');
+      await writeOutput('Test content', './.axon/subdir/test.txt');
 
       expect(fsPromises.mkdir).toHaveBeenCalledWith(
-        resolvePath('./.firecrawl/subdir'),
+        resolvePath('./.axon/subdir'),
         {
           recursive: true,
         }
       );
       expect(fsPromises.writeFile).toHaveBeenCalledWith(
-        resolvePath('./.firecrawl/subdir/test.txt'),
+        resolvePath('./.axon/subdir/test.txt'),
         'Test content',
         'utf-8'
       );
@@ -100,17 +100,17 @@ describe('Output Utilities', () => {
     it('should print file confirmation when not silent', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      await writeOutput('Test content', './.firecrawl/test.txt', false);
+      await writeOutput('Test content', './.axon/test.txt', false);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining(resolvePath('./.firecrawl/test.txt'))
+        expect.stringContaining(resolvePath('./.axon/test.txt'))
       );
     });
 
     it('should not print file confirmation when silent', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      await writeOutput('Test content', './.firecrawl/test.txt', true);
+      await writeOutput('Test content', './.axon/test.txt', true);
 
       expect(consoleErrorSpy).not.toHaveBeenCalled();
     });
@@ -339,11 +339,11 @@ describe('Output Utilities', () => {
           data: { markdown: '# Test Content' },
         },
         ['markdown'],
-        './.firecrawl/test.md'
+        './.axon/test.md'
       );
 
       expect(fsPromises.writeFile).toHaveBeenCalledWith(
-        resolvePath('./.firecrawl/test.md'),
+        resolvePath('./.axon/test.md'),
         '# Test Content',
         'utf-8'
       );
@@ -460,7 +460,7 @@ describe('Output Utilities', () => {
           },
         },
         ['screenshot'],
-        './.firecrawl/result.json', // .json extension
+        './.axon/result.json', // .json extension
         false,
         false // no explicit json flag
       );
@@ -489,7 +489,7 @@ describe('Output Utilities', () => {
           },
         },
         ['screenshot'],
-        './.firecrawl/result.md', // .md extension
+        './.axon/result.md', // .md extension
         false,
         false // no explicit json flag
       );
@@ -525,10 +525,8 @@ describe('Output Utilities', () => {
 
   describe('validateOutputPath', () => {
     it('should allow relative paths within cwd', () => {
-      expect(() =>
-        validateOutputPath('./.firecrawl/result.json')
-      ).not.toThrow();
-      expect(() => validateOutputPath('.firecrawl/result.json')).not.toThrow();
+      expect(() => validateOutputPath('./.axon/result.json')).not.toThrow();
+      expect(() => validateOutputPath('.axon/result.json')).not.toThrow();
       expect(() => validateOutputPath('result.json')).not.toThrow();
     });
 
@@ -536,7 +534,7 @@ describe('Output Utilities', () => {
       expect(() => validateOutputPath('../../../etc/passwd')).toThrow(
         /resolves outside allowed directory/
       );
-      expect(() => validateOutputPath('.firecrawl/../../etc/passwd')).toThrow(
+      expect(() => validateOutputPath('.axon/../../etc/passwd')).toThrow(
         /resolves outside allowed directory/
       );
     });
@@ -551,14 +549,14 @@ describe('Output Utilities', () => {
     });
 
     it('should allow absolute paths within cwd', () => {
-      const validPath = path.join(process.cwd(), '.firecrawl', 'result.json');
+      const validPath = path.join(process.cwd(), '.axon', 'result.json');
       expect(() => validateOutputPath(validPath)).not.toThrow();
     });
 
     it('should return resolved absolute path', () => {
-      const result = validateOutputPath('./.firecrawl/result.json');
+      const result = validateOutputPath('./.axon/result.json');
       expect(path.isAbsolute(result)).toBe(true);
-      expect(result).toBe(resolvePath('./.firecrawl/result.json'));
+      expect(result).toBe(resolvePath('./.axon/result.json'));
     });
   });
 });

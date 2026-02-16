@@ -6,7 +6,7 @@ import type {
   ITeiService,
 } from '../../container/types';
 import { writeOutput } from '../../utils/output';
-import type { MockFirecrawlClient } from '../utils/mock-client';
+import type { MockAxonClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 vi.mock('../../utils/output', () => ({
@@ -15,7 +15,7 @@ vi.mock('../../utils/output', () => ({
 }));
 
 describe('embed output formatting', () => {
-  let mockClient: Partial<MockFirecrawlClient>;
+  let mockClient: Partial<MockAxonClient>;
   let container: IContainer;
   let mockTeiService: ITeiService;
   let mockQdrantService: IQdrantService;
@@ -61,7 +61,7 @@ describe('embed output formatting', () => {
 
     container = createTestContainer(mockClient, {
       apiKey: 'test-api-key',
-      apiUrl: 'https://api.firecrawl.dev',
+      apiUrl: 'https://api.axon.dev',
       teiUrl: 'http://localhost:52000',
       qdrantUrl: 'http://localhost:53333',
       qdrantCollection: 'test_col',

@@ -1,6 +1,6 @@
 /**
  * User settings utility
- * Stores persistent user settings in the unified Firecrawl home directory.
+ * Stores persistent user settings in the unified Axon home directory.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -220,7 +220,7 @@ function ensureSettingsFileMaterialized(): void {
 }
 
 /**
- * Migrate settings from legacy paths to FIRECRAWL_HOME path.
+ * Migrate settings from legacy paths to AXON_HOME path.
  *
  * Migration uses exclusive create (`flag: 'wx'`) through the shared migration helper
  * to avoid overwrite races if multiple processes bootstrap simultaneously.

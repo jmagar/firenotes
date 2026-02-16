@@ -1,23 +1,23 @@
-# CLI Firecrawl Plugin
+# Axon Plugin
 
-Claude Code plugin providing Firecrawl CLI automation skills and diagnostic agents for web scraping with semantic search capabilities.
+Claude Code plugin providing Axon CLI automation skills and diagnostic agents for web scraping with semantic search capabilities.
 
 ## Components
 
 ### Skills
 - **docker-health** - Docker service health checking with embedding model info and container status
 - **test-command** - Individual CLI command testing with type-checking and validation
-- **firecrawl** - Complete Firecrawl web scraping suite with 10 specialized commands:
-  - `/firecrawl:scrape` - Single URL scraping
-  - `/firecrawl:crawl` - Multi-page crawling
-  - `/firecrawl:map` - URL discovery
-  - `/firecrawl:search` - Web search with scraping
-  - `/firecrawl:extract` - Structured data extraction
-  - `/firecrawl:batch` - Batch operations
-  - `/firecrawl:query` - Semantic search
-  - `/firecrawl:retrieve` - Document retrieval
-  - `/firecrawl:ask` - AI-powered Q&A
-  - `/firecrawl:status` - Job status checking
+- **axon** - Complete Axon web scraping suite with 10 specialized commands:
+  - `/axon:scrape` - Single URL scraping
+  - `/axon:crawl` - Multi-page crawling
+  - `/axon:map` - URL discovery
+  - `/axon:search` - Web search with scraping
+  - `/axon:extract` - Structured data extraction
+  - `/axon:batch` - Batch operations
+  - `/axon:query` - Semantic search
+  - `/axon:retrieve` - Document retrieval
+  - `/axon:ask` - AI-powered Q&A
+  - `/axon:status` - Job status checking
 
 ### Agents
 - **cli-tester** - Automated test failure analysis and diagnostics
@@ -27,13 +27,13 @@ Claude Code plugin providing Firecrawl CLI automation skills and diagnostic agen
 
 ### From GitHub (Recommended)
 ```bash
-/plugin install https://github.com/jmagar/cli-firecrawl.git
+/plugin install https://github.com/jmagar/axon.git
 ```
 
 ### Via Marketplace
 ```bash
-/plugin marketplace add jmagar/cli-firecrawl
-/plugin install cli-firecrawl @cli-firecrawl-marketplace
+/plugin marketplace add jmagar/axon
+/plugin install axon @axon-marketplace
 ```
 
 ## Requirements
@@ -70,24 +70,24 @@ This plugin includes a complete self-hosted web scraping stack:
 3. Use skills in Claude Code:
    ```
    /docker-health
-   /firecrawl:search "Claude Code documentation"
-   /firecrawl:ask "How do I create a plugin?"
+   /axon:search "Claude Code documentation"
+   /axon:ask "How do I create a plugin?"
    ```
 
 ## Usage Examples
 
 ### Web Scraping
 ```bash
-firecrawl scrape https://example.com
-firecrawl crawl https://docs.example.com --wait --progress
-firecrawl map https://example.com
+axon scrape https://example.com
+axon crawl https://docs.example.com --wait --progress
+axon map https://example.com
 ```
 
 ### Semantic Search
 ```bash
-firecrawl search "AI documentation"
-firecrawl query "embedding strategies"
-firecrawl ask "What are vector databases?"
+axon search "AI documentation"
+axon query "embedding strategies"
+axon ask "What are vector databases?"
 ```
 
 ### Health Monitoring

@@ -470,7 +470,7 @@ export function createCrawlCommand(): Command {
   const settings = getSettings();
 
   const crawlCmd = new Command('crawl')
-    .description('Crawl a website using Firecrawl')
+    .description('Crawl a website using Axon')
     .argument('[url]', 'URL to crawl')
     .option(
       '-u, --url <url>',
@@ -558,10 +558,7 @@ export function createCrawlCommand(): Command {
       'Maximum concurrent requests',
       (val) => Number.parseInt(val, 10)
     )
-    .option(
-      '-k, --api-key <key>',
-      'Firecrawl API key (overrides global --api-key)'
-    )
+    .option('-k, --api-key <key>', 'API key (overrides global --api-key)')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--pretty', 'Pretty print JSON output', false)
     .option('--embed', 'Manually trigger embedding for a completed crawl job')
@@ -586,7 +583,7 @@ export function createCrawlCommand(): Command {
       if (isJobId(urlOrJobId) && !options.embed) {
         console.error(
           fmt.error(
-            'Job IDs are not accepted here. Use "firecrawl crawl status <job-id>" instead.'
+            'Job IDs are not accepted here. Use "axon crawl status <job-id>" instead.'
           )
         );
         process.exitCode = 1;

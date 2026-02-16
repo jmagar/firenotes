@@ -21,7 +21,7 @@ describe('version command output formatting', () => {
     handleVersionCommand();
 
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('firecrawl Version')
+      expect.stringContaining('axon Version')
     );
     expect(console.log).toHaveBeenCalledWith(
       expect.stringMatching(/version: v\d+\.\d+\.\d+/)

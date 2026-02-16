@@ -45,12 +45,12 @@ describe('search output formatting', () => {
     container = {
       config: {
         apiKey: 'test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
+        apiUrl: 'https://api.axon.dev',
         teiUrl: 'http://localhost:53001',
         qdrantUrl: 'http://localhost:53002',
-        collectionName: 'firecrawl',
+        collectionName: 'axon',
       },
-      getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+      getAxonClient: vi.fn().mockReturnValue(mockClient),
       getEmbedPipeline: vi.fn().mockReturnValue({ autoEmbed: vi.fn() }),
       getHttpClient: vi.fn(),
       getTeiService: vi.fn(),

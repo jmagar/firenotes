@@ -11,7 +11,7 @@ export type SearchCategory = 'github' | 'research' | 'pdf';
 export interface SearchOptions {
   /** Search query (required) */
   query: string;
-  /** API key for Firecrawl */
+  /** API key */
   apiKey?: string;
   /** Maximum number of results (default: 5, max: 100) */
   limit?: number;
@@ -27,7 +27,7 @@ export interface SearchOptions {
   country?: string;
   /** Timeout in milliseconds (default: 60000) */
   timeout?: number;
-  /** Exclude URLs invalid for other Firecrawl endpoints */
+  /** Exclude invalid URLs */
   ignoreInvalidUrls?: boolean;
   /** Output file path */
   output?: string;

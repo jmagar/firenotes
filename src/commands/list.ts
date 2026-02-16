@@ -29,7 +29,7 @@ export async function executeList(
   _options: ListOptions
 ): Promise<CrawlActiveResult> {
   try {
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
     const active = await app.getActiveCrawls();
     return { success: true, data: active };
   } catch (error) {
@@ -86,10 +86,7 @@ export async function handleListCommand(
 export function createListCommand(): Command {
   const listCmd = new Command('list')
     .description('List active crawl jobs')
-    .option(
-      '-k, --api-key <key>',
-      'Firecrawl API key (overrides global --api-key)'
-    )
+    .option('-k, --api-key <key>', 'API key (overrides global --api-key)')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as JSON', false)
     .option('--pretty', 'Pretty print JSON output', false)

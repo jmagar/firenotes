@@ -11,7 +11,7 @@
 import { z } from 'zod';
 
 /**
- * Schema for stored credentials file (~/.firecrawl/credentials.json by default)
+ * Schema for stored credentials file (~/.axon/credentials.json by default)
  *
  * Example:
  * ```json
@@ -132,7 +132,7 @@ const PollingSettingsSchema = z
   .strict();
 
 /**
- * Schema for user settings file (~/.firecrawl/settings.json by default)
+ * Schema for user settings file (~/.axon/settings.json by default)
  */
 export const UserSettingsSchema = z
   .object({
@@ -154,7 +154,7 @@ export const UserSettingsSchema = z
   .strict();
 
 /**
- * SEC-05: Schema for embed job files (~/.firecrawl/embed-queue/*.json)
+ * SEC-05: Schema for embed job files (~/.axon/embed-queue/*.json)
  *
  * Validates job files read from disk to prevent deserialization attacks.
  * Uses .strict() to reject unknown fields.

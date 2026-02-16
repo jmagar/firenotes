@@ -1,12 +1,12 @@
-# Firecrawl CLI Feature Comparison
+# Axon vs Firecrawl CLI Feature Comparison
 
 **Date**: 2026-02-03
-**Official CLI Version**: v1.1.1
-**Our CLI Version**: Custom fork with semantic search capabilities
+**Official Firecrawl CLI Version**: v1.1.1
+**Axon Version**: Self-hosted RAG pipeline with semantic search capabilities
 
 ## Executive Summary
 
-Our implementation is a **superset of the official Firecrawl CLI** with 15 additional commands focused on:
+Axon is a **superset of the official Firecrawl CLI** with 15 additional commands focused on:
 - Vector database integration (Qdrant + TEI embeddings)
 - Semantic search and RAG capabilities
 - Advanced vector database management
@@ -60,13 +60,13 @@ Complete semantic search stack:
 
 ```bash
 # Embed scraped content
-firecrawl scrape https://example.com --embed
+axon scrape https://example.com --embed
 
 # Semantic search
-firecrawl query "How do I authenticate?"
+axon query "How do I authenticate?"
 
 # Reconstruct full document
-firecrawl retrieve https://example.com
+axon retrieve https://example.com
 ```
 
 ### 2. Vector Database Management (6 Commands)
@@ -76,23 +76,23 @@ Full lifecycle management of embedded content:
 
 ```bash
 # List all indexed URLs
-firecrawl sources
+axon sources
 
 # Show database stats
-firecrawl stats
+axon stats
 
 # List unique domains
-firecrawl domains
+axon domains
 
 # Delete by URL or domain
-firecrawl delete --url https://example.com
-firecrawl delete --domain example.com
+axon delete --url https://example.com
+axon delete --domain example.com
 
 # Time-based view of content
-firecrawl history
+axon history
 
 # Detailed URL info
-firecrawl info https://example.com
+axon info https://example.com
 ```
 
 ### 3. Enhanced Job Management (2 Commands)
@@ -102,10 +102,10 @@ Better visibility into long-running operations:
 
 ```bash
 # List all active crawl jobs
-firecrawl list
+axon list
 
 # Enhanced system status (jobs + embedding queue)
-firecrawl status
+axon status
 ```
 
 ### 4. Data Extraction Commands (2 Commands)
@@ -115,10 +115,10 @@ Batch processing and structured extraction:
 
 ```bash
 # Extract structured data
-firecrawl extract https://example.com/product
+axon extract https://example.com/product
 
 # Batch scrape multiple URLs
-firecrawl batch https://site1.com https://site2.com --embed
+axon batch https://site1.com https://site2.com --embed
 ```
 
 ### 5. Configuration Enhancement (1 Command)
@@ -128,7 +128,7 @@ Separate read-only config viewer (official CLI uses `config` for both):
 
 ```bash
 # View config without modifying
-firecrawl view-config
+axon view-config
 ```
 
 ### 6. Self-Hosted Infrastructure
@@ -152,10 +152,10 @@ All scraping commands support automatic embedding:
 
 ```bash
 # Scrape and embed in one command
-firecrawl scrape https://example.com --embed
+axon scrape https://example.com --embed
 
 # Crawl and wait for embedding completion
-firecrawl crawl https://example.com --embed --wait
+axon crawl https://example.com --embed --wait
 ```
 
 ## Features We're Missing (1 Total)
@@ -166,14 +166,14 @@ The official CLI has a dedicated `credit-usage` command:
 
 ```bash
 # Official CLI
-firecrawl credit-usage --json --pretty
+axon credit-usage --json --pretty
 ```
 
 **Our workaround**: Use the global `--status` flag which shows credits:
 
 ```bash
 # Our CLI
-firecrawl --status
+axon --status
 # Output includes: "Credits: 500,000 remaining"
 ```
 
@@ -209,7 +209,7 @@ CLI → Local Firecrawl (53002) → Patchright (53006) → Chrome
 
 ## Summary
 
-We've built a **complete RAG (Retrieval-Augmented Generation) platform** on top of the official Firecrawl CLI:
+Axon is a **complete RAG (Retrieval-Augmented Generation) platform** built on the Firecrawl scraping backend:
 
 ✅ **15 new commands** for semantic search and vector database management
 ✅ **100% compatibility** with official CLI commands (except credit-usage)
@@ -217,5 +217,5 @@ We've built a **complete RAG (Retrieval-Augmented Generation) platform** on top 
 ✅ **Automatic embedding** integration on all scraping commands
 ✅ **Production-ready** vector search capabilities
 
-The official CLI is a **cloud-based scraping tool**.
-Our CLI is a **self-hosted knowledge base platform** with scraping capabilities.
+The official Firecrawl CLI is a **cloud-based scraping tool**.
+Axon is a **self-hosted knowledge base platform** with scraping capabilities.

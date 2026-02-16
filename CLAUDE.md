@@ -1,8 +1,8 @@
-# CLI Firecrawl - Claude Agent Context
+# Axon - Claude Agent Context
 
 ## Purpose
 
-A command-line interface for the Firecrawl web scraping API with integrated semantic search capabilities via TEI embeddings and Qdrant vector database.
+A self-hosted RAG pipeline CLI built on the Firecrawl web scraping API with integrated semantic search capabilities via TEI embeddings and Qdrant vector database.
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ src/
 │   ├── sources.ts       # Source management
 │   └── stats.ts         # Statistics
 ├── utils/                # Shared utilities (25 modules)
-│   ├── client.ts        # Firecrawl SDK client singleton
+│   ├── client.ts        # Axon SDK client singleton
 │   ├── config.ts        # Global configuration (env > credentials > defaults)
 │   ├── credentials.ts   # OS credential storage (keychain/file fallback)
 │   ├── auth.ts          # Authentication flow
@@ -88,7 +88,7 @@ src/
 - **Runtime**: Node.js 18+
 - **Language**: TypeScript 5.0+ (strict mode, CommonJS)
 - **CLI Framework**: Commander.js v14
-- **Firecrawl**: `@mendable/firecrawl-js` SDK v4.10+
+- **Firecrawl SDK**: `@mendable/firecrawl-js` SDK v4.10+ (upstream scraping backend)
 - **Testing**: Vitest v4
 - **Package Manager**: pnpm
 
@@ -120,10 +120,10 @@ See `docker/README.md` for detailed Docker configuration documentation.
 
 | Container | Image | Port | Purpose | Status |
 |-----------|-------|------|---------|--------|
-| `firecrawl` | ghcr.io/firecrawl/firecrawl | 53002 | Main Firecrawl API | Active |
-| `firecrawl-embedder` | node:20-alpine | 53000 | Async embedding daemon | Active |
+| `firecrawl` | ghcr.io/firecrawl/firecrawl | 53002 | Main Firecrawl API (upstream) | Active |
+| `axon-embedder` | node:20-alpine | 53000 | Async embedding daemon | Active |
 | `firecrawl-playwright` | loorisr/patchright-scrape-api | 53006 (internal) | Browser scraping backend | Active |
-| `firecrawl-qdrant` | qdrant/qdrant | 53333 | Vector database | Active |
+| `axon-qdrant` | qdrant/qdrant | 53333 | Vector database | Active |
 | `firecrawl-redis` | redis:alpine | 53379 (internal) | Job queue/cache | Active |
 | `firecrawl-rabbitmq` | rabbitmq:3-management | (internal) | Message broker | Active |
 
@@ -147,7 +147,7 @@ CLI (scrape/crawl/extract) → Embedder Daemon (53000) → TEI @ steamy-wsl (100
                               Qdrant (53333) ← stores vectors
 ```
 
-- **Embedder Daemon** runs as a background service (`firecrawl-embedder` container)
+- **Embedder Daemon** runs as a background service (`axon-embedder` container)
 - Processes embedding jobs asynchronously via queue system
 - **TEI** runs on remote machine (steamy-wsl) with GPU acceleration
 - **Embedding Model**: `Qwen/Qwen3-Embedding-0.6B` via Hugging Face TEI
@@ -170,8 +170,8 @@ QDRANT_URL=http://localhost:53333
 
 1. Check Firecrawl logs: `docker logs firecrawl --tail 100`
 2. Check Patchright logs: `docker logs firecrawl-playwright --tail 100`
-3. Check embedder daemon: `docker logs firecrawl-embedder --tail 100`
-4. Verify Qdrant health: `curl http://localhost:53333/collections/firecrawl`
+3. Check embedder daemon: `docker logs axon-embedder --tail 100`
+4. Verify Qdrant health: `curl http://localhost:53333/collections/axon`
 5. Check port availability: `ss -tuln | grep -E '(53002|53000|53333)'`
 6. Verify Docker services: `docker compose ps` (all should be "Up" or "Up (healthy)")
 
@@ -180,7 +180,7 @@ QDRANT_URL=http://localhost:53333
 - Client-side rendered sites may need `--wait-for` flag for JS hydration
 - Bot detection on some sites (try Chrome DevTools MCP as workaround)
 - Port conflicts: Ensure 53002, 53000, 53333 are free before `docker compose up`
-- Qdrant connection errors: Check if `firecrawl-qdrant` container is healthy
+- Qdrant connection errors: Check if `axon-qdrant` container is healthy
 - RabbitMQ startup: May take 30-60s to show "Up (healthy)" on first run
 - Embedder queue not processing: Check `.cache/embed-queue/` permissions and disk space
 
@@ -196,7 +196,7 @@ QDRANT_URL=http://localhost:53333
 
 1. Runtime flags (`--api-key`)
 2. Environment variables (`FIRECRAWL_API_KEY`, `TEI_URL`, `QDRANT_URL`)
-3. OS credential store / fallback file (`~/.firecrawl`)
+3. OS credential store / fallback file (`~/.axon`)
 4. Defaults
 
 ## Ask Command
@@ -207,13 +207,13 @@ Q&A over your embedded documents using the `claude` CLI tool.
 
 ```bash
 # Basic query (uses Haiku, 10 docs)
-firecrawl ask "How do I create a Claude Code skill?"
+axon ask "How do I create a Claude Code skill?"
 
 # Limit documents and choose model
-firecrawl ask "Complex analysis needed" --limit 5 --model sonnet
+axon ask "Complex analysis needed" --limit 5 --model sonnet
 
 # Filter by domain
-firecrawl ask "Explain React hooks" --domain react.dev
+axon ask "Explain React hooks" --domain react.dev
 ```
 
 **Requirements**:
@@ -223,7 +223,7 @@ firecrawl ask "Explain React hooks" --domain react.dev
 
 **Why `claude` CLI**: Free with Max subscription, no API key management, officially maintained by Anthropic.
 
-**For comprehensive examples, troubleshooting, and advanced usage**, see `.claude/skills/firecrawl/examples/ask-command-usage.md`
+**For comprehensive examples, troubleshooting, and advanced usage**, see `.claude/skills/axon/examples/ask-command-usage.md`
 
 ## Important Patterns
 
@@ -290,7 +290,7 @@ pnpm type-check     # TypeScript type checking (no emit)
 - **Framework**: Vitest v4
 - **Coverage**: 20 test files, 326 tests
 - **Patterns**:
-  - Mock Firecrawl SDK client
+  - Mock Firecrawl SDK client (upstream)
   - Mock fetch for TEI/Qdrant calls
   - Reset caches between tests (`resetTeiCache`, `resetQdrantCache`)
 
@@ -376,7 +376,7 @@ This project includes shell completion support for bash, zsh, and fish shells.
 
 **Installation:**
 ```bash
-firecrawl completion install [shell]
+axon completion install [shell]
 ```
 
 **Testing:**
@@ -385,11 +385,11 @@ pnpm build
 pnpm local completion install
 # Follow instructions to add to RC file
 source ~/.zshrc  # or ~/.bashrc, ~/.config/fish/config.fish
-firecrawl <TAB>
+axon <TAB>
 ```
 
 **How it works:**
-1. `firecrawl completion install` auto-detects your shell
+1. `axon completion install` auto-detects your shell
 2. Generates a native completion script for that shell
 3. Provides instructions to add it to your shell RC file
 4. Once installed, tab completion works for all commands and common options

@@ -14,7 +14,7 @@ describe('getStatus auth source', () => {
   it('should not treat resolved container apiKey as explicit override', () => {
     const config: ImmutableConfig = Object.freeze({
       apiKey: 'resolved-key',
-      apiUrl: 'https://api.firecrawl.dev',
+      apiUrl: 'https://api.axon.dev',
       settings: getDefaultSettings(),
     });
 

@@ -263,12 +263,12 @@ describe('Option Parsing Utilities', () => {
     it('should parse output option', () => {
       const options = {
         url: 'https://example.com',
-        output: '.firecrawl/example.md',
+        output: '.axon/example.md',
       };
 
       const result = parseScrapeOptions(options);
 
-      expect(result.output).toBe('.firecrawl/example.md');
+      expect(result.output).toBe('.axon/example.md');
     });
 
     it('should parse pretty option', () => {
@@ -336,7 +336,7 @@ describe('Option Parsing Utilities', () => {
         includeTags: 'article,main',
         excludeTags: 'nav,footer',
         apiKey: 'fc-test-key',
-        output: '.firecrawl/output.json',
+        output: '.axon/output.json',
         pretty: true,
         timing: true,
       };
@@ -352,7 +352,7 @@ describe('Option Parsing Utilities', () => {
         includeTags: ['article', 'main'],
         excludeTags: ['nav', 'footer'],
         apiKey: 'fc-test-key',
-        output: '.firecrawl/output.json',
+        output: '.axon/output.json',
         pretty: true,
         timing: true,
       });

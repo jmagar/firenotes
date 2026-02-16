@@ -4,7 +4,7 @@
  * These tests require:
  * 1. TEI service running (TEI_URL env var)
  * 2. Qdrant service running (QDRANT_URL env var)
- * 3. Optionally, a Firecrawl API key for URL scraping in embed command
+ * 3. Optionally, an Axon API key for URL scraping in embed command
  */
 
 import { writeFile } from 'node:fs/promises';
@@ -18,6 +18,7 @@ import {
   runCLIFailure,
   runCLISuccess,
   skipIfMissingApiKey,
+  skipWithPrerequisiteMessage,
   TEST_SERVER_URL,
 } from './helpers';
 
@@ -53,8 +54,7 @@ function skipIfNoVectorServices(vectorServicesAvailable: boolean): boolean {
   if (vectorServicesAvailable) {
     return false;
   }
-  console.log('Skipping: Vector services not available');
-  return true;
+  return skipWithPrerequisiteMessage('Vector services not available');
 }
 
 function skipIfEmbedPrerequisitesMissing(
@@ -65,8 +65,9 @@ function skipIfEmbedPrerequisitesMissing(
   if (apiKey && vectorServicesAvailable && testServerAvailable) {
     return false;
   }
-  console.log('Skipping: Prerequisites not available');
-  return true;
+  return skipWithPrerequisiteMessage(
+    'Prerequisites not available (requires API key, vector services, and test server)'
+  );
 }
 
 describe('E2E: embed command', () => {
@@ -94,7 +95,7 @@ describe('E2E: embed command', () => {
         env: { FIRECRAWL_API_KEY: apiKey ?? 'test-key' },
       });
       expect(result.stdout).toContain(
-        'Usage: firecrawl embed [options] [command] [input]'
+        'Usage: axon embed [options] [command] [input]'
       );
     });
 
@@ -107,7 +108,7 @@ describe('E2E: embed command', () => {
         env: { FIRECRAWL_API_KEY: apiKey ?? 'test-key' },
       });
       expect(result.stdout).not.toContain(
-        'Usage: firecrawl embed [options] [command] [input]'
+        'Usage: axon embed [options] [command] [input]'
       );
     });
 
@@ -123,7 +124,7 @@ describe('E2E: embed command', () => {
       });
 
       expect(result.stdout).not.toContain(
-        'Usage: firecrawl embed [options] [command] [input]'
+        'Usage: axon embed [options] [command] [input]'
       );
     });
   });

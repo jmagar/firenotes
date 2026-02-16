@@ -1,9 +1,9 @@
 # Storage Policy
 
-Firecrawl CLI stores persistent state under a single storage root:
+Axon CLI stores persistent state under a single storage root:
 
-- `FIRECRAWL_HOME` (if set)
-- default: `~/.firecrawl`
+- `AXON_HOME` (if set)
+- default: `~/.axon`
 
 ## Files and Directories
 
@@ -20,27 +20,27 @@ Under the storage root:
 
 ## Overrides
 
-- `FIRECRAWL_HOME`
+- `AXON_HOME`
   - Overrides the storage root for all files above.
   - Supports `~` (expanded to the home directory) and relative paths (resolved from the current working directory via `path.resolve()`). Absolute paths are accepted as-is.
 
 ## .env Loading
 
-The CLI reads `<cwd>/.env` on startup (unless `FIRECRAWL_CLI_DISABLE_LOCAL_ENV=1`).
+The CLI reads `<cwd>/.env` on startup (unless `AXON_CLI_DISABLE_LOCAL_ENV=1`).
 The embedder daemon also reads `<cwd>/.env`.
 
 ## Migration
 
 On first read/write, the CLI migrates legacy files when found:
 
-- Credentials/settings from older platform-specific `firecrawl-cli` config dirs.
+- Credentials/settings from older platform-specific `axon-cli` config dirs.
 - Job history from old XDG/app-data locations and from legacy `<cwd>/.cache/job-history.json`.
-- Embed queue files from old `~/.config/firecrawl-cli/embed-queue` (when queue dir override is not set).
+- Embed queue files from old `~/.config/axon-cli/embed-queue` (when queue dir override is not set).
 
 ## Migration Status and Legacy Paths
 
-- Migration target is now complete: `FIRECRAWL_HOME` (default `~/.firecrawl`) is the canonical home for persistent CLI state.
+- Migration target is now complete: `AXON_HOME` (default `~/.axon`) is the canonical home for persistent CLI state.
 - Legacy directories are no longer active storage locations:
-  - `~/.config/firecrawl-cli`
-  - `~/.local/share/firecrawl-cli`
-- Embed queue location defaults to `<storageRoot>/embed-queue` unless `FIRECRAWL_EMBEDDER_QUEUE_DIR` is set (relative paths resolve from the current working directory).
+  - `~/.config/axon-cli`
+  - `~/.local/share/axon-cli`
+- Embed queue location defaults to `<storageRoot>/embed-queue` unless `AXON_EMBEDDER_QUEUE_DIR` is set (relative paths resolve from the current working directory).

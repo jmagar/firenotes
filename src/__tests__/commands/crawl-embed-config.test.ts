@@ -8,15 +8,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleCrawlCommand } from '../../commands/crawl';
-import type { MockFirecrawlClient } from '../utils/mock-client';
+import type { MockAxonClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 // Mock embedpipeline and capture config state
 
-type CrawlMockClient = MockFirecrawlClient &
-  Required<
-    Pick<MockFirecrawlClient, 'startCrawl' | 'getCrawlStatus' | 'crawl'>
-  >;
+type CrawlMockClient = MockAxonClient &
+  Required<Pick<MockAxonClient, 'startCrawl' | 'getCrawlStatus' | 'crawl'>>;
 
 // Mock settings
 vi.mock('../../utils/settings', () => ({

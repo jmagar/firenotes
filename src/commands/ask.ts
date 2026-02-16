@@ -361,10 +361,7 @@ export function createAskCommand(): Command {
       settings.ask.limit
     )
     .option('--domain <domain>', 'Filter results by domain')
-    .option(
-      '--collection <name>',
-      'Qdrant collection name (default: firecrawl)'
-    )
+    .option('--collection <name>', 'Qdrant collection name (default: axon)')
     .option(
       '--model <name>',
       'Model: opus/sonnet/haiku (claude) or gemini-3-pro-preview/gemini-3-flash-preview (gemini). Defaults: ASK_CLI, then haiku.'

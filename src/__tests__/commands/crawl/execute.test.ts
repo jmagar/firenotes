@@ -316,7 +316,7 @@ describe('executeCrawl', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('Crawl operation failed: fetch failed');
     expect(result.error).toContain(
-      'Could not reach Firecrawl API at http://localhost:53002'
+      'Could not reach Axon API at http://localhost:53002'
     );
   });
 

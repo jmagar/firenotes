@@ -5,10 +5,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeSearch, handleSearchCommand } from '../../commands/search';
 import type { IContainer } from '../../container/types';
-import type { MockFirecrawlClient } from '../utils/mock-client';
+import type { MockAxonClient } from '../utils/mock-client';
 
-type SearchMockClient = MockFirecrawlClient &
-  Required<Pick<MockFirecrawlClient, 'search'>>;
+type SearchMockClient = MockAxonClient &
+  Required<Pick<MockAxonClient, 'search'>>;
 
 // Mock autoEmbed to track calls
 const mockAutoEmbed = vi.fn().mockResolvedValue(undefined);
@@ -34,12 +34,12 @@ describe('executeSearch', () => {
     mockContainer = {
       config: {
         apiKey: 'test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
+        apiUrl: 'https://api.axon.dev',
         teiUrl: 'http://localhost:53001',
         qdrantUrl: 'http://localhost:53002',
-        collectionName: 'firecrawl',
+        collectionName: 'axon',
       },
-      getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+      getAxonClient: vi.fn().mockReturnValue(mockClient),
       getEmbedPipeline: vi.fn().mockReturnValue({
         autoEmbed: mockAutoEmbed,
       }),
@@ -589,7 +589,7 @@ describe('executeSearch', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('fetch failed');
       expect(result.error).toContain(
-        'Could not reach Firecrawl API at http://localhost:53002'
+        'Could not reach Axon API at http://localhost:53002'
       );
     });
   });
@@ -739,12 +739,12 @@ describe('handleSearchCommand auto-embed', () => {
     mockContainer = {
       config: {
         apiKey: 'test-api-key',
-        apiUrl: 'https://api.firecrawl.dev',
+        apiUrl: 'https://api.axon.dev',
         teiUrl: 'http://localhost:53001',
         qdrantUrl: 'http://localhost:53002',
-        collectionName: 'firecrawl',
+        collectionName: 'axon',
       },
-      getFirecrawlClient: vi.fn().mockReturnValue(mockClient),
+      getAxonClient: vi.fn().mockReturnValue(mockClient),
       getEmbedPipeline: vi.fn().mockReturnValue({
         autoEmbed: mockAutoEmbed,
       }),

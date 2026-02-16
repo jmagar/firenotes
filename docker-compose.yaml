@@ -1,4 +1,4 @@
-name: firecrawl
+name: axon
 
 x-common-service: &common-service
   ulimits:
@@ -20,18 +20,18 @@ x-common-service: &common-service
     - .env
 
 services:
-  firecrawl-embedder:
+  axon-embedder:
     <<: *common-service
     image: node:20-alpine
-    container_name: firecrawl-embedder
+    container_name: axon-embedder
     working_dir: /app
     volumes:
       - .:/app
-      - ${EMBEDDER_QUEUE_DIR:-${FIRECRAWL_HOME:-${HOME}/.firecrawl}/embed-queue}:/root/.firecrawl/embed-queue
+      - ${EMBEDDER_QUEUE_DIR:-${AXON_HOME:-${HOME}/.axon}/embed-queue}:/root/.axon/embed-queue
     environment:
       FIRECRAWL_API_URL: http://firecrawl:53002
-      QDRANT_URL: http://firecrawl-qdrant:6333
-      FIRECRAWL_EMBEDDER_QUEUE_DIR: /root/.firecrawl/embed-queue
+      QDRANT_URL: http://axon-qdrant:6333
+      AXON_EMBEDDER_QUEUE_DIR: /root/.axon/embed-queue
     command: node dist/embedder-daemon.js
     ports:
       - "53000:53000"
@@ -135,15 +135,15 @@ services:
       retries: 5
       start_period: 20s
 
-  firecrawl-qdrant:
+  axon-qdrant:
     <<: *common-service
     image: qdrant/qdrant:latest
-    container_name: firecrawl-qdrant
+    container_name: axon-qdrant
     ports:
       - "${QDRANT_REST_PORT:-53333}:6333"
       - "${QDRANT_RPC_PORT:-53334}:6334"
     volumes:
-      - ${QDRANT_DATA_DIR:-${FIRECRAWL_HOME:-${HOME}/.firecrawl}/qdrant}:/qdrant/storage
+      - ${QDRANT_DATA_DIR:-${AXON_HOME:-${HOME}/.axon}/qdrant}:/qdrant/storage
     healthcheck:
       test: ["CMD", "bash", "-c", "timeout 5 bash -c '</dev/tcp/localhost/6333' 2>/dev/null"]
       interval: 30s

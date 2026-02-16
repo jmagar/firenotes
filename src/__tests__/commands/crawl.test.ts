@@ -11,7 +11,7 @@ import {
   handleCrawlCommand,
 } from '../../commands/crawl';
 import { writeOutput } from '../../utils/output';
-import type { MockFirecrawlClient } from '../utils/mock-client';
+import type { MockAxonClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 const createContainer = (...args: Parameters<typeof createTestContainer>) =>
@@ -68,10 +68,8 @@ vi.mock('../../utils/output', () => ({
 }));
 
 describe('executeCrawl', () => {
-  type CrawlMockClient = MockFirecrawlClient &
-    Required<
-      Pick<MockFirecrawlClient, 'startCrawl' | 'getCrawlStatus' | 'crawl'>
-    >;
+  type CrawlMockClient = MockAxonClient &
+    Required<Pick<MockAxonClient, 'startCrawl' | 'getCrawlStatus' | 'crawl'>>;
 
   let mockClient: CrawlMockClient;
 
@@ -140,7 +138,7 @@ describe('executeCrawl', () => {
         expect.objectContaining({
           webhook: {
             url: 'https://example.com/embedder',
-            headers: { 'x-firecrawl-embedder-secret': 'test-secret' },
+            headers: { 'x-axon-embedder-secret': 'test-secret' },
             events: ['completed', 'failed'],
           },
         })
@@ -950,8 +948,8 @@ describe('executeCrawl', () => {
 });
 
 describe('executeCrawlCancel', () => {
-  type CrawlCancelMock = MockFirecrawlClient &
-    Required<Pick<MockFirecrawlClient, 'cancelCrawl'>>;
+  type CrawlCancelMock = MockAxonClient &
+    Required<Pick<MockAxonClient, 'cancelCrawl'>>;
 
   let mockClient: CrawlCancelMock;
 
@@ -986,8 +984,8 @@ describe('executeCrawlCancel', () => {
 });
 
 describe('executeCrawlErrors', () => {
-  type CrawlErrorsMock = MockFirecrawlClient &
-    Required<Pick<MockFirecrawlClient, 'getCrawlErrors'>>;
+  type CrawlErrorsMock = MockAxonClient &
+    Required<Pick<MockAxonClient, 'getCrawlErrors'>>;
 
   let mockClient: CrawlErrorsMock;
 
@@ -1049,7 +1047,7 @@ describe('createCrawlCommand', () => {
     });
 
     it('should call checkCrawlStatus and format output', async () => {
-      const mockClient: Partial<MockFirecrawlClient> = {
+      const mockClient: Partial<MockAxonClient> = {
         getCrawlStatus: vi.fn().mockResolvedValue({
           id: 'job-123',
           status: 'completed',
@@ -1075,7 +1073,7 @@ describe('createCrawlCommand', () => {
     });
 
     it('should format output correctly', async () => {
-      const mockClient: Partial<MockFirecrawlClient> = {
+      const mockClient: Partial<MockAxonClient> = {
         getCrawlStatus: vi.fn().mockResolvedValue({
           id: 'job-123',
           status: 'completed',
@@ -1108,7 +1106,7 @@ describe('createCrawlCommand', () => {
     });
 
     it('should call executeCrawlCancel with job-id', async () => {
-      const mockClient: Partial<MockFirecrawlClient> = {
+      const mockClient: Partial<MockAxonClient> = {
         cancelCrawl: vi.fn().mockResolvedValue(true),
       };
       const container = createContainer(mockClient);
@@ -1125,7 +1123,7 @@ describe('createCrawlCommand', () => {
     });
 
     it('should handle failure gracefully', async () => {
-      const mockClient: Partial<MockFirecrawlClient> = {
+      const mockClient: Partial<MockAxonClient> = {
         cancelCrawl: vi.fn().mockRejectedValue(new Error('Cancel failed')),
       };
       const container = createContainer(mockClient);
@@ -1167,7 +1165,7 @@ describe('createCrawlCommand', () => {
     });
 
     it('should call executeCrawlErrors with job-id', async () => {
-      const mockClient: Partial<MockFirecrawlClient> = {
+      const mockClient: Partial<MockAxonClient> = {
         getCrawlErrors: vi.fn().mockResolvedValue({
           errors: [],
           robotsBlocked: [],
@@ -1189,7 +1187,7 @@ describe('createCrawlCommand', () => {
 
   it('should reject job ID on primary crawl action', async () => {
     const jobId = '550e8400-e29b-41d4-a716-446655440000';
-    const mockClient: Partial<MockFirecrawlClient> = {
+    const mockClient: Partial<MockAxonClient> = {
       scrape: vi.fn(),
       getCrawlStatus: vi.fn(),
     };
@@ -1206,7 +1204,7 @@ describe('createCrawlCommand', () => {
 
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining(
-        'Job IDs are not accepted here. Use "firecrawl crawl status <job-id>" instead.'
+        'Job IDs are not accepted here. Use "axon crawl status <job-id>" instead.'
       )
     );
     expect(process.exitCode).toBe(1);
@@ -1218,7 +1216,7 @@ describe('createCrawlCommand', () => {
 
   it('should preserve raw job ID for manual embedding action', async () => {
     const jobId = '550e8400-e29b-41d4-a716-446655440000';
-    const mockClient: Partial<MockFirecrawlClient> = {
+    const mockClient: Partial<MockAxonClient> = {
       scrape: vi.fn(),
       getCrawlStatus: vi.fn().mockResolvedValue({
         id: jobId,

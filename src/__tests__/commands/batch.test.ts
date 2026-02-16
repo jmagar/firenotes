@@ -7,7 +7,7 @@ import { createBatchCommand, executeBatch } from '../../commands/batch';
 import type { IContainer } from '../../container/types';
 import type { CommandWithContainer } from '../../types/test';
 import { writeOutput } from '../../utils/output';
-import type { MockFirecrawlClient } from '../utils/mock-client';
+import type { MockAxonClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 const createContainer = (...args: Parameters<typeof createTestContainer>) =>
@@ -18,7 +18,7 @@ vi.mock('../../utils/output', () => ({
 }));
 
 describe('executeBatch', () => {
-  let mockClient: Partial<MockFirecrawlClient>;
+  let mockClient: Partial<MockAxonClient>;
   let container: IContainer;
 
   beforeEach(() => {
@@ -40,7 +40,7 @@ describe('executeBatch', () => {
   it('should start batch scrape when wait is false', async () => {
     mockClient.startBatchScrape?.mockResolvedValue({
       id: 'batch-1',
-      url: 'https://api.firecrawl.dev/v2/batch/scrape/batch-1',
+      url: 'https://api.axon.dev/v2/batch/scrape/batch-1',
     });
 
     const result = await executeBatch(container, {
@@ -90,7 +90,7 @@ describe('createBatchCommand', () => {
   });
 
   it('should write output when executing', async () => {
-    const testMockClient: Partial<MockFirecrawlClient> = {
+    const testMockClient: Partial<MockAxonClient> = {
       startBatchScrape: vi.fn().mockResolvedValue({ id: 'batch-1', url: 'u' }),
       batchScrape: vi.fn(),
       getBatchScrapeStatus: vi.fn(),
@@ -110,7 +110,7 @@ describe('createBatchCommand', () => {
 });
 
 describe('batch status subcommand', () => {
-  let mockClient: Partial<MockFirecrawlClient>;
+  let mockClient: Partial<MockAxonClient>;
   let container: IContainer;
 
   beforeEach(() => {
@@ -194,7 +194,7 @@ describe('batch status subcommand', () => {
 });
 
 describe('batch cancel subcommand', () => {
-  let mockClient: Partial<MockFirecrawlClient>;
+  let mockClient: Partial<MockAxonClient>;
   let container: IContainer;
 
   beforeEach(() => {
@@ -252,7 +252,7 @@ describe('batch cancel subcommand', () => {
 });
 
 describe('batch errors subcommand', () => {
-  let mockClient: Partial<MockFirecrawlClient>;
+  let mockClient: Partial<MockAxonClient>;
   let container: IContainer;
 
   beforeEach(() => {

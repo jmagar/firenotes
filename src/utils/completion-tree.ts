@@ -1,5 +1,5 @@
 /**
- * Completion tree definition for firecrawl CLI
+ * Completion tree definition for axon CLI
  *
  * Defines all commands, subcommands, and their options for shell completion.
  * This tree is used by omelette to provide tab completion in bash, zsh, and fish.

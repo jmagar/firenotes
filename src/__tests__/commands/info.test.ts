@@ -335,9 +335,9 @@ describe('createInfoCommand', () => {
     exitSpy.mockRestore();
   });
 
-  it('should expand tilde in FIRECRAWL_HOME for info storage --json', async () => {
-    const originalHome = process.env.FIRECRAWL_HOME;
-    process.env.FIRECRAWL_HOME = '~/.firecrawl';
+  it('should expand tilde in AXON_HOME for info storage --json', async () => {
+    const originalHome = process.env.AXON_HOME;
+    process.env.AXON_HOME = '~/.axon';
 
     try {
       const command = createInfoCommand();
@@ -362,7 +362,7 @@ describe('createInfoCommand', () => {
         jobHistoryPath: string;
         embedQueueDir: string;
       };
-      const expectedRoot = join(homedir(), '.firecrawl');
+      const expectedRoot = join(homedir(), '.axon');
 
       expect(parsed.storageRoot).toBe(expectedRoot);
       expect(parsed.credentialsPath).toBe(
@@ -375,20 +375,20 @@ describe('createInfoCommand', () => {
       expect(parsed.embedQueueDir).toBe(join(expectedRoot, 'embed-queue'));
     } finally {
       if (originalHome === undefined) {
-        delete process.env.FIRECRAWL_HOME;
+        delete process.env.AXON_HOME;
       } else {
-        process.env.FIRECRAWL_HOME = originalHome;
+        process.env.AXON_HOME = originalHome;
       }
     }
   });
 
-  it('should respect custom FIRECRAWL_HOME path for info storage', async () => {
-    const originalHome = process.env.FIRECRAWL_HOME;
+  it('should respect custom AXON_HOME path for info storage', async () => {
+    const originalHome = process.env.AXON_HOME;
     const customPath = join(
       tmpdir(),
-      `firecrawl-custom-home-${process.pid}-${Date.now()}`
+      `axon-custom-home-${process.pid}-${Date.now()}`
     );
-    process.env.FIRECRAWL_HOME = customPath;
+    process.env.AXON_HOME = customPath;
 
     try {
       const command = createInfoCommand();
@@ -433,9 +433,9 @@ describe('createInfoCommand', () => {
       expect(parsed.exists.embedQueueDir).toBe(false);
     } finally {
       if (originalHome === undefined) {
-        delete process.env.FIRECRAWL_HOME;
+        delete process.env.AXON_HOME;
       } else {
-        process.env.FIRECRAWL_HOME = originalHome;
+        process.env.AXON_HOME = originalHome;
       }
     }
   });

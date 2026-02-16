@@ -11,7 +11,7 @@ import type {
   IEmbedPipeline,
   IQdrantService,
 } from '../../container/types';
-import type { MockFirecrawlClient } from '../utils/mock-client';
+import type { MockAxonClient } from '../utils/mock-client';
 
 /**
  * Mock configuration options for creating test containers
@@ -38,14 +38,14 @@ export interface MockEmbedPipelineConfig {
 }
 
 /**
- * Create a mock Firecrawl client with common methods
+ * Create a mock Axon client with common methods
  *
  * @param overrides - Optional method overrides
- * @returns Mock Firecrawl client
+ * @returns Mock Axon client
  */
-export function createMockFirecrawlClient(
-  overrides?: Partial<MockFirecrawlClient>
-): MockFirecrawlClient {
+export function createMockAxonClient(
+  overrides?: Partial<MockAxonClient>
+): MockAxonClient {
   return {
     scrape: vi.fn(),
     crawl: vi.fn(),
@@ -111,17 +111,17 @@ export function createMockQdrantService(): IQdrantService {
 /**
  * Create a mock container with common dependencies
  *
- * @param mockClient - Optional mock Firecrawl client
+ * @param mockClient - Optional mock Axon client
  * @param config - Optional configuration overrides
  * @param embedPipelineConfig - Optional embed pipeline configuration
  * @returns Mock container for testing
  */
 export function createMockContainer(
-  mockClient?: Partial<MockFirecrawlClient>,
+  mockClient?: Partial<MockAxonClient>,
   config?: MockContainerConfig,
   embedPipelineConfig?: MockEmbedPipelineConfig
 ): IContainer {
-  const fullMockClient = createMockFirecrawlClient(mockClient);
+  const fullMockClient = createMockAxonClient(mockClient);
   const mockEmbedPipeline = createMockEmbedPipeline(embedPipelineConfig);
 
   // Create mock HTTP client
@@ -151,7 +151,7 @@ export function createMockContainer(
   // Freeze config to mirror ImmutableConfig behavior
   const frozenConfig = Object.freeze({
     apiKey: config?.apiKey ?? 'test-api-key',
-    apiUrl: config?.apiUrl ?? 'https://api.firecrawl.dev',
+    apiUrl: config?.apiUrl ?? 'https://api.axon.dev',
     teiUrl: config?.teiUrl ?? 'http://localhost:8080',
     qdrantUrl: config?.qdrantUrl ?? 'http://localhost:6333',
     qdrantCollection: config?.qdrantCollection ?? 'test_collection',
@@ -164,7 +164,7 @@ export function createMockContainer(
 
   return {
     config: frozenConfig,
-    getFirecrawlClient: vi.fn().mockReturnValue(fullMockClient),
+    getAxonClient: vi.fn().mockReturnValue(fullMockClient),
     getEmbedPipeline: vi.fn().mockReturnValue(mockEmbedPipeline),
     getTeiService: vi.fn().mockReturnValue({
       getTeiInfo: vi.fn().mockResolvedValue({

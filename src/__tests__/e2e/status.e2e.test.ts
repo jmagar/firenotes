@@ -23,9 +23,9 @@ describe('E2E: status flag', () => {
       expect(result.stdout).toMatch(/v\d+\.\d+\.\d+/); // Match version pattern
     });
 
-    it('should display firecrawl branding', async () => {
+    it('should display axon branding', async () => {
       const result = await runCLISuccess(['--status']);
-      expect(result.stdout).toContain('firecrawl');
+      expect(result.stdout).toContain('axon');
     });
   });
 
@@ -74,7 +74,7 @@ describe('E2E: status flag', () => {
       });
 
       expect(result.stdout).toMatch(/API URL:/);
-      expect(result.stdout).toContain('https://api.firecrawl.dev');
+      expect(result.stdout).toContain('https://api.axon.dev');
     });
 
     it('should display custom API URL when configured via env', async () => {
@@ -167,7 +167,7 @@ describe('E2E: status flag', () => {
   });
 
   describe('self-hosted configuration', () => {
-    it('should work with self-hosted Firecrawl instance', async () => {
+    it('should work with self-hosted Axon instance', async () => {
       const result = await runCLISuccess(['--status'], {
         env: {
           FIRECRAWL_API_KEY: 'local-dev',

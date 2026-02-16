@@ -45,7 +45,7 @@ export async function checkCrawlStatus(
   jobId: string
 ): Promise<CrawlStatusResult> {
   try {
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
     // Disable auto-pagination - we only need summary fields, not document data
     const status = await app.getCrawlStatus(jobId, { autoPaginate: false });
 
@@ -81,7 +81,7 @@ export async function executeCrawlCancel(
   jobId: string
 ): Promise<CrawlCancelResult> {
   try {
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
     const ok = await app.cancelCrawl(jobId);
 
     if (!ok) {
@@ -110,7 +110,7 @@ export async function executeCrawlErrors(
   jobId: string
 ): Promise<CrawlErrorsResult> {
   try {
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
     const raw = await app.getCrawlErrors(jobId);
     const normalized = Array.isArray(raw)
       ? { errors: raw, robotsBlocked: [] }
@@ -162,7 +162,7 @@ export async function executeCrawlClear(
   container: IContainer
 ): Promise<CrawlClearResult> {
   try {
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
     // Note: capped at 100 most-recent IDs, so clearedHistory may underreport
     // if more than 100 crawl jobs exist in the local history file.
     const recentCrawlIds = await getRecentJobIds('crawl', 100);
@@ -205,7 +205,7 @@ export async function executeCrawlCleanup(
   container: IContainer
 ): Promise<CrawlCleanupResult> {
   try {
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
     const recentCrawlIds = await getRecentJobIds('crawl', 100);
 
     let removedFailed = 0;
@@ -215,7 +215,7 @@ export async function executeCrawlCleanup(
     const toRemove: string[] = [];
 
     // Sequential API calls: acceptable for a CLI tool where cleanup runs
-    // infrequently and the Firecrawl API has no batch-status endpoint.
+    // infrequently and the API has no batch-status endpoint.
     for (const id of recentCrawlIds) {
       try {
         const status = await app.getCrawlStatus(id, { autoPaginate: false });

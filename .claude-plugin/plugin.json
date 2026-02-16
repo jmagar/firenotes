@@ -1,10 +1,10 @@
 {
-  "name": "cli-firecrawl",
+  "name": "axon",
   "version": "1.0.0",
-  "description": "Firecrawl CLI with integrated semantic search, TEI embeddings, and Qdrant vector database for web scraping and RAG workflows",
+  "description": "Axon CLI with semantic search, TEI embeddings, and Qdrant vector database for web scraping and RAG workflows",
   "license": "MIT",
   "keywords": [
-    "firecrawl",
+    "axon",
     "web-scraping",
     "embeddings",
     "qdrant",
@@ -18,8 +18,8 @@
     "name": "jmagar",
     "url": "https://github.com/jmagar"
   },
-  "repository": "https://github.com/jmagar/cli-firecrawl",
-  "homepage": "https://github.com/jmagar/cli-firecrawl#readme",
+  "repository": "https://github.com/jmagar/axon",
+  "homepage": "https://github.com/jmagar/axon#readme",
   "dependencies": {
     "docker": ">=20.10.0",
     "nodejs": ">=18.0.0",

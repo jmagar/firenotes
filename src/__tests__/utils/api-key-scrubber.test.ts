@@ -41,7 +41,7 @@ describe('API Key Scrubber', () => {
   });
 
   describe('scrubApiKeys', () => {
-    it('should scrub Firecrawl API keys', () => {
+    it('should scrub Axon API keys', () => {
       const text = 'Using API key: fc-abcdef1234567890abcdefghij123456';
       const scrubbed = scrubApiKeys(text);
       expect(scrubbed).toBe('Using API key: [REDACTED]');

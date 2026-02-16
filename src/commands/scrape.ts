@@ -80,7 +80,7 @@ export async function executeScrape(
       };
     }
 
-    const collection = qdrantCollection || 'firecrawl';
+    const collection = qdrantCollection || 'axon';
 
     try {
       const qdrantService = container.getQdrantService();
@@ -97,7 +97,7 @@ export async function executeScrape(
   }
 
   // Get client instance from container
-  const app = container.getFirecrawlClient();
+  const app = container.getAxonClient();
 
   // Build scrape options
   const formats: FormatOption[] = [];
@@ -295,7 +295,7 @@ export function createScrapeCommand(): Command {
   const settings = getSettings();
 
   const scrapeCmd = new Command('scrape')
-    .description('Scrape a URL using Firecrawl')
+    .description('Scrape a URL using Axon')
     .argument('[url]', 'URL to scrape')
     .argument(
       '[formats...]',
@@ -334,10 +334,7 @@ export function createScrapeCommand(): Command {
       'Comma-separated list of tags to exclude',
       settings.scrape.excludeTags.join(',')
     )
-    .option(
-      '-k, --api-key <key>',
-      'Firecrawl API key (overrides global --api-key)'
-    )
+    .option('-k, --api-key <key>', 'API key (overrides global --api-key)')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as JSON format', false)
     .option('--pretty', 'Pretty print JSON output', false)

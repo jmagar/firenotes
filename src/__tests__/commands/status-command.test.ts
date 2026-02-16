@@ -10,7 +10,7 @@ import {
 import type { IContainer } from '../../container/types';
 import type { CommandWithContainer } from '../../types/test';
 import { writeOutput } from '../../utils/output';
-import type { MockFirecrawlClient } from '../utils/mock-client';
+import type { MockAxonClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 const createContainer = (...args: Parameters<typeof createTestContainer>) =>
@@ -989,7 +989,7 @@ describe('createStatusCommand', () => {
   it('should call getActiveCrawls when invoked', async () => {
     const { getRecentJobIds } = await import('../../utils/job-history');
     vi.mocked(getRecentJobIds).mockResolvedValue([]);
-    const activeClient: Partial<MockFirecrawlClient> = {
+    const activeClient: Partial<MockAxonClient> = {
       getActiveCrawls: vi.fn().mockResolvedValue({ success: true, crawls: [] }),
       getCrawlStatus: vi.fn(),
       getBatchScrapeStatus: vi.fn(),

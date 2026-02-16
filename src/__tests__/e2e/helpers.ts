@@ -40,7 +40,7 @@ export async function runCLI(
 ): Promise<CLIResult> {
   const { env = {}, input, timeout = 30000, cwd } = options;
 
-  const tmpDir = mkdtempSync(join(tmpdir(), 'firecrawl-cli-'));
+  const tmpDir = mkdtempSync(join(tmpdir(), 'axon-cli-'));
   const stdoutPath = join(tmpDir, 'stdout.txt');
   const stderrPath = join(tmpDir, 'stderr.txt');
 
@@ -168,11 +168,40 @@ export function hasApiCredentials(): boolean {
 }
 
 /**
+ * Whether missing E2E prerequisites should fail tests instead of skipping.
+ *
+ * Defaults to strict mode in CI. Local runs can opt in with AXON_E2E_STRICT_PREREQS=1.
+ * CI can opt out with AXON_E2E_ALLOW_SKIPS=1 for exploratory runs.
+ */
+export function shouldFailOnMissingPrerequisites(): boolean {
+  if (process.env.AXON_E2E_STRICT_PREREQS === '1') {
+    return true;
+  }
+  if (process.env.AXON_E2E_ALLOW_SKIPS === '1') {
+    return false;
+  }
+  return process.env.CI === 'true';
+}
+
+/**
+ * Shared guard behavior for prerequisite-based E2E skips.
+ */
+export function skipWithPrerequisiteMessage(reason: string): true {
+  if (shouldFailOnMissingPrerequisites()) {
+    throw new Error(
+      `[E2E strict prerequisites] ${reason}. Set AXON_E2E_ALLOW_SKIPS=1 to allow skips in this environment.`
+    );
+  }
+  console.log(`Skipping: ${reason}`);
+  return true;
+}
+
+/**
  * Skip test if no API credentials
  */
 export function skipWithoutApiCredentials(): void {
   if (!hasApiCredentials()) {
-    throw new Error('Skipping: No API credentials available');
+    skipWithPrerequisiteMessage('No API credentials available');
   }
 }
 
@@ -183,7 +212,7 @@ export async function createTempDir(): Promise<string> {
   const { mkdtemp } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
-  return mkdtemp(join(tmpdir(), 'firecrawl-e2e-'));
+  return mkdtemp(join(tmpdir(), 'axon-e2e-'));
 }
 
 /**
@@ -217,8 +246,7 @@ export function skipIfMissingApiKey(apiKey?: string): boolean {
   if (apiKey) {
     return false;
   }
-  console.log('Skipping: No API credentials');
-  return true;
+  return skipWithPrerequisiteMessage('No API credentials');
 }
 
 /**
@@ -231,6 +259,5 @@ export function skipIfMissingApiOrServer(
   if (apiKey && testServerAvailable) {
     return false;
   }
-  console.log('Skipping: No API credentials or test server');
-  return true;
+  return skipWithPrerequisiteMessage('No API credentials or test server');
 }

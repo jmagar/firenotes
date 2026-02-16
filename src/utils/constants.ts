@@ -1,5 +1,5 @@
 /**
- * Global constants for the Firecrawl CLI
+ * Global constants for the Axon CLI
  *
  * This module defines shared constants used across the application.
  */
@@ -9,7 +9,7 @@
  *
  * These binary and large media files commonly cause worker crashes when the
  * HTML-to-Markdown parser attempts to process them. Users can customize this
- * list via: `firecrawl config set exclude-extensions "ext1,ext2"`
+ * list via: `axon config set exclude-extensions "ext1,ext2"`
  *
  * Categories:
  * - Executables/Installers: Files that execute code or install software

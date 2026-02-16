@@ -1,6 +1,6 @@
 # Testing Guide
 
-This directory contains tests for the Firecrawl CLI commands. Tests use Vitest and mock the Firecrawl client to avoid making real API calls.
+This directory contains tests for the Axon CLI commands. Tests use Vitest and mock the Axon client to avoid making real API calls.
 
 ## Running Tests
 
@@ -35,7 +35,7 @@ Use these naming rules for consistency:
 
 ### Key Principles
 
-1. **No Real API Calls**: All tests mock the Firecrawl client or fetch API
+1. **No Real API Calls**: All tests mock the Axon client or fetch API
 2. **Verify API Call Generation**: Tests ensure commands generate correct API call parameters
 3. **Verify Response Handling**: Tests ensure commands properly handle success and error responses
 4. **Type Safety**: TypeScript ensures type correctness
@@ -69,7 +69,7 @@ describe('executeScrape', () => {
 
 ### Mocking Patterns
 
-- **Client methods**: Mock container services (`getFirecrawlClient`, `getHttpClient`) per command
+- **Client methods**: Mock container services (`getAxonClient`, `getHttpClient`) per command
 - **Fetch API**: Mock `global.fetch` for utilities that call TEI/Qdrant directly (embeddings, qdrant)
 - **Pipeline modules**: Mock container services (`getEmbedPipeline`, `getTeiService`, `getQdrantService`) in command tests
 - **Cache resets**: Not needed for container-based embedding/Qdrant services.
@@ -84,7 +84,7 @@ describe('executeScrape', () => {
 
 ## Embedding Pipeline Tests
 
-The embedding pipeline introduces utility modules that use `global.fetch` directly (not the Firecrawl client). These require a different mocking pattern.
+The embedding pipeline introduces utility modules that use `global.fetch` directly (not the Axon client). These require a different mocking pattern.
 
 ### Mocking `global.fetch` (for TEI/Qdrant utilities)
 

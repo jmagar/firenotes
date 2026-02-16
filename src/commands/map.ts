@@ -126,7 +126,7 @@ async function executeMapViaCrawlFallback(
     )
   );
 
-  const client = container.getFirecrawlClient();
+  const client = container.getAxonClient();
   const crawlOptions: Partial<SdkCrawlOptions> = {
     limit: options.limit,
     maxDiscoveryDepth: MAP_CRAWL_FALLBACK_MAX_DISCOVERY_DEPTH,
@@ -189,7 +189,7 @@ function normalizeMapLinks(
 /**
  * Execute map via direct HTTP when custom User-Agent is needed.
  *
- * NOTE: The Firecrawl SDK's map() method does not support custom headers.
+ * NOTE: The SDK's map() method does not support custom headers.
  * This is a known SDK limitation. When User-Agent is configured, we must
  * use the HTTP client directly. If the SDK adds header support in the future,
  * this function can be removed and executeMapViaSdk used exclusively.
@@ -204,7 +204,8 @@ async function executeMapWithUserAgent(
   url: string,
   options: MapOptions
 ): Promise<MapResult> {
-  const isCloud = apiUrl.includes('api.firecrawl.dev');
+  const isCloud =
+    apiUrl.includes('api.firecrawl.dev') || apiUrl.includes('api.axon.dev');
   const body: Record<string, unknown> = { url };
 
   if (options.limit !== undefined) {
@@ -300,14 +301,14 @@ async function executeMapWithCurl(
 }
 
 /**
- * Execute map via Firecrawl SDK (preferred when no custom User-Agent needed).
+ * Execute map via SDK (preferred when no custom User-Agent needed).
  */
 async function executeMapViaSdk(
   container: IContainer,
   url: string,
   options: MapOptions
 ): Promise<MapResult> {
-  const client = container.getFirecrawlClient();
+  const client = container.getAxonClient();
 
   const sdkOptions: SdkMapOptions = {};
 
@@ -366,11 +367,12 @@ export async function executeMap(
       // Prefer options.apiKey over container.config.apiKey
       const apiKey = options.apiKey || container.config.apiKey;
       const apiUrl = container.config.apiUrl || 'https://api.firecrawl.dev';
-      const isCloud = apiUrl.includes('api.firecrawl.dev');
+      const isCloud =
+        apiUrl.includes('api.firecrawl.dev') || apiUrl.includes('api.axon.dev');
       if (isCloud && !apiKey) {
         throw new Error(
           'API key is required. Set FIRECRAWL_API_KEY environment variable, ' +
-            'use --api-key flag, or run "firecrawl config" to set the API key.'
+            'use --api-key flag, or run "axon config" to set the API key.'
         );
       }
       const httpClient = container.getHttpClient();
@@ -549,7 +551,7 @@ export function createMapCommand(): Command {
   const settings = getSettings();
 
   const mapCmd = new Command('map')
-    .description('Map URLs on a website using Firecrawl')
+    .description('Map URLs on a website using Axon')
     .argument('[url]', 'URL to map')
     .option(
       '-u, --url <url>',
@@ -587,10 +589,7 @@ export function createMapCommand(): Command {
       'Completely disable all filtering (overrides excludes and ignoreQueryParameters)'
     )
     .option('--verbose', 'Show excluded URLs and filter statistics')
-    .option(
-      '-k, --api-key <key>',
-      'Firecrawl API key (overrides global --api-key)'
-    )
+    .option('-k, --api-key <key>', 'API key (overrides global --api-key)')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as JSON format', false)
     .option('--pretty', 'Pretty print JSON output', false)

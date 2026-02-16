@@ -22,7 +22,7 @@ describe('History Command', () => {
     mockContainer = {
       config: {
         qdrantUrl: 'http://localhost:53333',
-        qdrantCollection: 'firecrawl',
+        qdrantCollection: 'axon',
       },
       getQdrantService: () => ({
         scrollAll: mockScrollAll,
@@ -110,7 +110,7 @@ describe('History Command', () => {
     expect(result.data?.totalEntries).toBe(3);
 
     // Verify only first chunk per URL was processed
-    expect(mockScrollAll).toHaveBeenCalledWith('firecrawl', undefined);
+    expect(mockScrollAll).toHaveBeenCalledWith('axon', undefined);
   });
 
   it('should filter history by domain', async () => {
@@ -137,7 +137,7 @@ describe('History Command', () => {
     expect(result.data?.entries[0].domain).toBe('example.com');
 
     // Verify filter was passed to scrollAll
-    expect(mockScrollAll).toHaveBeenCalledWith('firecrawl', {
+    expect(mockScrollAll).toHaveBeenCalledWith('axon', {
       domain: 'example.com',
     });
   });
@@ -166,7 +166,7 @@ describe('History Command', () => {
     expect(result.data?.entries[0].sourceCommand).toBe('scrape');
 
     // Verify filter was passed to scrollAll
-    expect(mockScrollAll).toHaveBeenCalledWith('firecrawl', {
+    expect(mockScrollAll).toHaveBeenCalledWith('axon', {
       source_command: 'scrape',
     });
   });
@@ -307,7 +307,7 @@ describe('History command output', () => {
     const container = {
       config: {
         qdrantUrl: 'http://localhost:53333',
-        qdrantCollection: 'firecrawl',
+        qdrantCollection: 'axon',
       },
       getQdrantService: () => ({
         scrollAll: mockScrollAll,

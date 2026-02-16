@@ -4,7 +4,7 @@ import { createContainer } from '../../container/ContainerFactory';
 describe('ContainerFactory', () => {
   beforeEach(() => {
     // Clear environment variables
-    delete process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT;
+    delete process.env.AXON_EMBEDDER_WEBHOOK_PORT;
     vi.clearAllMocks();
   });
 
@@ -18,7 +18,7 @@ describe('ContainerFactory', () => {
     });
 
     it('should accept valid port from environment variable', () => {
-      process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = '53001';
+      process.env.AXON_EMBEDDER_WEBHOOK_PORT = '53001';
 
       const container = createContainer();
 
@@ -88,13 +88,13 @@ describe('ContainerFactory', () => {
     it('should reject invalid port from environment variable', () => {
       const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = '0';
+      process.env.AXON_EMBEDDER_WEBHOOK_PORT = '0';
 
       const container = createContainer();
 
       expect(container.config.embedderWebhookPort).toBeUndefined();
       expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Invalid FIRECRAWL_EMBEDDER_WEBHOOK_PORT: 0')
+        expect.stringContaining('Invalid AXON_EMBEDDER_WEBHOOK_PORT: 0')
       );
 
       warnSpy.mockRestore();
@@ -103,22 +103,20 @@ describe('ContainerFactory', () => {
     it('should reject non-numeric port from environment variable', () => {
       const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = 'invalid';
+      process.env.AXON_EMBEDDER_WEBHOOK_PORT = 'invalid';
 
       const container = createContainer();
 
       expect(container.config.embedderWebhookPort).toBeUndefined();
       expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          'Invalid FIRECRAWL_EMBEDDER_WEBHOOK_PORT: invalid'
-        )
+        expect.stringContaining('Invalid AXON_EMBEDDER_WEBHOOK_PORT: invalid')
       );
 
       warnSpy.mockRestore();
     });
 
     it('should prefer options over environment variable', () => {
-      process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = '53001';
+      process.env.AXON_EMBEDDER_WEBHOOK_PORT = '53001';
 
       const container = createContainer({
         embedderWebhookPort: 53002,
@@ -130,7 +128,7 @@ describe('ContainerFactory', () => {
     it('should use environment variable when options are invalid', () => {
       const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT = '53001';
+      process.env.AXON_EMBEDDER_WEBHOOK_PORT = '53001';
 
       const container = createContainer({
         embedderWebhookPort: -1,

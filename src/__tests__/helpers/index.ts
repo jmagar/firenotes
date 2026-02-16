@@ -65,9 +65,9 @@ export type {
 } from './mock-setup';
 // Mock setup utilities
 export {
+  createMockAxonClient,
   createMockContainer,
   createMockEmbedPipeline,
-  createMockFirecrawlClient,
   createMockQdrantService,
   setupFsMocks,
   setupOsMocks,

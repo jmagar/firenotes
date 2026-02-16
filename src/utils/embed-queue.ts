@@ -83,7 +83,7 @@ function getLegacyQueueDir(): string {
 
 async function migrateLegacyQueueDir(): Promise<void> {
   // Skip migration if user has explicitly overridden the queue dir via env var
-  if (process.env.FIRECRAWL_EMBEDDER_QUEUE_DIR?.trim()) {
+  if (process.env.AXON_EMBEDDER_QUEUE_DIR?.trim()) {
     return;
   }
 
@@ -653,7 +653,7 @@ export async function listEmbedJobsDetailed(): Promise<QueueListResult> {
     }
     console.warn(
       fmt.dim(
-        `  Run 'firecrawl cleanup-queue' to remove corrupted files (if available)`
+        `  Run 'axon cleanup-queue' to remove corrupted files (if available)`
       )
     );
   }
@@ -1026,7 +1026,7 @@ export async function clearEmbedQueue(): Promise<number> {
 /**
  * Cleanup failed and stale/stalled embedding queue entries.
  *
- * This is the user-triggered cleanup (via `firecrawl embed cleanup`).
+ * This is the user-triggered cleanup (via `axon embed cleanup`).
  * Unlike `cleanupOldJobs` (background/automatic), this aggressively
  * removes all failed jobs regardless of age since the user explicitly
  * requested cleanup.

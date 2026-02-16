@@ -11,7 +11,7 @@ import {
 import type { IContainer } from '../../container/types';
 import type { CommandWithContainer } from '../../types/test';
 import { writeOutput } from '../../utils/output';
-import type { MockFirecrawlClient } from '../utils/mock-client';
+import type { MockAxonClient } from '../utils/mock-client';
 import { createTestContainer } from '../utils/test-container';
 
 const createContainer = (...args: Parameters<typeof createTestContainer>) =>
@@ -22,8 +22,8 @@ vi.mock('../../utils/output', () => ({
 }));
 
 describe('executeList', () => {
-  type ListMock = MockFirecrawlClient &
-    Required<Pick<MockFirecrawlClient, 'getActiveCrawls'>>;
+  type ListMock = MockAxonClient &
+    Required<Pick<MockAxonClient, 'getActiveCrawls'>>;
 
   let mockClient: ListMock;
   let container: IContainer;
@@ -52,8 +52,8 @@ describe('executeList', () => {
 });
 
 describe('handleListCommand', () => {
-  type ListMock = MockFirecrawlClient &
-    Required<Pick<MockFirecrawlClient, 'getActiveCrawls'>>;
+  type ListMock = MockAxonClient &
+    Required<Pick<MockAxonClient, 'getActiveCrawls'>>;
 
   let mockClient: ListMock;
   let container: IContainer;
@@ -131,7 +131,7 @@ describe('handleListCommand', () => {
 
 describe('createListCommand', () => {
   it('should call getActiveCrawls when invoked', async () => {
-    const mockClient: Partial<MockFirecrawlClient> = {
+    const mockClient: Partial<MockAxonClient> = {
       getActiveCrawls: vi.fn().mockResolvedValue({
         success: true,
         crawls: [],

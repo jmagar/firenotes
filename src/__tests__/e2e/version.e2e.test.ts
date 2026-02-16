@@ -18,12 +18,12 @@ describe('E2E: version command', () => {
 
   it('should display version with version command', async () => {
     const result = await runCLISuccess(['version']);
-    expect(result.stdout).toMatch(/(?:version|firecrawl\s+v).*?\d+\.\d+\.\d+/i);
+    expect(result.stdout).toMatch(/(?:version|axon\s+v).*?\d+\.\d+\.\d+/i);
   });
 
   it('should display version with auth status when --auth-status flag is used', async () => {
     const result = await runCLISuccess(['version', '--auth-status']);
-    expect(result.stdout).toMatch(/(?:version|firecrawl\s+v).*?\d+\.\d+\.\d+/i);
+    expect(result.stdout).toMatch(/(?:version|axon\s+v).*?\d+\.\d+\.\d+/i);
     expect(result.stdout).toMatch(/authenticated/i);
   });
 
@@ -37,7 +37,7 @@ describe('E2E: version command', () => {
 describe('E2E: help command', () => {
   it('should display help with --help flag', async () => {
     const result = await runCLISuccess(['--help']);
-    expect(result.stdout).toContain('CLI tool for Firecrawl');
+    expect(result.stdout).toContain('CLI tool for Axon');
     expect(result.stdout).toContain('scrape');
     expect(result.stdout).toContain('crawl');
     expect(result.stdout).toContain('map');
@@ -48,7 +48,7 @@ describe('E2E: help command', () => {
 
   it('should display themed top-level help with help command', async () => {
     const result = await runCLISuccess(['help']);
-    expect(result.stdout).toContain('FIRECRAWL CLI');
+    expect(result.stdout).toContain('AXON CLI');
     expect(result.stdout).toContain('Core Web Operations');
     expect(result.stdout).toContain('Vector Search');
     expect(result.stdout).toContain('Jobs & Account');
@@ -116,13 +116,13 @@ describe('E2E: help command', () => {
 
   it('should display config command help', async () => {
     const result = await runCLISuccess(['config', '--help']);
-    expect(result.stdout).toContain('Configure Firecrawl');
+    expect(result.stdout).toContain('Configure Axon');
     expect(result.stdout).toContain('--api-key');
   });
 
   it('should display login command help', async () => {
     const result = await runCLISuccess(['login', '--help']);
-    expect(result.stdout).toContain('Login to Firecrawl');
+    expect(result.stdout).toContain('Login to Axon');
   });
 
   it('should display logout command help', async () => {

@@ -20,21 +20,18 @@ interface ResolveConfigOptions {
 }
 
 function parsePortFromEnv(loggerPrefix: string): number | undefined {
-  if (!process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT) {
+  if (!process.env.AXON_EMBEDDER_WEBHOOK_PORT) {
     return undefined;
   }
 
-  const parsed = Number.parseInt(
-    process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT,
-    10
-  );
+  const parsed = Number.parseInt(process.env.AXON_EMBEDDER_WEBHOOK_PORT, 10);
   if (Number.isFinite(parsed) && parsed > 0 && parsed < 65536) {
     return parsed;
   }
 
   console.error(
     fmt.warning(
-      `[${loggerPrefix}] Invalid FIRECRAWL_EMBEDDER_WEBHOOK_PORT: ${process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PORT} (must be 1-65535)`
+      `[${loggerPrefix}] Invalid AXON_EMBEDDER_WEBHOOK_PORT: ${process.env.AXON_EMBEDDER_WEBHOOK_PORT} (must be 1-65535)`
     )
   );
   return undefined;
@@ -80,7 +77,7 @@ export function resolveContainerConfig({
     ) || embedderWebhookPortFromEnv;
 
   return {
-    // Firecrawl API
+    // API connection
     apiKey:
       options.apiKey ||
       process.env.FIRECRAWL_API_KEY ||
@@ -94,9 +91,7 @@ export function resolveContainerConfig({
     maxRetries: options.maxRetries,
     backoffFactor: options.backoffFactor,
     userAgent:
-      options.userAgent ||
-      process.env.FIRECRAWL_USER_AGENT ||
-      DEFAULT_USER_AGENT,
+      options.userAgent || process.env.AXON_USER_AGENT || DEFAULT_USER_AGENT,
 
     // Embeddings
     teiUrl: options.teiUrl || process.env.TEI_URL,
@@ -109,16 +104,15 @@ export function resolveContainerConfig({
     // Webhook
     embedderWebhookUrl:
       options.embedderWebhookUrl ||
-      process.env.FIRECRAWL_EMBEDDER_WEBHOOK_URL ||
+      process.env.AXON_EMBEDDER_WEBHOOK_URL ||
       process.env.SELF_HOSTED_WEBHOOK_URL,
     embedderWebhookSecret:
       options.embedderWebhookSecret ||
-      process.env.FIRECRAWL_EMBEDDER_WEBHOOK_SECRET ||
+      process.env.AXON_EMBEDDER_WEBHOOK_SECRET ||
       process.env.SELF_HOSTED_WEBHOOK_HMAC_SECRET,
     embedderWebhookPort,
     embedderWebhookPath:
-      options.embedderWebhookPath ||
-      process.env.FIRECRAWL_EMBEDDER_WEBHOOK_PATH,
+      options.embedderWebhookPath || process.env.AXON_EMBEDDER_WEBHOOK_PATH,
 
     // Resolved settings (captured once, avoids per-call file I/O in hot paths)
     settings: options.settings ?? getSettings(),

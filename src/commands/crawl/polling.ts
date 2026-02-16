@@ -39,7 +39,7 @@ export async function pollCrawlProgress(
     );
   }
 
-  const app = container.getFirecrawlClient();
+  const app = container.getAxonClient();
 
   // Disable auto-pagination during polling - we only need progress counts
   const noPagination = { autoPaginate: false };

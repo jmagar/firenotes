@@ -1,45 +1,45 @@
-# 🔥 **Firecrawl CLI**
+# ⚡ **Axon**
 
-Command-line interface for Firecrawl. Scrape, crawl, extract, and embed data from any website directly from your terminal. Includes a built-in embedding pipeline for semantic search and AI-powered Q&A over scraped content via Qdrant, TEI, and Claude/Gemini CLI.
+Self-hosted RAG pipeline for web scraping, semantic search, and AI-powered Q&A. Scrape, crawl, extract, and embed data from any website directly from your terminal. Includes a built-in embedding pipeline for semantic search and AI-powered Q&A over scraped content via Qdrant, TEI, and Claude/Gemini CLI.
 
 ## Installation
 
 ### CLI Tool
 
 ```bash
-npm install -g firecrawl-cli
+npm install -g @jmagar/axon
 ```
 
 ### Claude Code Plugin
 
-Install the complete Firecrawl plugin for Claude Code with skills and slash commands:
+Install the complete Axon plugin for Claude Code with skills and slash commands:
 
 ```bash
 # Install from GitHub
-/plugin install https://github.com/jmagar/cli-firecrawl.git
+/plugin install https://github.com/jmagar/axon.git
 
 # Or via marketplace
-/plugin marketplace add jmagar/cli-firecrawl
-/plugin install cli-firecrawl @cli-firecrawl-marketplace
+/plugin marketplace add jmagar/axon
+/plugin install axon @axon-marketplace
 ```
 
 **Included in the plugin:**
-- **Skills**: Automatic Firecrawl integration for web scraping and research tasks
+- **Skills**: Automatic Axon integration for web scraping and research tasks
 - **Slash Commands**: 10 commands for direct control
-  - `/cli-firecrawl:scrape` - Scrape single URLs
-  - `/cli-firecrawl:crawl` - Crawl entire websites
-  - `/cli-firecrawl:search` - Web search with scraping
-  - `/cli-firecrawl:map` - Discover all URLs on a site
-  - `/cli-firecrawl:extract` - Structured data extraction
-  - `/cli-firecrawl:batch` - Batch operations
-  - `/cli-firecrawl:query` - Semantic search
-  - `/cli-firecrawl:retrieve` - Document retrieval
-  - `/cli-firecrawl:ask` - AI-powered Q&A
-  - `/cli-firecrawl:status` - Job status checking
+  - `/axon:scrape` - Scrape single URLs
+  - `/axon:crawl` - Crawl entire websites
+  - `/axon:search` - Web search with scraping
+  - `/axon:map` - Discover all URLs on a site
+  - `/axon:extract` - Structured data extraction
+  - `/axon:batch` - Batch operations
+  - `/axon:query` - Semantic search
+  - `/axon:retrieve` - Document retrieval
+  - `/axon:ask` - AI-powered Q&A
+  - `/axon:status` - Job status checking
 
 ## Self-Hosted Setup
 
-This project includes a self-hosted Firecrawl stack with Docker Compose:
+This project includes a self-hosted Firecrawl backend stack with Docker Compose:
 
 ```bash
 # Start all services (Firecrawl, Patchright, Qdrant, Embedder Daemon)
@@ -66,7 +66,7 @@ See `CLAUDE.md` for detailed infrastructure documentation.
 Just run a command - the CLI will prompt you to authenticate if needed:
 
 ```bash
-firecrawl https://example.com
+axon https://example.com
 ```
 
 ## Authentication
@@ -74,7 +74,7 @@ firecrawl https://example.com
 On first run, you'll be prompted to authenticate:
 
 ```
-  🔥 firecrawl cli
+  ⚡ axon cli
   Turn websites into LLM-ready data
 
 Welcome! To get started, provide your Firecrawl API key.
@@ -99,13 +99,13 @@ export QDRANT_URL=http://localhost:53333
 export ASK_CLI=haiku
 
 # Interactive (prompts automatically when needed)
-firecrawl
+axon
 
 # Direct API key
-firecrawl login --api-key your-api-key --api-url http://localhost:53002
+axon login --api-key your-api-key --api-url http://localhost:53002
 
 # Per-command API key
-firecrawl scrape https://example.com --api-key your-api-key
+axon scrape https://example.com --api-key your-api-key
 ```
 
 ---
@@ -121,7 +121,7 @@ Enable tab completion for commands, options, and arguments in your shell.
 The CLI will auto-detect your shell (bash, zsh, or fish) and show installation instructions:
 
 ```bash
-firecrawl completion install
+axon completion install
 ```
 
 **Manual installation:**
@@ -130,22 +130,22 @@ If you prefer to manually add completion to your shell RC file:
 
 ```bash
 # Bash
-firecrawl completion script bash >> ~/.bashrc
+axon completion script bash >> ~/.bashrc
 source ~/.bashrc
 
 # Zsh
-firecrawl completion script zsh >> ~/.zshrc
+axon completion script zsh >> ~/.zshrc
 source ~/.zshrc
 
 # Fish
-firecrawl completion script fish >> ~/.config/fish/config.fish
+axon completion script fish >> ~/.config/fish/config.fish
 source ~/.config/fish/config.fish
 ```
 
 **Uninstall:**
 
 ```bash
-firecrawl completion uninstall
+axon completion uninstall
 ```
 
 ### Usage
@@ -153,10 +153,10 @@ firecrawl completion uninstall
 After installation, restart your shell or source your RC file. Then use Tab to complete:
 
 ```bash
-firecrawl <TAB>              # Shows all commands
-firecrawl scrape --<TAB>      # Shows scrape options
-firecrawl crawl --<TAB>       # Shows crawl options
-firecrawl batch <TAB>         # Shows batch subcommands
+axon <TAB>              # Shows all commands
+axon scrape --<TAB>      # Shows scrape options
+axon crawl --<TAB>       # Shows crawl options
+axon batch <TAB>         # Shows batch subcommands
 ```
 
 ### Features
@@ -177,19 +177,19 @@ Extract content from any webpage in various formats.
 
 ```bash
 # Basic usage (outputs markdown)
-firecrawl https://example.com
-firecrawl scrape https://example.com
+axon https://example.com
+axon scrape https://example.com
 
 # Get raw HTML
-firecrawl https://example.com --html
-firecrawl https://example.com -H
+axon https://example.com --html
+axon https://example.com -H
 
 # Multiple formats (outputs JSON)
-firecrawl https://example.com --format markdown,links,images
+axon https://example.com --format markdown,links,images
 
 # Save to file
-firecrawl https://example.com -o output.md
-firecrawl https://example.com --format json -o data.json --pretty
+axon https://example.com -o output.md
+axon https://example.com --format json -o data.json --pretty
 ```
 
 #### Scrape Options
@@ -223,22 +223,22 @@ firecrawl https://example.com --format json -o data.json --pretty
 
 ```bash
 # Extract only main content as markdown
-firecrawl https://blog.example.com --only-main-content
+axon https://blog.example.com --only-main-content
 
 # Wait for JS to render, then scrape
-firecrawl https://spa-app.com --wait-for 3000
+axon https://spa-app.com --wait-for 3000
 
 # Get all links from a page
-firecrawl https://example.com --format links
+axon https://example.com --format links
 
 # Screenshot + markdown
-firecrawl https://example.com --format markdown --screenshot
+axon https://example.com --format markdown --screenshot
 
 # Extract specific elements only
-firecrawl https://example.com --include-tags article,main
+axon https://example.com --include-tags article,main
 
 # Exclude navigation and ads
-firecrawl https://example.com --exclude-tags nav,aside,.ad
+axon https://example.com --exclude-tags nav,aside,.ad
 ```
 
 ---
@@ -249,39 +249,39 @@ Search the web and optionally scrape content from search results.
 
 ```bash
 # Basic search
-firecrawl search "firecrawl web scraping"
+axon search "firecrawl web scraping"
 
 # Limit results
-firecrawl search "AI news" --limit 10
+axon search "AI news" --limit 10
 
 # Search news sources
-firecrawl search "tech startups" --sources news
+axon search "tech startups" --sources news
 
 # Search images
-firecrawl search "landscape photography" --sources images
+axon search "landscape photography" --sources images
 
 # Multiple sources
-firecrawl search "machine learning" --sources web,news,images
+axon search "machine learning" --sources web,news,images
 
 # Filter by category (GitHub, research papers, PDFs)
-firecrawl search "web scraping python" --categories github
-firecrawl search "transformer architecture" --categories research
-firecrawl search "machine learning" --categories github,research
+axon search "web scraping python" --categories github
+axon search "transformer architecture" --categories research
+axon search "machine learning" --categories github,research
 
 # Time-based search
-firecrawl search "AI announcements" --tbs qdr:d   # Past day
-firecrawl search "tech news" --tbs qdr:w          # Past week
+axon search "AI announcements" --tbs qdr:d   # Past day
+axon search "tech news" --tbs qdr:w          # Past week
 
 # Location-based search
-firecrawl search "restaurants" --location "San Francisco,California,United States"
-firecrawl search "local news" --country DE
+axon search "restaurants" --location "San Francisco,California,United States"
+axon search "local news" --country DE
 
 # Search and scrape results
-firecrawl search "firecrawl tutorials" --scrape
-firecrawl search "API documentation" --scrape --scrape-formats markdown,links
+axon search "firecrawl tutorials" --scrape
+axon search "API documentation" --scrape --scrape-formats markdown,links
 
 # Output as pretty JSON
-firecrawl search "web scraping" --pretty
+axon search "web scraping" --pretty
 ```
 
 #### Search Options
@@ -306,22 +306,22 @@ firecrawl search "web scraping" --pretty
 
 ```bash
 # Research a topic with recent results
-firecrawl search "React Server Components" --tbs qdr:m --limit 10
+axon search "React Server Components" --tbs qdr:m --limit 10
 
 # Find GitHub repositories
-firecrawl search "web scraping library" --categories github --limit 20
+axon search "web scraping library" --categories github --limit 20
 
 # Search and get full content
-firecrawl search "firecrawl documentation" --scrape --scrape-formats markdown --pretty -o results.json
+axon search "firecrawl documentation" --scrape --scrape-formats markdown --pretty -o results.json
 
 # Find research papers
-firecrawl search "large language models" --categories research --pretty
+axon search "large language models" --categories research --pretty
 
 # Search with location targeting
-firecrawl search "best coffee shops" --location "Berlin,Germany" --country DE
+axon search "best coffee shops" --location "Berlin,Germany" --country DE
 
 # Get news from the past week
-firecrawl search "AI startups funding" --sources news --tbs qdr:w --limit 15
+axon search "AI startups funding" --sources news --tbs qdr:w --limit 15
 ```
 
 ---
@@ -332,16 +332,16 @@ Quickly discover all URLs on a website without scraping content.
 
 ```bash
 # List all URLs (one per line)
-firecrawl map https://example.com
+axon map https://example.com
 
 # Output as JSON
-firecrawl map https://example.com --json
+axon map https://example.com --json
 
 # Search for specific URLs
-firecrawl map https://example.com --search "blog"
+axon map https://example.com --search "blog"
 
 # Limit results
-firecrawl map https://example.com --limit 500
+axon map https://example.com --limit 500
 ```
 
 #### Map Options
@@ -361,16 +361,16 @@ firecrawl map https://example.com --limit 500
 
 ```bash
 # Find all product pages
-firecrawl map https://shop.example.com --search "product"
+axon map https://shop.example.com --search "product"
 
 # Get sitemap URLs only
-firecrawl map https://example.com --sitemap only
+axon map https://example.com --sitemap only
 
 # Save URL list to file
-firecrawl map https://example.com -o urls.txt
+axon map https://example.com -o urls.txt
 
 # Include subdomains
-firecrawl map https://example.com --include-subdomains --limit 1000
+axon map https://example.com --include-subdomains --limit 1000
 ```
 ---
 
@@ -380,45 +380,45 @@ Crawl multiple pages from a website. Embeddings are automatically generated when
 
 ```bash
 # Start async crawl (returns immediately, embeddings queued)
-firecrawl crawl https://example.com
+axon crawl https://example.com
 # Returns job ID in <1 second
 # Embeddings generated automatically when crawl completes
 
 # Wait for crawl to complete and embed inline
-firecrawl crawl https://example.com --wait
+axon crawl https://example.com --wait
 
 # With progress indicator
-firecrawl crawl https://example.com --progress
+axon crawl https://example.com --progress
 
 # Check crawl status
-firecrawl crawl status <job-id>
+axon crawl status <job-id>
 
 # List active crawl jobs
-firecrawl list
+axon list
 
 # Show job and embedding status summary
-firecrawl status
+axon status
 
 # Cancel a crawl job
-firecrawl crawl cancel <job-id>
+axon crawl cancel <job-id>
 
 # Fetch crawl errors
-firecrawl crawl errors <job-id>
+axon crawl errors <job-id>
 
 # Manually trigger embeddings for completed crawl
-firecrawl crawl <job-id> --embed
+axon crawl <job-id> --embed
 
 # Clear crawl queue (history + best-effort active cancel)
-firecrawl crawl clear
+axon crawl clear
 
 # Cleanup only failed/stale/stalled crawl history entries
-firecrawl crawl cleanup
+axon crawl cleanup
 
 # Disable embeddings
-firecrawl crawl https://example.com --no-embed
+axon crawl https://example.com --no-embed
 
 # Limit pages
-firecrawl crawl https://example.com --limit 100 --max-depth 3
+axon crawl https://example.com --limit 100 --max-depth 3
 ```
 
 #### Crawl Subcommands
@@ -457,7 +457,7 @@ firecrawl crawl https://example.com --limit 100 --max-depth 3
 
 **Async mode (default)**:
 - Returns immediately with job ID
-- Embedding job queued in `~/.firecrawl/embed-queue/` by default
+- Embedding job queued in `~/.axon/embed-queue/` by default
 - Embeddings generated automatically when crawl completes
 - Resilient to process interruptions and TEI downtime
 - 3 automatic retries with exponential backoff
@@ -470,38 +470,38 @@ firecrawl crawl https://example.com --limit 100 --max-depth 3
 **Manual control**:
 ```bash
 # Check what's queued
-$ ls ~/.firecrawl/embed-queue/
+$ ls ~/.axon/embed-queue/
 
 # Manually process/retry embeddings
-$ firecrawl crawl <job-id> --embed
+$ axon crawl <job-id> --embed
 ```
 
 #### Examples
 
 ```bash
 # Crawl blog section only
-firecrawl crawl https://example.com --include-paths /blog,/posts
+axon crawl https://example.com --include-paths /blog,/posts
 
 # Exclude admin pages
-firecrawl crawl https://example.com --exclude-paths /admin,/login
+axon crawl https://example.com --exclude-paths /admin,/login
 
 # Crawl with rate limiting
-firecrawl crawl https://example.com --delay 1000 --max-concurrency 2
+axon crawl https://example.com --delay 1000 --max-concurrency 2
 
 # Deep crawl with high limit
-firecrawl crawl https://example.com --limit 1000 --max-depth 10 --wait --progress
+axon crawl https://example.com --limit 1000 --max-depth 10 --wait --progress
 
 # Save results
-firecrawl crawl https://example.com --wait -o crawl-results.json --pretty
+axon crawl https://example.com --wait -o crawl-results.json --pretty
 
 # Cancel a crawl job
-firecrawl crawl cancel <job-id>
+axon crawl cancel <job-id>
 
 # Fetch crawl errors
-firecrawl crawl errors <job-id>
+axon crawl errors <job-id>
 
 # Cleanup failed/stale/stalled crawl history entries
-firecrawl crawl cleanup
+axon crawl cleanup
 ```
 
 ---
@@ -511,7 +511,7 @@ firecrawl crawl cleanup
 Show currently active crawl jobs for your account.
 
 ```bash
-firecrawl list
+axon list
 ```
 
 #### List Options
@@ -531,7 +531,7 @@ Show active crawls, recent crawl/batch/extract job statuses, and embedding queue
 
 ```bash
 # Summary (active crawls + embedding queue + recent jobs)
-firecrawl status
+axon status
 ```
 
 #### Status Options
@@ -551,19 +551,19 @@ Start batch scrapes, wait for completion, or manage jobs by ID.
 
 ```bash
 # Start a batch scrape (async)
-firecrawl batch https://a.com https://b.com https://c.com
+axon batch https://a.com https://b.com https://c.com
 
 # Wait for completion
-firecrawl batch https://a.com https://b.com --wait
+axon batch https://a.com https://b.com --wait
 
 # Check status
-firecrawl batch status <job-id>
+axon batch status <job-id>
 
 # Cancel a batch job
-firecrawl batch cancel <job-id>
+axon batch cancel <job-id>
 
 # Fetch batch errors
-firecrawl batch errors <job-id>
+axon batch errors <job-id>
 ```
 
 #### Batch Subcommands
@@ -605,19 +605,19 @@ Extract structured data from one or more URLs using natural language prompts or 
 
 ```bash
 # Extract with a prompt
-firecrawl extract https://example.com --prompt "Extract product pricing"
+axon extract https://example.com --prompt "Extract product pricing"
 
 # Extract with a JSON schema
-firecrawl extract https://example.com --schema '{"name": "string", "price": "number"}'
+axon extract https://example.com --schema '{"name": "string", "price": "number"}'
 
 # Multiple URLs
-firecrawl extract https://site1.com https://site2.com --prompt "Get company info"
+axon extract https://site1.com https://site2.com --prompt "Get company info"
 
 # Show source URLs
-firecrawl extract https://example.com --prompt "Find pricing" --show-sources --pretty
+axon extract https://example.com --prompt "Find pricing" --show-sources --pretty
 
 # Check extract job status
-firecrawl extract status <job-id>
+axon extract status <job-id>
 ```
 
 #### Extract Subcommands
@@ -652,31 +652,31 @@ Embed content from a URL, file, or stdin into a Qdrant vector database via TEI. 
 
 ```bash
 # Embed a URL (scrapes first, then embeds)
-firecrawl embed https://example.com
+axon embed https://example.com
 
 # Embed a local file
-firecrawl embed /path/to/file.md --url https://example.com/page
+axon embed /path/to/file.md --url https://example.com/page
 
 # Embed from stdin
-cat document.md | firecrawl embed - --url https://example.com/doc
+cat document.md | axon embed - --url https://example.com/doc
 
 # Embed without chunking
-firecrawl embed https://example.com --no-chunk
+axon embed https://example.com --no-chunk
 
 # Custom collection
-firecrawl embed https://example.com --collection my_collection
+axon embed https://example.com --collection my_collection
 
 # Cancel a specific embedding job
-firecrawl embed cancel <job-id>
+axon embed cancel <job-id>
 
 # Check a specific embedding job
-firecrawl embed status <job-id>
+axon embed status <job-id>
 
 # Clear the entire embedding queue
-firecrawl embed clear
+axon embed clear
 
 # Cleanup only failed/stale/stalled embedding jobs
-firecrawl embed cleanup
+axon embed cleanup
 ```
 
 #### Embed Options
@@ -706,22 +706,22 @@ Search over previously embedded content using natural language. Requires `TEI_UR
 
 ```bash
 # Basic semantic search
-firecrawl query "how to authenticate"
+axon query "how to authenticate"
 
 # Limit results
-firecrawl query "API endpoints" --limit 10
+axon query "API endpoints" --limit 10
 
 # Filter by domain
-firecrawl query "configuration" --domain docs.example.com
+axon query "configuration" --domain docs.example.com
 
 # Show full chunk text (for RAG/LLM context)
-firecrawl query "setup instructions" --full
+axon query "setup instructions" --full
 
 # Group results by source URL
-firecrawl query "error handling" --group
+axon query "error handling" --group
 
 # JSON output
-firecrawl query "authentication" --json
+axon query "authentication" --json
 ```
 
 #### Query Options
@@ -744,13 +744,13 @@ Reconstruct a full document from its stored chunks in Qdrant. Requires `QDRANT_U
 
 ```bash
 # Retrieve a previously embedded document
-firecrawl retrieve https://example.com
+axon retrieve https://example.com
 
 # JSON output with per-chunk metadata
-firecrawl retrieve https://example.com --json
+axon retrieve https://example.com --json
 
 # Save to file
-firecrawl retrieve https://example.com -o document.md
+axon retrieve https://example.com -o document.md
 ```
 
 #### Retrieve Options
@@ -769,27 +769,27 @@ Ask natural language questions about your embedded documents and get AI-powered 
 
 ```bash
 # Basic usage (uses haiku by default)
-firecrawl ask "How do I create a Claude Code skill?"
+axon ask "How do I create a Claude Code skill?"
 
 # Limit number of documents retrieved
-firecrawl ask "What is FastAPI?" --limit 5
+axon ask "What is FastAPI?" --limit 5
 
 # Use a different Claude model
-firecrawl ask "Complex technical analysis needed" --model sonnet
-firecrawl ask "Comprehensive review required" --model opus
+axon ask "Complex technical analysis needed" --model sonnet
+axon ask "Comprehensive review required" --model opus
 
 # Use Gemini instead of Claude
-firecrawl ask "Explain this concept" --model gemini-3-flash-preview
-firecrawl ask "In-depth research needed" --model gemini-3-pro-preview
+axon ask "Explain this concept" --model gemini-3-flash-preview
+axon ask "In-depth research needed" --model gemini-3-pro-preview
 
 # Filter by domain
-firecrawl ask "React hooks explanation" --domain react.dev
+axon ask "React hooks explanation" --domain react.dev
 
 # Custom collection
-firecrawl ask "API documentation" --collection docs
+axon ask "API documentation" --collection docs
 
 # Combine options
-firecrawl ask "Authentication best practices" --limit 10 --model sonnet --domain docs.example.com
+axon ask "Authentication best practices" --limit 10 --model sonnet --domain docs.example.com
 ```
 
 #### Ask Options
@@ -798,7 +798,7 @@ firecrawl ask "Authentication best practices" --limit 10 --model sonnet --domain
 | --------------------- | --------------------------------------------------------------------------- |
 | `--limit <n>`         | Maximum documents to retrieve (default: 10)                                 |
 | `--domain <domain>`   | Filter results by domain                                                    |
-| `--collection <name>` | Qdrant collection name (default: firecrawl)                                 |
+| `--collection <name>` | Qdrant collection name (default: axon)                                 |
 | `--model <name>`      | AI model to use (see supported models below)                                |
 
 #### Supported Models
@@ -849,22 +849,22 @@ Command-line `--model` flag always overrides `ASK_CLI`.
 
 ```bash
 # Quick question with default settings
-firecrawl ask "What are the main features?"
+axon ask "What are the main features?"
 
 # Research-heavy query with more context
-firecrawl ask "Compare authentication approaches" --limit 15 --model sonnet
+axon ask "Compare authentication approaches" --limit 15 --model sonnet
 
 # Domain-specific search
-firecrawl ask "API rate limiting best practices" --domain api.docs.example.com
+axon ask "API rate limiting best practices" --domain api.docs.example.com
 
 # Use Gemini for variety
-firecrawl ask "Summarize the architecture" --model gemini-3-pro-preview
+axon ask "Summarize the architecture" --model gemini-3-pro-preview
 
 # Save AI response to file (stdout redirect)
-firecrawl ask "Setup instructions" > setup-guide.md
+axon ask "Setup instructions" > setup-guide.md
 
 # Complex query with maximum intelligence
-firecrawl ask "Security implications of this design" --model opus --limit 20
+axon ask "Security implications of this design" --model opus --limit 20
 ```
 
 #### Output Format
@@ -876,10 +876,10 @@ This separation allows piping the AI response while still seeing progress:
 
 ```bash
 # Pipe response to another tool
-firecrawl ask "Code examples" | grep -A5 "function"
+axon ask "Code examples" | grep -A5 "function"
 
 # Save response, see progress in terminal
-firecrawl ask "Documentation" > output.md
+axon ask "Documentation" > output.md
 ```
 
 ---
@@ -888,29 +888,29 @@ firecrawl ask "Documentation" > output.md
 
 ```bash
 # View configuration
-firecrawl config
+axon config
 
 # View configuration as JSON
-firecrawl config --json
-firecrawl view-config --json
+axon config --json
+axon view-config --json
 
 # Legacy top-level settings (still supported)
-firecrawl config set exclude-paths "/admin,/api,/login"
-firecrawl config set exclude-extensions ".pkg,.exe,.dmg,.zip"
-firecrawl config get exclude-paths
-firecrawl config get exclude-extensions
-firecrawl config get excludes
+axon config set exclude-paths "/admin,/api,/login"
+axon config set exclude-extensions ".pkg,.exe,.dmg,.zip"
+axon config get exclude-paths
+axon config get exclude-extensions
+axon config get excludes
 
 # Clear legacy top-level settings
-firecrawl config clear exclude-paths
-firecrawl config clear exclude-extensions
+axon config clear exclude-paths
+axon config clear exclude-extensions
 
 # Nested settings (new)
-firecrawl config get crawl.maxDepth
-firecrawl config set crawl.maxDepth 10
-firecrawl config set search.limit 20
-firecrawl config reset crawl.maxDepth
-firecrawl config reset
+axon config get crawl.maxDepth
+axon config set crawl.maxDepth 10
+axon config set search.limit 20
+axon config reset crawl.maxDepth
+axon config reset
 ```
 
 Shows authentication status, stored credentials location, user settings, command defaults, and runtime environment values.
@@ -919,8 +919,8 @@ Use `--json` for machine-readable diagnostics.
 #### Settings File and Precedence
 
 - Settings file path:
-  - Default: `~/.firecrawl/settings.json`
-  - Override root with `FIRECRAWL_HOME`; file becomes `$FIRECRAWL_HOME/settings.json`
+  - Default: `~/.axon/settings.json`
+  - Override root with `AXON_HOME`; file becomes `$AXON_HOME/settings.json`
 - Creation/materialization:
   - The CLI auto-creates `settings.json` on first use.
   - Existing partial files are normalized to a full schema so defaults are visible and editable.
@@ -988,21 +988,21 @@ Run connectivity and environment diagnostics for local/self-hosted setups.
 
 ```bash
 # Human-readable diagnostics
-firecrawl doctor
+axon doctor
 
 # JSON diagnostics for automation
-firecrawl doctor --json
-firecrawl doctor --json --pretty
+axon doctor --json
+axon doctor --json --pretty
 
 # Run doctor, then stream AI troubleshooting guidance
-firecrawl doctor debug
+axon doctor debug
 ```
 
 Checks include:
 
 - Docker compose container status/health
 - Service URL reachability (docker hostname checks use localhost published ports when available, otherwise probe from a running compose container)
-- Directory write access (`FIRECRAWL_HOME`, embed queue, `QDRANT_DATA_DIR`)
+- Directory write access (`AXON_HOME`, embed queue, `QDRANT_DATA_DIR`)
 - AI CLI install check for configured model (`ASK_CLI` => gemini/claude `--version`)
 - Storage config files existence (`credentials.json`, `settings.json`, `job-history.json`)
 
@@ -1038,19 +1038,19 @@ You can customize this list:
 
 ```bash
 # Override default extensions (replaces built-in list)
-firecrawl config set exclude-extensions ".pkg,.exe,.dmg"
+axon config set exclude-extensions ".pkg,.exe,.dmg"
 
 # Revert to built-in defaults
-firecrawl config clear exclude-extensions
+axon config clear exclude-extensions
 
 # Check current configuration
-firecrawl config get exclude-extensions
+axon config get exclude-extensions
 ```
 
 Extensions are converted to wildcard patterns (e.g., `.pkg` → `**/*.pkg`) and merged with `excludePaths` transparently. To disable all default exclusions (both paths and extensions) for a single crawl:
 
 ```bash
-firecrawl crawl https://example.com --no-default-excludes
+axon crawl https://example.com --no-default-excludes
 ```
 
 ---
@@ -1059,13 +1059,13 @@ firecrawl crawl https://example.com --no-default-excludes
 
 ```bash
 # Login interactively
-firecrawl login
+axon login
 
 # Login with API key and custom URL
-firecrawl login --api-key your-key --api-url http://localhost:53002
+axon login --api-key your-key --api-url http://localhost:53002
 
 # Logout
-firecrawl logout
+axon logout
 ```
 
 ---
@@ -1082,7 +1082,7 @@ Set these environment variables (or add to `.env`):
 # TEI runs on remote GPU server - update with your TEI endpoint
 export TEI_URL=http://your-tei-server:52000     # Text Embeddings Inference server
 export QDRANT_URL=http://localhost:53333        # Qdrant vector database
-export QDRANT_COLLECTION=firecrawl              # optional, this is the default
+export QDRANT_COLLECTION=axon                    # optional, this is the default
 ```
 
 ### TEI Deployment Options
@@ -1117,32 +1117,32 @@ Notes:
 
 `scrape`/`embed`/`query`/`retrieve` commands use the current CLI environment.
 
-`crawl` auto-embedding is processed asynchronously by `firecrawl-embedder`, so collection routing comes from the compose/runtime environment of that service (`QDRANT_COLLECTION` in `.env` for `docker-compose.yaml`), not from one-off shell overrides.
+`crawl` auto-embedding is processed asynchronously by `axon-embedder`, so collection routing comes from the compose/runtime environment of that service (`QDRANT_COLLECTION` in `.env` for the embedder service), not from one-off shell overrides.
 
 ### Auto-Embed Behavior
 
 Content-producing commands automatically embed their output when TEI and Qdrant are configured. Use `--no-embed` on any command to skip:
 
 ```bash
-firecrawl scrape https://example.com --no-embed
-firecrawl crawl https://example.com --wait --no-embed
+axon scrape https://example.com --no-embed
+axon crawl https://example.com --wait --no-embed
 ```
 
 Without TEI/Qdrant configured, the CLI works normally and silently skips embedding.
 
 ### Queue Maintenance & Stale Recovery
 
-- `firecrawl embed cleanup` removes only failed/stale/stalled embedding jobs.
-- To wipe the entire embedding queue, use `firecrawl embed clear`.
-- For crawl history, `firecrawl crawl cleanup` prunes failed/stale/stalled/not-found entries.
+- `axon embed cleanup` removes only failed/stale/stalled embedding jobs.
+- To wipe the entire embedding queue, use `axon embed clear`.
+- For crawl history, `axon crawl cleanup` prunes failed/stale/stalled/not-found entries.
 - Crawl jobs that are actively progressing (for example, `completed < total`) are not removed by cleanup.
 - Crawl jobs in an in-progress state (`scraping`/`processing`/`running`) with `completed >= total` are treated as stale and removed by cleanup.
-- `firecrawl crawl clear` clears crawl queue/history and attempts to cancel active crawls.
-- Automatic stale pending threshold is controlled by `FIRECRAWL_EMBEDDER_STALE_MINUTES` (default `10` minutes).
+- `axon crawl clear` clears crawl queue/history and attempts to cancel active crawls.
+- Automatic stale pending threshold is controlled by `AXON_EMBEDDER_STALE_MINUTES` (default `10` minutes).
 - Stuck processing recovery threshold is `5` minutes.
 - Stale scan interval is half the stale threshold with a minimum of `60s` (default `5m`).
 - Old completed/failed embedding jobs are pruned automatically:
-  - `firecrawl status`: jobs older than `1h`
+  - `axon status`: jobs older than `1h`
   - embedder daemon startup: jobs older than `24h`
 - Irrecoverable failed embedding jobs (for example, `Job not found` / `invalid job id`) are auto-pruned during daemon stale cycles.
 - Active crawls that are still scraping do not consume embedding retry attempts.
@@ -1163,11 +1163,11 @@ These options work with any command:
 ### Check Status (CLI)
 
 ```bash
-firecrawl --status
+axon --status
 ```
 
 ```
-  🔥 firecrawl cli v1.1.1
+  ⚡ axon cli v1.1.1
 
   ● Authenticated via FIRECRAWL_API_KEY
   API URL: http://localhost:53002
@@ -1181,16 +1181,16 @@ firecrawl --status
 
 ```bash
 # Output to stdout (default)
-firecrawl https://example.com
+axon https://example.com
 
 # Pipe to another command
-firecrawl https://example.com | head -50
+axon https://example.com | head -50
 
 # Save to file
-firecrawl https://example.com -o output.md
+axon https://example.com -o output.md
 
 # JSON output
-firecrawl https://example.com --format links --pretty
+axon https://example.com --format links --pretty
 ```
 
 ### Format Behavior
@@ -1200,10 +1200,10 @@ firecrawl https://example.com --format links --pretty
 
 ```bash
 # Raw markdown output
-firecrawl https://example.com --format markdown
+axon https://example.com --format markdown
 
 # JSON output with multiple formats
-firecrawl https://example.com --format markdown,links,images
+axon https://example.com --format markdown,links,images
 ```
 
 ---
@@ -1215,24 +1215,24 @@ firecrawl https://example.com --format markdown,links,images
 ```bash
 # Using a loop
 for url in https://example.com/page1 https://example.com/page2; do
-  firecrawl "$url" -o "$(echo $url | sed 's/[^a-zA-Z0-9]/_/g').md"
+  axon "$url" -o "$(echo $url | sed 's/[^a-zA-Z0-9]/_/g').md"
 done
 
 # From a file
-cat urls.txt | xargs -I {} firecrawl {} -o {}.md
+cat urls.txt | xargs -I {} axon {} -o {}.md
 ```
 
 ### Combine with other tools
 
 ```bash
 # Extract links and process with jq
-firecrawl https://example.com --format links | jq '.links[].url'
+axon https://example.com --format links | jq '.links[].url'
 
 # Convert to PDF (with pandoc)
-firecrawl https://example.com | pandoc -o document.pdf
+axon https://example.com | pandoc -o document.pdf
 
 # Search within scraped content
-firecrawl https://example.com | grep -i "keyword"
+axon https://example.com | grep -i "keyword"
 ```
 
 ### CI/CD Usage
@@ -1240,11 +1240,11 @@ firecrawl https://example.com | grep -i "keyword"
 ```bash
 # Set API key via environment
 export FIRECRAWL_API_KEY=${{ secrets.FIRECRAWL_API_KEY }}
-firecrawl crawl https://docs.example.com --wait -o docs.json
+axon crawl https://docs.example.com --wait -o docs.json
 ```
 
 ---
 
 ## Documentation
 
-For more details, visit the [Firecrawl Documentation](https://docs.firecrawl.dev).
+For details on the upstream Firecrawl scraping backend, visit the [Firecrawl Documentation](https://docs.firecrawl.dev).

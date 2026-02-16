@@ -189,7 +189,7 @@ export function mockCredentialsModule(): {
   deleteCredentials: Mock;
 } {
   return {
-    getConfigDirectoryPath: vi.fn().mockReturnValue('/tmp/firecrawl-home'),
+    getConfigDirectoryPath: vi.fn().mockReturnValue('/tmp/axon-home'),
     loadCredentials: vi.fn().mockReturnValue(null),
     saveCredentials: vi.fn(),
     deleteCredentials: vi.fn(),

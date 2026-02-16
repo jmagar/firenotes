@@ -2,7 +2,7 @@
  * Embedding orchestration for crawl results
  */
 
-import type { CrawlOptions as FirecrawlCrawlOptions } from '@mendable/firecrawl-js';
+import type { CrawlOptions as AxonCrawlOptions } from '@mendable/firecrawl-js';
 import type { IContainer, ImmutableConfig } from '../../container/types';
 import type { CrawlJobData } from '../../types/crawl';
 import { buildEmbedderWebhookConfig } from '../../utils/embedder-webhook';
@@ -22,7 +22,7 @@ import { fmt, icons } from '../../utils/theme';
  * const options = attachEmbedWebhook(crawlOptions, true, false);
  * ```
  */
-export function attachEmbedWebhook<T extends FirecrawlCrawlOptions>(
+export function attachEmbedWebhook<T extends AxonCrawlOptions>(
   options: T,
   shouldEmbed: boolean,
   isWaitMode: boolean,
@@ -77,13 +77,11 @@ export async function handleAsyncEmbedding(
   } else {
     console.error(
       fmt.warning(
-        `  ${icons.warning} Embedder webhook not configured. Set FIRECRAWL_EMBEDDER_WEBHOOK_URL to enable auto-embedding.`
+        `  ${icons.warning} Embedder webhook not configured. Set AXON_EMBEDDER_WEBHOOK_URL to enable auto-embedding.`
       )
     );
     console.error(
-      fmt.dim(
-        `  Run 'firecrawl crawl ${jobId} --embed' to embed after completion.`
-      )
+      fmt.dim(`  Run 'axon crawl ${jobId} --embed' to embed after completion.`)
     );
   }
 }
@@ -165,7 +163,7 @@ export async function handleManualEmbedding(
 
   if (!existingJob) {
     // Get crawl info to queue it (only need first page for URL extraction)
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
     const status = await app.getCrawlStatus(jobId, { autoPaginate: false });
 
     if (status.status !== 'completed') {

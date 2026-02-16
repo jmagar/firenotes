@@ -250,7 +250,7 @@ export function createCredentials(
 ): Record<string, string> {
   return {
     apiKey: options?.apiKey ?? 'fc-test-api-key',
-    apiUrl: options?.apiUrl ?? 'https://api.firecrawl.dev',
+    apiUrl: options?.apiUrl ?? 'https://api.axon.dev',
   };
 }
 

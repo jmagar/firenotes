@@ -65,7 +65,7 @@ export function buildApiErrorMessage(
   }
 
   if (isLocalApiUrl(apiUrl) && isLikelyNetworkError(error)) {
-    return `${error.message}\nCould not reach Firecrawl API at ${apiUrl}. Verify the self-hosted service is running and reachable.`;
+    return `${error.message}\nCould not reach Axon API at ${apiUrl}. Verify the self-hosted service is running and reachable.`;
   }
 
   return error.message;

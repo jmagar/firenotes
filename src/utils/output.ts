@@ -153,7 +153,7 @@ function withReadableHeader(
 }
 
 /**
- * Extract content from Firecrawl Document based on format
+ * Extract content from Document based on format
  */
 function extractContent(data: Document, format: ScrapeFormat): string | null {
   if (!data) return null;

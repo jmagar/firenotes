@@ -2,7 +2,7 @@
  * Option building for crawl operations
  */
 
-import type { CrawlOptions as FirecrawlCrawlOptions } from '@mendable/firecrawl-js';
+import type { CrawlOptions as AxonCrawlOptions } from '@mendable/firecrawl-js';
 import type { CrawlOptions } from '../../types/crawl';
 import {
   DEFAULT_EXCLUDE_EXTENSIONS,
@@ -14,11 +14,11 @@ import { getSettings } from '../../utils/settings';
 
 /**
  * Normalize user-facing exclude path literals to regex-safe patterns
- * expected by Firecrawl.
+ * expected by the API.
  */
 function normalizeExcludePathPattern(pattern: string): string {
   const trimmed = pattern.trim();
-  // Firecrawl treats excludePaths as regex; leading ? is invalid regex syntax.
+  // The API treats excludePaths as regex; leading ? is invalid regex syntax.
   if (trimmed.startsWith('?')) {
     return `\\${trimmed}`;
   }
@@ -28,17 +28,17 @@ function normalizeExcludePathPattern(pattern: string): string {
 /**
  * Extended crawl options with polling configuration
  */
-export type ExtendedCrawlOptions = FirecrawlCrawlOptions & {
+export type ExtendedCrawlOptions = AxonCrawlOptions & {
   pollInterval?: number;
   crawlTimeout?: number;
   [key: string]: unknown;
 };
 
 /**
- * Build Firecrawl API options from CLI options
+ * Build API options from CLI options
  *
  * @param options - CLI crawl options
- * @returns Firecrawl API options with polling configuration
+ * @returns API options with polling configuration
  *
  * @example
  * ```typescript

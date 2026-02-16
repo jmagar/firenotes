@@ -31,7 +31,7 @@ export async function executeCrawl(
   options: CrawlOptions
 ): Promise<CrawlResult | CrawlStatusResult> {
   try {
-    const app = container.getFirecrawlClient();
+    const app = container.getAxonClient();
     const { urlOrJobId } = options;
 
     if (!urlOrJobId) {

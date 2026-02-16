@@ -1,6 +1,6 @@
 /**
  * OS-level credential storage utility
- * Stores credentials in the unified Firecrawl home directory.
+ * Stores credentials in the unified Axon home directory.
  */
 
 import * as fs from 'node:fs';
@@ -41,7 +41,7 @@ type LegacyJsonMigrationResult =
 let migrationDone = false;
 
 /**
- * Legacy config directory paths (pre-FIRECRAWL_HOME unification).
+ * Legacy config directory paths (pre-AXON_HOME unification).
  */
 function getLegacyConfigDirs(): string[] {
   const homeDir = homedir();
@@ -168,7 +168,7 @@ export function migrateLegacyJsonFile<T>(
 }
 
 /**
- * Migrate credentials from legacy paths to FIRECRAWL_HOME path.
+ * Migrate credentials from legacy paths to AXON_HOME path.
  *
  * Migration uses exclusive creation (`flag: 'wx'`) to avoid cross-process
  * overwrite races during first-run bootstrap.

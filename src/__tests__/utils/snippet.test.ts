@@ -473,7 +473,7 @@ describe('getMeaningfulSnippet', () => {
     const text = `
       Navigation menu here.
 
-      The Firecrawl API provides powerful web scraping capabilities.
+      The Axon API provides powerful web scraping capabilities.
       You can extract data from websites efficiently.
       It supports various output formats.
 
