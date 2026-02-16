@@ -31,7 +31,6 @@ if [ -t 1 ]; then
   GREEN='\033[0;32m'
   RED='\033[0;31m'
   YELLOW='\033[1;33m'
-  BLUE='\033[0;36m'
   DIM='\033[2m'
   BOLD='\033[1m'
   NC='\033[0m' # No Color
@@ -39,7 +38,6 @@ else
   GREEN=''
   RED=''
   YELLOW=''
-  BLUE=''
   DIM=''
   BOLD=''
   NC=''
