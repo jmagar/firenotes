@@ -24,6 +24,7 @@ curl -fsSL https://raw.githubusercontent.com/jmagar/axon/main/scripts/install.sh
 - `--skip-docker` - Do not run Docker deployment
 - `--skip-links` - Skip CLI skill/command symlink setup
 - `--skip-port-check` - Skip host port conflict auto-adjustment
+- `--dry-run` - Print all planned actions without changing files, links, git state, or Docker state
 
 **What it does:**
 - Clones or updates the Axon repository

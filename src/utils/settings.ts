@@ -153,7 +153,13 @@ function writeSettingsFileAtomically(
       fs.unlinkSync(tempPath);
     } catch (unlinkError) {
       if ((unlinkError as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw unlinkError;
+        console.error(
+          `[Settings] Failed to clean up temp file ${tempPath}: ${
+            unlinkError instanceof Error
+              ? unlinkError.message
+              : String(unlinkError)
+          }`
+        );
       }
     }
     throw error;

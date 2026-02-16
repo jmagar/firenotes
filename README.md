@@ -23,6 +23,7 @@ Optional flags:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jmagar/axon/main/scripts/install.sh | bash -s -- --skip-docker
 curl -fsSL https://raw.githubusercontent.com/jmagar/axon/main/scripts/install.sh | bash -s -- --install-dir \"$HOME/src/axon\"
+curl -fsSL https://raw.githubusercontent.com/jmagar/axon/main/scripts/install.sh | bash -s -- --dry-run
 ```
 
 ### Claude Code Plugin

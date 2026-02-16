@@ -10,6 +10,7 @@ AXON_HOME_DEFAULT="${AXON_HOME:-$HOME/.axon}"
 SKIP_DOCKER=0
 SKIP_LINKS=0
 SKIP_PORT_CHECK=0
+DRY_RUN=0
 
 log() {
   printf '[%s] %s\n' "$SCRIPT_NAME" "$*"
@@ -37,12 +38,23 @@ Options:
   --skip-docker          Skip docker compose deployment
   --skip-links           Skip Claude/Codex/Gemini/Opencode symlink setup
   --skip-port-check      Skip host port conflict detection/auto-adjustment
+  --dry-run              Print planned actions without making changes
   -h, --help             Show this help
 
 Examples:
   curl -fsSL https://raw.githubusercontent.com/jmagar/axon/main/scripts/install.sh | bash
   AXON_INSTALL_DIR=\"$HOME/src/axon\" $SCRIPT_NAME
+  $SCRIPT_NAME --dry-run
 USAGE
+}
+
+run_cmd() {
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    log "[dry-run] $*"
+    return 0
+  fi
+
+  "$@"
 }
 
 command_exists() {
@@ -73,6 +85,10 @@ while [[ $# -gt 0 ]]; do
       SKIP_PORT_CHECK=1
       shift
       ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -96,19 +112,19 @@ if [[ -f "docker-compose.yaml" && -f "package.json" ]]; then
   log "Using existing Axon repo: $REPO_DIR"
 else
   REPO_DIR="$INSTALL_DIR"
-  mkdir -p "$(dirname "$REPO_DIR")"
+  run_cmd mkdir -p "$(dirname "$REPO_DIR")"
 
   if [[ -d "$REPO_DIR/.git" ]]; then
     log "Updating existing repo at $REPO_DIR"
-    git -C "$REPO_DIR" fetch --all --tags --prune
-    git -C "$REPO_DIR" pull --ff-only
+    run_cmd git -C "$REPO_DIR" fetch --all --tags --prune
+    run_cmd git -C "$REPO_DIR" pull --ff-only
   else
     if [[ -e "$REPO_DIR" && ! -d "$REPO_DIR" ]]; then
       die "Install path exists and is not a directory: $REPO_DIR"
     fi
     log "Cloning repo into $REPO_DIR"
-    rm -rf "$REPO_DIR"
-    git clone --depth 1 "$REPO_URL" "$REPO_DIR"
+    run_cmd rm -rf "$REPO_DIR"
+    run_cmd git clone --depth 1 "$REPO_URL" "$REPO_DIR"
   fi
 fi
 
@@ -116,14 +132,31 @@ cd "$REPO_DIR"
 
 [[ -f .env.example ]] || die "Missing .env.example in repo root"
 if [[ ! -f .env ]]; then
-  cp .env.example .env
+  run_cmd cp .env.example .env
   log "Created .env from .env.example"
+fi
+
+ENV_FILE=".env"
+if [[ ! -f "$ENV_FILE" && "$DRY_RUN" -eq 1 ]]; then
+  ENV_FILE=".env.example"
+  log "[dry-run] .env does not exist yet; reading defaults from .env.example"
 fi
 
 upsert_env() {
   local key="$1"
   local value="$2"
-  local file=".env"
+  local file="$ENV_FILE"
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    local current
+    current="$(grep -E "^${key}=" "$file" | tail -n1 | cut -d '=' -f2- || true)"
+    if [[ -z "$current" ]]; then
+      log "[dry-run] would add ${key}=${value}"
+    elif [[ "$current" != "$value" ]]; then
+      log "[dry-run] would update ${key} from '${current}' to '${value}'"
+    fi
+    return 0
+  fi
 
   awk -v k="$key" -v v="$value" '
     BEGIN { updated=0 }
@@ -147,7 +180,7 @@ get_env_or_default() {
   local key="$1"
   local default_value="$2"
   local value
-  value="$(grep -E "^${key}=" .env | tail -n1 | cut -d '=' -f2- || true)"
+  value="$(grep -E "^${key}=" "$ENV_FILE" | tail -n1 | cut -d '=' -f2- || true)"
   if [[ -z "$value" ]]; then
     printf '%s' "$default_value"
   else
@@ -211,14 +244,22 @@ configure_secrets() {
   if [[ "$api_key" == "" || "$api_key" == "local-dev" || "$api_key" == "changeme" ]]; then
     api_key="fc_$(random_hex 20)"
     upsert_env FIRECRAWL_API_KEY "$api_key"
-    log "Generated FIRECRAWL_API_KEY"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      log "[dry-run] would generate FIRECRAWL_API_KEY"
+    else
+      log "Generated FIRECRAWL_API_KEY"
+    fi
   fi
 
   webhook_secret="$(get_env_or_default AXON_EMBEDDER_WEBHOOK_SECRET "")"
   if [[ -z "$webhook_secret" || "$webhook_secret" == "whsec_change_me" ]]; then
     webhook_secret="whsec_$(random_hex 24)"
     upsert_env AXON_EMBEDDER_WEBHOOK_SECRET "$webhook_secret"
-    log "Generated AXON_EMBEDDER_WEBHOOK_SECRET"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      log "[dry-run] would generate AXON_EMBEDDER_WEBHOOK_SECRET"
+    else
+      log "Generated AXON_EMBEDDER_WEBHOOK_SECRET"
+    fi
   fi
 
   upsert_env AXON_HOME "$AXON_HOME_DEFAULT"
@@ -226,7 +267,12 @@ configure_secrets() {
 
 adjust_ports_if_needed() {
   local running_count
-  running_count="$(docker compose ps --services --status running 2>/dev/null | wc -l | tr -d ' ')"
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    running_count="0"
+    log "[dry-run] assuming no running Axon services for port reassignment check"
+  else
+    running_count="$(docker compose ps --services --status running 2>/dev/null | wc -l | tr -d ' ')"
+  fi
 
   if [[ "$running_count" != "0" ]]; then
     log "Detected running Axon services; skipping automatic port reassignment"
@@ -265,12 +311,12 @@ link_path() {
   local link="$2"
   local ts
 
-  mkdir -p "$(dirname "$link")"
+  run_cmd mkdir -p "$(dirname "$link")"
   if [[ -e "$link" && ! -L "$link" ]]; then
     ts="$(date +%Y%m%d%H%M%S)"
-    mv "$link" "${link}.bak.${ts}"
+    run_cmd mv "$link" "${link}.bak.${ts}"
   fi
-  ln -sfn "$target" "$link"
+  run_cmd ln -sfn "$target" "$link"
 }
 
 install_cli_links() {
@@ -305,9 +351,9 @@ fi
 
 if [[ "$SKIP_DOCKER" -eq 0 ]]; then
   log "Deploying Axon Docker stack"
-  docker compose pull --ignore-pull-failures
-  docker compose up -d --build
-  docker compose ps
+  run_cmd docker compose pull --ignore-pull-failures
+  run_cmd docker compose up -d --build
+  run_cmd docker compose ps
 fi
 
 log "Install complete"
