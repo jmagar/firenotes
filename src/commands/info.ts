@@ -295,7 +295,7 @@ export function createInfoCommand(): Command {
     )
     .option(
       '-c, --collection <name>',
-      'Qdrant collection name (default: axon)',
+      'Qdrant collection name (default: cortex)',
       'axon'
     )
     .option('-o, --output <file>', 'Write output to file (default: stdout)')

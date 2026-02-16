@@ -123,8 +123,13 @@ export TEI_URL=http://your-tei-server:52000
 export QDRANT_URL=http://localhost:53333
 
 # Optional: default AI model for ask command
-# Supported: opus, sonnet, haiku (claude) or gemini-3-pro-preview, gemini-3-flash-preview (gemini)
-export ASK_CLI=haiku
+# Examples: sonnet, opus, gemini-3-flash-preview, gemini-3-pro-preview
+export ASK_CLI=gemini-3-flash-preview
+
+# Optional: OpenAI-compatible fallback (used only if ASK_CLI is unset)
+# export OPENAI_BASE_URL=http://localhost:1234/v1
+# export OPENAI_API_KEY=your-key
+# export OPENAI_MODEL=gemini-3-flash-preview
 
 # Interactive (prompts automatically when needed)
 axon
@@ -522,7 +527,7 @@ By default, `crawl` runs a map preflight to estimate expected URL count and stor
 When a crawl later completes with very low discovery (below 10% of preflight map count), `axon crawl status <job-id>`
 automatically starts a `sitemap=only` retry once and shows the new retry job ID.
 
-For full guardrail behavior (including stale URL reconciliation and `--hard-sync`), see `docs/crawl-guardrails.md`.
+For full guardrail behavior (including stale URL reconciliation and `--hard-sync`), see `docs/CRAWL-GUARDRAILS.MD`.
 
 Use these flags to opt out:
 
@@ -766,7 +771,7 @@ axon embed cleanup
 | `-o, --output <path>` | Save to file                                            |
 
 Collection routing note:
-- URL embeds use the configured default collection (for example `firecrawl`).
+- URL embeds use the configured/default collection (resolved from `QDRANT_COLLECTION` when set).
 - File/stdin embeds default to the git repo-name collection (for example `axon`) unless `--collection` is set.
 
 #### Embed Subcommands
@@ -888,28 +893,39 @@ axon retrieve https://example.com -o document.md
 
 ### `ask` - Ask questions about your embedded documents
 
-Ask natural language questions about your embedded documents and get AI-powered answers. Automatically queries Qdrant, retrieves relevant documents, and uses Claude or Gemini CLI to generate responses.
+Ask natural language questions about your embedded documents and get AI-powered answers. `ask` queries Qdrant, builds a hybrid context (top full docs + supplemental chunks), and uses either:
+- configured CLI backend via `ASK_CLI`, or
+- OpenAI-compatible fallback via `OPENAI_BASE_URL` + `OPENAI_API_KEY` + `OPENAI_MODEL` when `ASK_CLI` is unset.
 
 Temporal intent is auto-scoped during retrieval: queries containing phrases like `today`, `yesterday`, `this week`, or `this month` automatically filter candidates by metadata timestamps (`file_modified_at` for local files, fallback to `scraped_at`).
 
 - `today` / `yesterday` are strict by default: if no scoped matches exist, `ask` fails with a clear scope-specific message.
 - `this week` / `this month` use a single fallback to unscoped retrieval when scoped candidates are empty.
-- Ask Sources always reports confidence diagnostics (`unique urls`, scoped/raw candidate counts, and whether fallback was used).
+- Source footer is compact by default; use `--diagnostics` for full retrieval/context diagnostics and full source list.
 
 ```bash
-# Basic usage (uses haiku by default)
+# Basic usage
 axon ask "How do I create a Claude Code skill?"
 
-# Limit number of documents retrieved
+# Limit relevant chunks
 axon ask "What is FastAPI?" --limit 5
 
-# Use a different Claude model
+# Control full-doc vs supplemental chunk context mix
+axon ask "What is FastAPI?" --full-docs 5 --backfill-chunks 3
+
+# Use a specific CLI model
 axon ask "Complex technical analysis needed" --model sonnet
 axon ask "Comprehensive review required" --model opus
 
 # Use Gemini instead of Claude
 axon ask "Explain this concept" --model gemini-3-flash-preview
 axon ask "In-depth research needed" --model gemini-3-pro-preview
+
+# Increase context cap for very large docs
+axon ask "Deep architecture review" --max-context 300000
+
+# Show expanded retrieval/context diagnostics and full source list
+axon ask "Deep architecture review" --diagnostics
 
 # Filter by domain
 axon ask "React hooks explanation" --domain react.dev
@@ -925,15 +941,24 @@ axon ask "Authentication best practices" --limit 10 --model sonnet --domain docs
 
 | Option                | Description                                                                 |
 | --------------------- | --------------------------------------------------------------------------- |
-| `--limit <n>`         | Maximum documents to retrieve (default: 10)                                 |
+| `--limit <n>`         | Maximum relevant chunks considered for context building (default: 10)       |
+| `--full-docs <n>`     | Number of top sources retrieved as full documents                            |
+| `--backfill-chunks <n>` | Supplemental chunks from non-full-doc URLs                                |
 | `--domain <domain>`   | Filter results by domain                                                    |
-| `--collection <name>` | Qdrant collection name (default: axon)                                 |
-| `--model <name>`      | AI model to use (see supported models below)                                |
+| `--collection <name>` | Qdrant collection name (defaults to resolved runtime collection)            |
+| `--model <name>`      | Explicit model/backend selector (overrides env)                             |
+| `--max-context <n>`   | Max prompt context size in characters (default: 250000)                     |
+| `--diagnostics`       | Expanded diagnostics + full source listing                                  |
 
-#### Supported Models
+#### Backend and Models
+
+Resolution order:
+1. `--model`
+2. `ASK_CLI`
+3. OpenAI-compatible fallback (`OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`)
 
 **Claude (via `claude` CLI):**
-- `haiku` - Fast, cost-effective (default)
+- `haiku` - Fast, cost-effective
 - `sonnet` - Balanced performance and intelligence
 - `opus` - Maximum capability for complex tasks
 
@@ -946,8 +971,13 @@ axon ask "Authentication best practices" --limit 10 --model sonnet --domain docs
 Set a default model via environment variable:
 
 ```bash
-# Ask command model default
+# Ask command CLI backend/model default
 export ASK_CLI=gemini-3-flash-preview
+
+# OpenAI-compatible fallback (used only when ASK_CLI is unset)
+export OPENAI_BASE_URL=http://localhost:1234/v1
+export OPENAI_API_KEY=your-key
+export OPENAI_MODEL=gemini-3-flash-preview
 ```
 
 Command-line `--model` flag always overrides `ASK_CLI`.
@@ -955,22 +985,23 @@ Command-line `--model` flag always overrides `ASK_CLI`.
 #### Requirements
 
 - **TEI and Qdrant**: Must be configured for semantic search (`TEI_URL` and `QDRANT_URL` environment variables)
-- **Claude CLI**: Install from Anthropic for Claude models
-- **Gemini CLI**: Install from Google for Gemini models
+- **CLI backend option**: Install Claude CLI and/or Gemini CLI when using `ASK_CLI`
+- **OpenAI-compatible option**: Configure `OPENAI_BASE_URL`, `OPENAI_API_KEY`, and `OPENAI_MODEL` when not using `ASK_CLI`
 - **Embedded content**: Must have previously scraped/crawled content with embeddings enabled
 
 #### How It Works
 
-1. **Query**: Performs semantic search in Qdrant for relevant documents
-2. **Retrieve**: Fetches full content from top matching documents
-3. **Format**: Builds context string with documents + your question
-4. **AI CLI**: Spawns `claude` or `gemini` CLI subprocess (auto-detected from model name)
-5. **Stream**: Real-time response output to stdout, sources to stderr
+1. **Query**: Performs semantic search in Qdrant for relevant chunks
+2. **Rerank**: Applies generic token-location weighting (URL/title/header/chunk)
+3. **Retrieve**: Fetches top full documents + supplemental chunks
+4. **Format**: Builds bounded context with source labels
+5. **Generate**: Uses configured CLI or OpenAI-compatible fallback
+6. **Stream**: Real-time response to stdout, diagnostics/sources to stderr
 
 #### Why CLI Subprocess?
 
-- **No API costs**: Uses your Claude Max or Gemini subscription
-- **Simple**: No API key management or SDK dependencies
+- **No direct API key management in CLI mode**: Uses your installed Claude/Gemini CLI tooling
+- **Flexible backend routing**: Can use CLI mode or OpenAI-compatible endpoint fallback
 - **Standard**: Same pattern as calling `git`, `docker`, or `npm`
 - **Maintained**: Officially supported by Anthropic/Google
 
@@ -1000,6 +1031,8 @@ axon ask "Security implications of this design" --model opus --limit 20
 
 - **stdout**: AI response only (clean, pipe-safe)
 - **stderr**: Progress messages, source citations, metadata
+- Ask output uses a conversation transition (`You:` / model speaker) and a compact `Ask Sources` footer by default.
+- Source footer shows a top source preview by default; use `--diagnostics` for full source list + extended retrieval metrics.
 
 This separation allows piping the AI response while still seeing progress:
 
@@ -1009,6 +1042,30 @@ axon ask "Code examples" | grep -A5 "function"
 
 # Save response, see progress in terminal
 axon ask "Documentation" > output.md
+```
+
+Example (abridged):
+
+```text
+◐ Searching for relevant documents...
+◐ Building context from 10 chunks (from 80 candidates), top 5 full docs...
+✓ Retrieved 5 full documents
+→ Asking Assistant via OpenAI-compatible endpoint (gemini-3-flash-preview)...
+✓ Context ready: docs 5 | chunks 3
+
+Conversation
+  You: how can i make codex automatically review prs ive pushed
+  Gemini:
+  ...assistant response...
+
+Ask Sources: "how can i make codex automatically review prs ive pushed"
+  Docs: 5 | Chunks: 3 | Sources: 8 | URLs: 8 | Candidates: 80 | Response Time: 7.60s
+  Filters: limit=10 | fullDocs=5 | backfillChunks=3
+  As of (ET): 14:13:29 | 02/16/2026
+
+  Ordering: Reranked | Raw: Vector Similarity
+  Rank  Raw   URL ... Title ...
+  ... 3 more sources (use --diagnostics to show all)
 ```
 
 ---
@@ -1211,7 +1268,7 @@ Set these environment variables (or add to `.env`):
 # TEI runs on remote GPU server - update with your TEI endpoint
 export TEI_URL=http://your-tei-server:52000     # Text Embeddings Inference server
 export QDRANT_URL=http://localhost:53333        # Qdrant vector database
-export QDRANT_COLLECTION=axon                    # optional, this is the default
+export QDRANT_COLLECTION=cortex                  # optional example override
 ```
 
 ### TEI Deployment Options

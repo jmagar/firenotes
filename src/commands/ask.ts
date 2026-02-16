@@ -1293,7 +1293,7 @@ export function createAskCommand(): Command {
       settings.ask.backfillChunks
     )
     .option('--domain <domain>', 'Filter results by domain')
-    .option('--collection <name>', 'Qdrant collection name (default: axon)')
+    .option('--collection <name>', 'Qdrant collection name (default: cortex)')
     .option(
       '--model <name>',
       'Model for CLI mode (e.g. opus/sonnet/haiku or gemini-3-*-preview). Backend precedence: --model, ASK_CLI, then OPENAI_BASE_URL + OPENAI_API_KEY + OPENAI_MODEL.'

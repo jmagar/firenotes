@@ -1,4 +1,3 @@
-cat docs/STYLE.md 
 # Output Style Guide
 
 **Status:** Canonical Source of Truth  
@@ -109,11 +108,11 @@ For volatile data (`logs`, `stats`, `resources`, `uptime`, discovery scans), inc
 
 Format:
 
-`As of (EST): HH:MM:SS | MM/DD/YYYY`
+`As of (ET): HH:MM:SS | MM/DD/YYYY`
 
 Example:
 
-`As of (EST): 14:42:10 | 02/13/2026`
+`As of (ET): 14:42:10 | 02/13/2026`
 
 ---
 

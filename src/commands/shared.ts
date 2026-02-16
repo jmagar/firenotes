@@ -59,7 +59,7 @@ export function resolveCollectionName(
   container: IContainer,
   collection?: string
 ): string {
-  const name = collection || container.config.qdrantCollection || 'axon';
+  const name = collection || container.config.qdrantCollection || 'cortex';
   return validateCollectionName(name);
 }
 
@@ -92,7 +92,7 @@ export function addDomainSourceFilterOptions(command: Command): Command {
 
 export function addVectorOutputOptions(command: Command): Command {
   return command
-    .option('--collection <name>', 'Qdrant collection name (default: axon)')
+    .option('--collection <name>', 'Qdrant collection name (default: cortex)')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as JSON', false);
 }

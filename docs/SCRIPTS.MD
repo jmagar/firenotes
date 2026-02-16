@@ -53,7 +53,7 @@ Extract all unique base URLs from the Qdrant vector database.
 **Options:**
 - `-o, --output FILE` - Output file path (default: `.cache/indexed-base-urls.txt`)
 - `-u, --qdrant-url URL` - Qdrant URL (default: `http://localhost:53333`)
-- `-c, --collection NAME` - Collection name (default: `axon`)
+- `-c, --collection NAME` - Collection name (default: `axon`, or `QDRANT_COLLECTION` if set)
 - `-b, --batch-size N` - Batch size for scrolling (default: `10000`)
 - `-q, --quiet` - Suppress progress messages
 - `-h, --help` - Show help message

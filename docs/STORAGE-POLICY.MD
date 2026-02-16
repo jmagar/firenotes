@@ -37,14 +37,14 @@ The embedder daemon also reads `<cwd>/.env`.
 
 On first read/write, the CLI migrates legacy files when found:
 
-- Credentials/settings from older platform-specific `axon-cli` config dirs.
+- Credentials/settings from older platform-specific `firecrawl-cli` config dirs.
 - Job history from old XDG/app-data locations and from legacy `<cwd>/.cache/job-history.json`.
-- Embed queue files from old `~/.config/axon-cli/embed-queue` (when queue dir override is not set).
+- Embed queue files from old `~/.config/firecrawl-cli/embed-queue` (when queue dir override is not set).
 
 ## Migration Status and Legacy Paths
 
 - Migration target is now complete: `AXON_HOME` (default `~/.axon`) is the canonical home for persistent CLI state.
 - Legacy directories are no longer active storage locations:
-  - `~/.config/axon-cli`
-  - `~/.local/share/axon-cli`
+  - `~/.config/firecrawl-cli`
+  - `~/.local/share/firecrawl-cli`
 - Embed queue location defaults to `<storageRoot>/embed-queue` unless `AXON_EMBEDDER_QUEUE_DIR` is set (relative paths resolve from the current working directory).

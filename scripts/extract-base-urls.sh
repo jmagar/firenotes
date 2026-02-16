@@ -9,7 +9,7 @@
 # Options:
 #   -o, --output FILE    Output file path (default: .cache/indexed-base-urls.txt)
 #   -u, --qdrant-url URL Qdrant URL (default: http://localhost:53333)
-#   -c, --collection NAME Collection name (default: firecrawl)
+#   -c, --collection NAME Collection name (default: cortex or $QDRANT_COLLECTION)
 #   -b, --batch-size N   Batch size for scrolling (default: 10000)
 #   -q, --quiet          Suppress progress messages
 #   -h, --help           Show this help message
@@ -23,7 +23,7 @@ set -euo pipefail
 
 # Default configuration
 QDRANT_URL="${QDRANT_URL:-http://localhost:53333}"
-COLLECTION="firecrawl"
+COLLECTION="${QDRANT_COLLECTION:-cortex}"
 BATCH_SIZE=10000
 OUTPUT_FILE=".cache/indexed-base-urls.txt"
 QUIET=false

@@ -535,7 +535,7 @@ export function createQueryCommand(): Command {
       'Show request timing and other useful information',
       false
     )
-    .option('--collection <name>', 'Qdrant collection name (default: axon)')
+    .option('--collection <name>', 'Qdrant collection name (default: cortex)')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('--json', 'Output as JSON format', false)
     .action(async (query: string, options, command: Command) => {

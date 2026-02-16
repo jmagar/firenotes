@@ -656,7 +656,7 @@ async function main() {
   } else {
     // Check single collection
     const collection =
-      specifiedCollection || process.env.QDRANT_COLLECTION || 'firecrawl';
+      specifiedCollection || process.env.QDRANT_COLLECTION || 'cortex';
     await checkCollection(collection, deleteDuplicates, deleteExcluded);
   }
 }

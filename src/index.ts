@@ -10,8 +10,12 @@ import { Command } from 'commander';
 import { config as loadDotenv } from 'dotenv';
 
 // Load the CLI project's .env by default for local/self-hosted workflows.
-// Set FIRECRAWL_CLI_DISABLE_LOCAL_ENV=1 to disable this behavior.
-if (process.env.FIRECRAWL_CLI_DISABLE_LOCAL_ENV !== '1') {
+// Set AXON_CLI_DISABLE_LOCAL_ENV=1 to disable this behavior.
+// Legacy FIRECRAWL_CLI_DISABLE_LOCAL_ENV is still honored for compatibility.
+if (
+  process.env.AXON_CLI_DISABLE_LOCAL_ENV !== '1' &&
+  process.env.FIRECRAWL_CLI_DISABLE_LOCAL_ENV !== '1'
+) {
   const envPath = resolve(__dirname, '..', '.env');
   loadDotenv({ path: envPath, quiet: true });
 }

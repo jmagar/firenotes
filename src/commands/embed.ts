@@ -417,7 +417,7 @@ export async function executeEmbed(
       options.collection ??
       (sourceType === 'url'
         ? undefined
-        : toCollectionName(localNamespace ?? 'axon'));
+        : toCollectionName(localNamespace ?? 'cortex'));
     const collection = resolveCollectionName(container, effectiveCollection);
 
     const trimmed = content.trim();
@@ -696,7 +696,7 @@ export function createEmbedCommand(): Command {
       '--source-id <id>',
       'Alias for --url; explicit source ID for metadata'
     )
-    .option('--collection <name>', 'Qdrant collection name (default: axon)')
+    .option('--collection <name>', 'Qdrant collection name (default: cortex)')
     .option(
       '--no-chunk',
       'Disable chunking, embed as single vector (default: false)',
