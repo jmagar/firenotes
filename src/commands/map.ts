@@ -12,6 +12,7 @@ import type {
 import type { IContainer, IHttpClient } from '../container/types';
 import type { MapOptions, MapResult } from '../types/map';
 import { processCommandResult } from '../utils/command';
+import { DEFAULT_API_URL } from '../utils/defaults';
 import { displayCommandInfo, formatHeaderBlock } from '../utils/display';
 import { extensionsToPaths } from '../utils/extensions';
 import { buildApiErrorMessage } from '../utils/network-error';
@@ -204,8 +205,6 @@ async function executeMapWithUserAgent(
   url: string,
   options: MapOptions
 ): Promise<MapResult> {
-  const isCloud =
-    apiUrl.includes('api.firecrawl.dev') || apiUrl.includes('api.axon.dev');
   const body: Record<string, unknown> = { url };
 
   if (options.limit !== undefined) {
@@ -264,9 +263,9 @@ async function executeMapWithUserAgent(
   const mapData = await response.json();
   let links = normalizeMapLinks(mapData.links || []);
 
-  // Self-hosted endpoints can return empty results via Node fetch/SDK
+  // Endpoints can sometimes return empty results via Node fetch/SDK
   // while returning valid data via curl. Retry with curl for parity.
-  if (!isCloud && links.length === 0) {
+  if (links.length === 0) {
     const curlLinks = await executeMapWithCurl(apiUrl, body);
     if (curlLinks.length > 0) {
       links = curlLinks;
@@ -366,22 +365,14 @@ export async function executeMap(
     if (userAgent) {
       // Prefer options.apiKey over container.config.apiKey
       const apiKey = options.apiKey || container.config.apiKey;
-      const apiUrl = container.config.apiUrl || 'https://api.firecrawl.dev';
-      const isCloud =
-        apiUrl.includes('api.firecrawl.dev') || apiUrl.includes('api.axon.dev');
-      if (isCloud && !apiKey) {
-        throw new Error(
-          'API key is required. Set FIRECRAWL_API_KEY environment variable, ' +
-            'use --api-key flag, or run "axon config" to set the API key.'
-        );
-      }
+      const apiUrl = container.config.apiUrl || DEFAULT_API_URL;
       const httpClient = container.getHttpClient();
 
       result = await executeMapWithUserAgent(
         httpClient,
         apiUrl,
         apiKey,
-        isCloud ? userAgent : undefined,
+        userAgent,
         urlOrJobId,
         options
       );

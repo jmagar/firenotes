@@ -9,7 +9,7 @@ import { type UserSettings, UserSettingsSchema } from '../schemas/storage';
 import { getAuthSource, isAuthenticated } from '../utils/auth';
 import { getConfigDirectoryPath } from '../utils/credentials';
 import { getDefaultSettings } from '../utils/default-settings';
-import { DEFAULT_QDRANT_COLLECTION } from '../utils/defaults';
+import { DEFAULT_API_URL, DEFAULT_QDRANT_COLLECTION } from '../utils/defaults';
 import {
   clearSetting,
   getSettings,
@@ -881,8 +881,8 @@ export function createConfigCommand(): Command {
     )
     .option(
       '--api-url <url>',
-      'API URL (default: https://api.firecrawl.dev)',
-      'https://api.firecrawl.dev'
+      `API URL (default: ${DEFAULT_API_URL})`,
+      DEFAULT_API_URL
     )
     .option('--json', 'Output configuration as JSON', false)
     .action(async (options) => {

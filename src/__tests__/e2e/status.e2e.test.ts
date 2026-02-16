@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_API_URL } from '../../utils/defaults';
 import { runCLI, runCLISuccess } from './helpers';
 
 describe('E2E: status flag', () => {
@@ -23,9 +24,9 @@ describe('E2E: status flag', () => {
       expect(result.stdout).toMatch(/v\d+\.\d+\.\d+/); // Match version pattern
     });
 
-    it('should display axon branding', async () => {
+    it('should display branded CLI header', async () => {
       const result = await runCLISuccess(['--status']);
-      expect(result.stdout).toContain('axon');
+      expect(result.stdout).toMatch(/cli v\d+\.\d+\.\d+/i);
     });
   });
 
@@ -74,7 +75,7 @@ describe('E2E: status flag', () => {
       });
 
       expect(result.stdout).toMatch(/API URL:/);
-      expect(result.stdout).toContain('https://api.axon.dev');
+      expect(result.stdout).toContain(DEFAULT_API_URL);
     });
 
     it('should display custom API URL when configured via env', async () => {

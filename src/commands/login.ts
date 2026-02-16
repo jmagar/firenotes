@@ -139,8 +139,8 @@ export function createLoginCommand(): Command {
     )
     .option(
       '--api-url <url>',
-      'API URL (default: https://api.firecrawl.dev)',
-      'https://api.firecrawl.dev'
+      `API URL (default: ${DEFAULT_API_URL})`,
+      DEFAULT_API_URL
     )
     .action(async (options) => {
       await handleLoginCommand({

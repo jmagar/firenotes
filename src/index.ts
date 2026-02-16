@@ -50,7 +50,6 @@ import {
 } from './container/ContainerFactory';
 import type { IContainer } from './container/types';
 import { ensureAuthenticated, printBanner } from './utils/auth';
-import { loadCredentials } from './utils/credentials';
 import { colorize, colors, fmt, icons, isTTY } from './utils/theme';
 import { isUrl, normalizeUrl } from './utils/url';
 
@@ -110,15 +109,6 @@ function handleShutdown(signal: string): void {
 process.on('SIGINT', () => handleShutdown('SIGINT'));
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 
-// Commands that require authentication
-const AUTH_REQUIRED_COMMANDS = [
-  'scrape',
-  'crawl',
-  'map',
-  'search',
-  'extract',
-  'batch',
-];
 const TOP_LEVEL_COMMANDS = new Set([
   'scrape',
   'crawl',
@@ -147,23 +137,6 @@ const TOP_LEVEL_COMMANDS = new Set([
   'completion',
   'help',
 ]);
-
-function isCloudApiUrl(apiUrl?: string): boolean {
-  if (!apiUrl) {
-    return true;
-  }
-  try {
-    const parsed = new URL(apiUrl);
-    return (
-      parsed.hostname === 'api.firecrawl.dev' ||
-      parsed.hostname === 'api.axon.dev'
-    );
-  } catch {
-    return (
-      apiUrl.includes('api.firecrawl.dev') || apiUrl.includes('api.axon.dev')
-    );
-  }
-}
 
 const program = new Command();
 function isTopLevelHelpInvocation(): boolean {
@@ -332,22 +305,8 @@ program
     actionCommand._container = commandContainer;
 
     // Check if this command requires authentication
-    const commandName = actionCommand.name();
-    const requiresCloudAuth =
-      AUTH_REQUIRED_COMMANDS.includes(commandName) &&
-      isCloudApiUrl(commandContainer.config.apiUrl);
-    if (requiresCloudAuth) {
-      // Ensure user is authenticated (prompts for login if needed)
-      const apiKey = await ensureAuthenticated(commandContainer.config.apiKey);
-      if (apiKey !== commandContainer.config.apiKey) {
-        const storedCredentials = loadCredentials();
-        commandContainer = createContainerWithOverride(commandContainer, {
-          apiKey,
-          apiUrl: storedCredentials?.apiUrl ?? commandContainer.config.apiUrl,
-        });
-        actionCommand._container = commandContainer;
-      }
-    }
+    // Commands will handle authentication errors from the API
+    // No need to enforce auth upfront - let the API return 401 if needed
   });
 
 // Add scrape command to main program
