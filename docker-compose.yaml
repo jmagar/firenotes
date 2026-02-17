@@ -92,11 +92,11 @@ services:
     <<: *common-service
     image: redis:alpine
     container_name: axon-redis
-    command: redis-server --bind 0.0.0.0 --port "${REDIS_PORT:-53379}" --appendonly yes
+    command: redis-server --bind 0.0.0.0 --appendonly yes
     volumes:
       - axon_redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "${REDIS_PORT:-53379}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 3

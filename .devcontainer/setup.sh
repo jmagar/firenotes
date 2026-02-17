@@ -28,6 +28,27 @@ QDRANT_URL=http://localhost:53333
 
 # Enable embeddings
 EMBEDDINGS_ENABLED=true
+
+# PostgreSQL Configuration
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=local-dev-password
+POSTGRES_DB=firecrawl
+POSTGRES_PORT=53432
+
+# Firecrawl Database Connection
+NUQ_DATABASE_URL=postgresql://postgres:local-dev-password@axon-postgres:53432/firecrawl
+
+# Redis/RabbitMQ (using standard ports internally)
+REDIS_URL=redis://axon-redis:6379
+NUQ_REDIS_URL=redis://axon-redis:6379
+REDIS_HOST=axon-redis
+REDIS_PORT=6379
+REDIS_RATE_LIMIT_BY_IP=10
+RABBITMQ_URL=amqp://axon-rabbitmq:5672
+NUQ_RABBITMQ_URL=amqp://axon-rabbitmq:5672
+
+# Playwright
+PLAYWRIGHT_URL=http://axon-playwright:53006
 EOF
 
 # Create TEI environment file for CPU mode
